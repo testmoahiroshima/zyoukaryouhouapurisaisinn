@@ -1,4 +1,5 @@
-import { prepare, analyze, planSession, findKenkai, normalize } from './engine.js';
+import { prepare, analyze, planSession, normalize } from './engine.js';
+import { Painter, LAYERS, REGIONS, BRUSHES, SHADES } from './paint.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
 const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'zenshu_terms'];
@@ -206,14 +207,19 @@ function principleCard(id) {
 }
 
 // ---- 岡田先生の見解（症状から） ----
-function noticeHTML() {
-  return `<p class="kenkai-notice">${esc(db.raw.kenkai.notice)}</p>`;
+function noticeHTML(disease = false) {
+  return `${disease ? `<div class="banner notice disease-notice">${esc(db.raw.kenkai.disease_notice)}</div>` : ''}<p class="kenkai-notice">${esc(db.raw.kenkai.notice)}</p>`;
+}
+function spiritualHTML(words) {
+  return words.length ? `<div class="banner notice">${esc(db.raw.kenkai.spiritual.message)}</div>` : '';
 }
 function kenkaiItemHTML(e, { open = true, link = false } = {}) {
   const pts = e.points.map((id) => db.pointById[id]).filter(Boolean);
   return `<details class="kenkai-item"${open ? ' open' : ''}>
-    <summary>${esc(e.label)}</summary>
+    <summary>${e.disease ? '<span class="dis-tag">病気</span>' : ''}${esc(e.label)}</summary>
+    ${e.disease ? '<p class="small dis-line">病気の診断・治療は医療機関で受けてください。以下は岡田先生の見解の紹介です。</p>' : ''}
     <p>${esc(e.view)}</p>
+    ${e.note ? `<div class="caution">${esc(e.note)}</div>` : ''}
     ${pts.length ? `<div class="small">見解で挙げられている箇所：${pts.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</div>` : '<div class="small muted">見解の中に施術箇所の記述はありません。重要施術部位（腎臓部）から探査してみましょう。</div>'}
     ${citesHTML(e)}
     ${link ? `<button type="button" class="ghost small-btn" data-kenkai-go="${esc(e.id)}">この症状で探査する箇所を見る →</button>` : ''}
@@ -253,7 +259,8 @@ function renderResult(r) {
   lastAnalysis = r;
   const out = [];
   for (const s of r.safety.filter((x) => x.level === 'urgent')) out.push(`<div class="banner urgent">${esc(s.message)}</div>`);
-  for (const s of r.safety.filter((x) => x.level !== 'urgent')) out.push(`<div class="banner notice">${esc(s.message)}</div>`);
+  const diseaseShown = !r.urgent && r.kenkai.some((e) => e.disease);
+  for (const s of r.safety.filter((x) => x.level !== 'urgent' && !(diseaseShown && x.id === 'disease'))) out.push(`<div class="banner notice">${esc(s.message)}</div>`);
 
   if (r.fallback) {
     out.push(`<div class="card">
@@ -271,11 +278,12 @@ function renderResult(r) {
   }
 
   // 岡田先生の見解
+  if (r.spiritual.length) out.push(spiritualHTML(r.spiritual));
   if (!r.fallback && !r.urgent) {
     const noView = r.categories.filter((c) => !c.kenkai.length);
     out.push(`<div class="card kenkai-card">
       <h2>岡田先生の見解</h2>
-      ${noticeHTML()}
+      ${noticeHTML(r.kenkai.some((e) => e.disease))}
       ${r.kenkai.map((e) => kenkaiItemHTML(e)).join('')}
       ${noView.map((c) => `<div class="k-item"><div class="k-title">${esc(c.label)}</div>
         <p class="small muted">この症状について、全集の中にまとまった見解は見当たりませんでした。下の毒素の流れと各論を参考にしてください。</p>
@@ -387,38 +395,97 @@ function setupToday() {
   });
 }
 
-// ---- 探査と施術（入力 → 時間配分 → タイマー） ----
-const session = { state: 'input', findings: {}, after: {}, showAll: false, plan: null, run: null };
-const FIELDS = [['heat', '熱'], ['kouketsu', '固結'], ['atsutsuu', '圧痛']];
+// ---- 探査と施術（塗って入力 → 時間配分 → タイマー） ----
+const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', region: null, painter: null, afterPainter: null };
 
-function segHTML(id, field, value, prefix = 'f') {
-  return `<div class="seg" role="group" aria-label="${field}">${[0, 1, 2, 3].map((v) =>
-    `<button type="button" class="seg-b" data-k="${prefix}" data-id="${id}" data-f="${field}" data-v="${v}" aria-pressed="${value === v}">${v}</button>`).join('')}</div>`;
+function newPainter() {
+  const { width, height, image } = db.raw.points.chart;
+  const img = new Image();
+  img.src = image;
+  return new Painter({ image: img, width, height });
 }
 
-function findingRow(p, f = {}, prefix = 'f') {
-  return `<li class="find-row">
-    <div class="find-head"><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${p.hint ? `<span class="role role-${p.hint}">${p.hint}</span>` : ''}</div>
-    <div class="find-fields">${FIELDS.map(([k, label]) => `<div class="ff"><span class="ff-l">${label}</span>${segHTML(p.id, k, f[k] || 0, prefix)}</div>`).join('')}</div>
-  </li>`;
+// 濃さ（0〜5）を色の帯で示す
+function shadeBars(f) {
+  return `<span class="shade-bars">${LAYERS.map((l) => {
+    const v = f?.[l.id] || 0;
+    return `<span class="sb" title="${l.name} ${v}"><span class="sb-l">${l.name.split('・')[0]}</span><span class="sb-track"><i style="width:${(v / SHADES) * 100}%;background:rgb(${l.rgb.join(',')})"></i></span></span>`;
+  }).join('')}</span>`;
+}
+
+// 塗りの道具と拡大図。painter に塗り、変わるたびに onChange を呼ぶ
+function painterHTML(prefix) {
+  return `
+    <div class="region-chips" role="group" aria-label="拡大する部位">${REGIONS.map((r) => `<button type="button" class="chip region-chip" data-${prefix}-region="${r.id}">${esc(r.name)}</button>`).join('')}</div>
+    <div class="paint-wrap" id="${prefix}-canvas"></div>
+    <div class="paint-tools">
+      <div class="tool-row" role="group" aria-label="塗るもの">${LAYERS.map((l) => `<button type="button" class="layer-b" data-${prefix}-layer="${l.id}" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name)}</button>`).join('')}</div>
+      <div class="tool-row" role="group" aria-label="濃さ">
+        <span class="tool-l">濃さ</span>${Array.from({ length: SHADES }, (_, i) => i + 1).map((v) => `<button type="button" class="shade-b" data-${prefix}-shade="${v}" aria-label="濃さ${v}"><i></i></button>`).join('')}
+      </div>
+      <div class="tool-row" role="group" aria-label="筆">
+        <span class="tool-l">筆</span>${BRUSHES.map((x) => `<button type="button" class="brush-b" data-${prefix}-brush="${x.id}"><i style="--s:${x.r * 2.4}px"></i>${x.name}</button>`).join('')}
+        <button type="button" class="brush-b" data-${prefix}-erase="1">消す</button>
+        <button type="button" class="mini" data-${prefix}-undo="1">戻す</button>
+      </div>
+    </div>`;
+}
+
+function wirePainter(root, prefix, painter, onChange) {
+  const mark = () => {
+    $$(`[data-${prefix}-region]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Region`] === painter.region.id)));
+    $$(`[data-${prefix}-layer]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Layer`] === painter.layer && !painter.erase)));
+    const rgb = LAYERS.find((l) => l.id === painter.layer).rgb.join(',');
+    $$(`[data-${prefix}-shade]`, root).forEach((b) => {
+      const v = Number(b.dataset[`${prefix}Shade`]);
+      b.style.setProperty('--c', `rgba(${rgb},${(v / SHADES) * 0.85})`);
+      b.setAttribute('aria-pressed', String(v === painter.shade));
+    });
+    $$(`[data-${prefix}-brush]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Brush`] === painter.brush)));
+    $(`[data-${prefix}-erase]`, root).setAttribute('aria-pressed', String(painter.erase));
+  };
+  const markers = db.pointList.map((p) => ({ no: p.no, xy: p.chart || [] }));
+  const show = (id) => { session.region = id; painter.mount($(`#${prefix}-canvas`, root), id, markers); mark(); };
+  painter.onChange = onChange;
+  $$(`[data-${prefix}-region]`, root).forEach((b) => b.addEventListener('click', () => show(b.dataset[`${prefix}Region`])));
+  $$(`[data-${prefix}-layer]`, root).forEach((b) => b.addEventListener('click', () => { painter.layer = b.dataset[`${prefix}Layer`]; painter.erase = false; mark(); }));
+  $$(`[data-${prefix}-shade]`, root).forEach((b) => b.addEventListener('click', () => { painter.shade = Number(b.dataset[`${prefix}Shade`]); painter.erase = false; mark(); }));
+  $$(`[data-${prefix}-brush]`, root).forEach((b) => b.addEventListener('click', () => { painter.brush = b.dataset[`${prefix}Brush`]; mark(); }));
+  $(`[data-${prefix}-erase]`, root).addEventListener('click', () => { painter.erase = !painter.erase; mark(); });
+  $(`[data-${prefix}-undo]`, root).addEventListener('click', () => painter.undo());
+  // 本日の症状で見つめる箇所が多い部位から始める
+  let start = session.region;
+  if (!start) {
+    const pts = (lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : []).map((p) => db.pointById[p.id]);
+    const score = (r) => pts.filter((p) => (p.chart || []).some(([x, y]) => x >= r.box[0] && x <= r.box[2] && y >= r.box[1] && y <= r.box[3])).length;
+    start = REGIONS.slice(0, 7).map((r) => [r.id, score(r)]).sort((x, y) => y[1] - x[1])[0][0];
+    if (!pts.length) start = 'back';
+  }
+  show(start);
+}
+
+function readoutHTML(findings, highlightIds = new Set()) {
+  const rows = db.pointList.filter((p) => findings[p.id]);
+  if (!rows.length) return '<p class="small muted">まだ塗られていません。探査で熱を感じた所を赤、固い所・張っている所を青、押して痛い所を紫で塗ってください。</p>';
+  return `<ul class="readout">${rows.map((p) => `<li${highlightIds.has(p.id) ? ' class="hl"' : ''}><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${shadeBars(findings[p.id])}</li>`).join('')}</ul>`;
 }
 
 function renderSessionInput() {
+  session.painter ||= newPainter();
+  const painter = session.painter;
   const suggested = lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : [];
-  const suggestedIds = new Set(suggested.map((p) => p.id));
-  const hintOf = (p) => (p.roles.includes('rakuya') ? '楽屋' : p.roles.includes('kakuron') ? '各論' : p.roles.includes('outlet') ? '出口' : '');
-  const main = suggested.length
-    ? suggested.map((p) => ({ ...db.pointById[p.id], hint: p.key ? '重点' : hintOf(p) }))
-    : db.pointList.filter((p) => !p.selfProbe);
-  const rest = db.pointList.filter((p) => !main.some((m) => m.id === p.id));
+  const sugIds = new Set(suggested.map((p) => p.id));
   $('#tab-session').innerHTML = `
     <div class="card">
-      <h2>探査の結果を入力</h2>
-      <p class="small">${suggested.length ? '本日の症状から見つめる箇所です。' : '本日の症状を入力すると、見つめる箇所がここに並びます。いまは基本の19か所です。'}探査して、熱・固結・圧痛を 0（なし）〜3（強い）で入れてください。</p>
-      <ul class="find-list">${main.map((p) => findingRow(p, session.findings[p.id])).join('')}</ul>
-      <details class="more"${session.showAll ? ' open' : ''}><summary>ほかの箇所も入力する（${rest.length}か所）</summary>
-        <ul class="find-list">${rest.map((p) => findingRow(p, session.findings[p.id])).join('')}</ul>
-      </details>
+      <h2>探査の結果を塗って入力</h2>
+      <p class="small">部位を選んで拡大し、指でなぞって塗ります。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。濃さは5段階で、薄い濃さで上からなぞれば薄く塗り直せます。</p>
+      ${suggested.length ? `<p class="small">本日の症状から見つめる箇所：${suggested.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</p>` : ''}
+      ${painterHTML('pb')}
+    </div>
+    <div class="card">
+      <h2>読み取った探査の結果</h2>
+      <p class="small muted">塗った濃さを、近くの探査箇所ごとに読み取ります（5段階）。</p>
+      <div id="readout">${readoutHTML(session.findings, sugIds)}</div>
     </div>
     <div class="card">
       <h2>施術にかける時間</h2>
@@ -428,18 +495,22 @@ function renderSessionInput() {
       <p id="plan-msg" class="small warn-text" hidden></p>
     </div>
     ${criteriaCard()}`;
-  wireSeg($('#tab-session'), session.findings, 'f');
-  $('details.more', $('#tab-session')).addEventListener('toggle', (e) => { session.showAll = e.target.open; });
+  const root = $('#tab-session');
+  wirePainter(root, 'pb', painter, () => {
+    session.findings = painter.sample(db.pointList);
+    $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
+  });
   $$('.time-chip').forEach((b) => b.addEventListener('click', () => {
     settings.minutes = Number(b.dataset.m);
     saveSettings();
     $$('.time-chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   $('#make-plan').addEventListener('click', () => {
-    const plan = planSession(db, session.findings, settings.minutes, lastAnalysis);
+    session.findings = painter.sample(db.pointList);
+    const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
     if (!plan.ok) {
       const m = $('#plan-msg');
-      m.textContent = plan.message;
+      m.textContent = '探査で熱・固結・圧痛を感じた所を、人体図に塗ってください。';
       m.hidden = false;
       return;
     }
@@ -450,27 +521,17 @@ function renderSessionInput() {
   });
 }
 
-function wireSeg(root, target, prefix) {
-  root.addEventListener('click', (e) => {
-    const b = e.target.closest(`.seg-b[data-k="${prefix}"]`);
-    if (!b) return;
-    const { id, f, v } = b.dataset;
-    (target[id] ||= { heat: 0, kouketsu: 0, atsutsuu: 0 })[f] = Number(v);
-    $$(`.seg-b[data-k="${prefix}"][data-id="${id}"][data-f="${f}"]`, root).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
-  });
-}
-
 function criteriaCard() {
   return `<details class="card criteria"><summary><h2>優先順位と時間配分の考え方</h2></summary>
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
-      <li><b>探査の結果</b>：熱を最も重く（熱は溶けて排泄に向かっている印）、固結・圧痛を加え、三つが一致する所（急所）をさらに重くする。</li>
+      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
       <li><b>重要施術部位</b>：腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。腎臓部に所見があれば必ず施術に入れる。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について全集で説かれた急所を重く。</li>
       <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、最低3分ずつ確保したうえで優先度に比例して配る。施術する箇所は時間8分あたり1か所（2〜5か所）。</li>
-      <li><b>順序</b>：頭→首→肩→背→腎臓部→腰（まず頭を清め、首・肩、次に腎臓部）。</li>
+      <li><b>順序</b>：上から下が基本（まず頭を清め、首・肩、背、腎臓部、腰へ）。テキストの探査順にも切り替えられる。</li>
     </ol>
     ${principleCard('jinzo_first')}${principleCard('netsu')}${principleCard('kotsuban')}${principleCard('jikan')}
   </details>`;
@@ -488,12 +549,17 @@ function renderSessionPlan() {
         ${plan.items.map((it) => `<span class="tl treat">${esc(it.name)} ${it.minutes}分</span>`).join('')}
         <span class="tl check">確認 ${plan.check}分</span>
       </div>
-      <p class="small muted">合計 <b id="plan-total">${plan.total}</b>分。順序は頭→首→肩→背→腎臓部→腰です。</p>
+      <div class="order-row" role="group" aria-label="施術の順序">
+        <span class="tool-l">順序</span>
+        <button type="button" class="chip order-chip" data-order="top" aria-pressed="${plan.order === 'top'}">上から下（基本）</button>
+        <button type="button" class="chip order-chip" data-order="text" aria-pressed="${plan.order === 'text'}">テキストの探査順</button>
+      </div>
+      <p class="small muted">合計 <b id="plan-total">${plan.total}</b>分。施術は上から下へ進めるのが基本です（まず頭を清め、首・肩、背、腎臓部、腰へ）。</p>
       <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item">
         <div class="plan-head"><span class="no">${it.no}</span><span class="name">${esc(it.name)}</span>
           <span class="mins"><button type="button" class="mini" data-adj="-1" data-i="${i}" aria-label="1分減らす">−</button><b>${it.minutes}</b>分<button type="button" class="mini" data-adj="1" data-i="${i}" aria-label="1分増やす">＋</button></span></div>
         <div class="bar"><i style="width:${Math.round((it.share / maxShare) * 100)}%"></i></div>
-        <div class="small">熱${it.finding.heat}・固結${it.finding.kouketsu}・圧痛${it.finding.atsutsuu}</div>
+        <div class="small">${shadeBars(it.finding)}</div>
         <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
       </li>`).join('')}</ol>
       ${plan.others.length ? `<p class="small muted">今回は外した箇所：${plan.others.map((o) => esc(o.name)).join('、')}（時間があれば続けて）</p>` : ''}
@@ -507,6 +573,14 @@ function renderSessionPlan() {
     const it = plan.items[Number(b.dataset.i)];
     it.minutes = Math.max(1, it.minutes + Number(b.dataset.adj));
     plan.total = plan.probe + plan.check + plan.items.reduce((s, x) => s + x.minutes, 0);
+    renderSessionPlan();
+  }));
+  $$('.order-chip').forEach((b) => b.addEventListener('click', () => {
+    session.order = b.dataset.order;
+    const keep = Object.fromEntries(plan.items.map((it) => [it.id, it.minutes]));
+    session.plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
+    for (const it of session.plan.items) if (keep[it.id]) it.minutes = keep[it.id];
+    session.plan.total = session.plan.probe + session.plan.check + session.plan.items.reduce((s, x) => s + x.minutes, 0);
     renderSessionPlan();
   }));
   $('#back-input').addEventListener('click', () => { session.state = 'input'; renderSession(); });
@@ -629,33 +703,52 @@ function renderRun() {
   wireMusicBar($('#tab-session'));
 }
 
+function compareHTML(items) {
+  const after = session.after;
+  return `<ul class="readout compare-list">${items.map((it) => {
+    const b = it.finding;
+    const f = after[it.id] || { heat: 0, kouketsu: 0, atsutsuu: 0 };
+    const diff = LAYERS.map((l) => {
+      const d = Math.round(((f[l.id] || 0) - (b[l.id] || 0)) * 10) / 10;
+      if (!d) return '';
+      return `<span class="diff ${d < 0 ? 'down' : 'up'}">${esc(l.name.split('・')[0])}${d < 0 ? '↓' : '↑'}</span>`;
+    }).join('');
+    return `<li><span class="no">${it.no}</span><span class="name">${esc(it.name)}</span>
+      <div class="cmp"><span class="cmp-l">前</span>${shadeBars(b)}</div>
+      <div class="cmp"><span class="cmp-l">後</span>${shadeBars(f)}</div>
+      <div class="small">${diff || '<span class="muted">変化なし</span>'}</div></li>`;
+  }).join('')}</ul>`;
+}
+
 function renderDone() {
   const items = session.plan.items;
+  session.afterPainter ||= newPainter();
+  const painter = session.afterPainter;
   $('#tab-session').innerHTML = `
     <div class="card">
       <h2>お疲れさまでした</h2>
-      <p>施術した箇所をもう一度探査して、変化を入れてみましょう。熱が冷めた分だけ苦痛は除れます。</p>
-      <ul class="find-list">${items.map((it) => findingRow(db.pointById[it.id], session.after[it.id] || it.finding, 'a')).join('')}</ul>
-      <div id="compare"></div>
+      <p>施術した箇所をもう一度探査して、今の熱・固結・圧痛を塗ってみましょう。熱が冷めたか、固結がゆるんだかを確かめます。</p>
+      ${painterHTML('pa')}
+    </div>
+    <div class="card">
+      <h2>施術の前と後</h2>
+      <div id="compare">${compareHTML(items)}</div>
       <div class="actions">
-        <button type="button" class="primary" id="compare-btn">変化を見る</button>
         <button type="button" class="ghost" id="new-session">はじめから</button>
       </div>
       <p class="small muted">施術後、溶けた毒素が胸や胃に降りる、反対側に痛みが出る（平均浄化）などの変化が起こることがあります。「用語」の施術後の変化も見てください。</p>
     </div>`;
-  for (const it of items) session.after[it.id] ||= { ...it.finding };
-  wireSeg($('#tab-session'), session.after, 'a');
-  $('#compare-btn').addEventListener('click', () => {
-    $('#compare').innerHTML = `<table class="routes compare"><tr><td></td><td>施術前 → 後</td></tr>${items.map((it) => {
-      const a = session.after[it.id];
-      const d = (k) => `${FIELDS.find((x) => x[0] === k)[1]} ${it.finding[k]}→${a[k]}${a[k] < it.finding[k] ? ' <b class="down">↓</b>' : ''}`;
-      return `<tr><td>${it.no}</td><td>${esc(it.name)}<div class="small">${d('heat')}　${d('kouketsu')}　${d('atsutsuu')}</div></td></tr>`;
-    }).join('')}</table>`;
+  const root = $('#tab-session');
+  wirePainter(root, 'pa', painter, () => {
+    session.after = painter.sample(db.pointList);
+    $('#compare').innerHTML = compareHTML(items);
   });
   $('#new-session').addEventListener('click', () => {
     session.findings = {};
     session.after = {};
     session.plan = null;
+    session.painter = null;
+    session.afterPainter = null;
     session.state = 'input';
     renderSession();
   });
@@ -820,17 +913,17 @@ function renderKenkaiTab() {
   const groups = db.raw.kenkai.groups;
   $('#tab-kenkai').innerHTML = `
     <div class="card">
-      <h2>症状から岡田先生の見解を調べる</h2>
+      <h2>症状・病気から岡田先生の見解を調べる</h2>
       ${noticeHTML()}
       <form id="kk-form" class="kk-form" autocomplete="off">
-        <input id="kk-q" type="search" placeholder="例：かゆみ、肩こり、眠れない" aria-label="症状">
+        <input id="kk-q" type="search" placeholder="例：かゆみ、肩こり、糖尿病" aria-label="症状・病名">
         <button type="submit" class="primary">調べる</button>
       </form>
-      <p class="small muted">病名ではなく、どこが・どのように辛いか（例：背中が張る、手足が冷える）で調べてください。</p>
+      <p class="small muted">症状（例：背中が張る、手足が冷える）でも、病名（例：糖尿病、喘息）でも調べられます。病名の付いた病気は、必ず医療機関で診断・治療を受けてください。</p>
     </div>
     <div id="kk-result" aria-live="polite"></div>
     <div class="card">
-      <h2>症状の一覧</h2>
+      <h2>症状・病気の一覧</h2>
       ${groups.map((g) => `<h3>${esc(g)}</h3>${db.kenkai.filter((e) => e.group === g).map((e) => kenkaiItemHTML(e, { open: false, link: true })).join('')}`).join('')}
     </div>`;
   wireKenkaiLinks($('#tab-kenkai'));
@@ -843,9 +936,11 @@ function renderKenkaiTab() {
     const nq = normalize(q);
     const hits = r.urgent ? [] : r.kenkai.slice();
     // 見出し（症状名）からも引く
-    for (const e of db.kenkai) if (!hits.includes(e) && !r.urgent && nq.length >= 2 && normalize(e.label).includes(nq)) hits.push(e);
-    const banners = r.safety.map((x) => `<div class="banner ${x.level === 'urgent' ? 'urgent' : 'notice'}">${esc(x.message)}</div>`).join('');
-    const blocked = r.urgent || r.safety.some((x) => x.id === 'disease');
+    for (const e of db.kenkai) if (!hits.some((h) => h.id === e.id) && !r.urgent && nq.length >= 2 && normalize(e.label).includes(nq)) hits.push(e);
+    // 病名の見解を出す時は、受診の注意を見解の欄にまとめる（重ねて出さない）
+    const dup = hits.some((e) => e.disease);
+    const banners = r.safety.filter((x) => !(dup && x.id === 'disease')).map((x) => `<div class="banner ${x.level === 'urgent' ? 'urgent' : 'notice'}">${esc(x.message)}</div>`).join('');
+    const blocked = r.urgent || r.spiritual.length > 0;
     let body = '';
     if (hits.length) {
       body = hits.map((e) => kenkaiItemHTML(e, { link: true })).join('');
@@ -855,7 +950,7 @@ function renderKenkaiTab() {
         ${r.categories.length ? `<p class="small">症状の流れでは「${r.categories.map((c) => esc(c.label)).join('」「')}」に当たります。<button type="button" class="ghost small-btn" id="kk-go-today">探査する箇所を見る →</button></p>` : '<p class="small">言い方を変えて（例：「頭が重い」「足がだるい」）調べてみてください。</p>'}
         ${termRefsHTML(words)}`;
     }
-    box.innerHTML = `${banners}${body ? `<div class="card kenkai-card">${body}</div>` : ''}`;
+    box.innerHTML = `${banners}${spiritualHTML(r.spiritual)}${body ? `<div class="card kenkai-card">${hits.some((e) => e.disease) ? noticeHTML(true) : ''}${body}</div>` : ''}`;
     wireKenkaiLinks(box);
     $('#kk-go-today', box)?.addEventListener('click', () => {
       showTab('today');

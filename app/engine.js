@@ -167,20 +167,35 @@ const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu'];
 const PELVIC_KENKAI = new Set(['hie', 'ashi', 'ashiura', 'oshiri', 'koshi', 'ji', 'fujin', 'seki', 'darui', 'mukumi', 'geri', 'benpi']);
 const KIDNEY = ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side'];
 
-// 症状別の見解（kenkai.json）を引く。selected に 'k:id' があれば、その見解を選んだものとする
+// 症状別・病気別の見解（kenkai.json）を引く。selected に 'k:id' があれば、その見解を選んだものとする。
+// 病名の見解を先に引き、病名に含まれる語（例：「糖尿病」の「尿」）は症状の見解に使わない
 export function findKenkai(db, text, selected = [], blockWords = []) {
   const norm = normalize(text);
-  const out = [];
-  for (const e of db.kenkai) {
-    const hits = norm ? findHits(norm, e._kw, [...e._ex, ...blockWords]) : [];
-    const chosen = selected.includes(`k:${e.id}`);
-    if (!hits.length && !chosen) continue;
-    out.push({ ...e, words: hits.sort((a, b) => a.index - b.index).map((h) => h.kw), firstIndex: hits.length ? Math.min(...hits.map((h) => h.index)) : -1 });
-  }
+  const pick = (entries, extraEx) => {
+    const out = [];
+    for (const e of entries) {
+      const hits = norm ? findHits(norm, e._kw, [...e._ex, ...extraEx]) : [];
+      const chosen = selected.includes(`k:${e.id}`);
+      if (!hits.length && !chosen) continue;
+      out.push({ ...e, words: hits.sort((a, b) => a.index - b.index).map((h) => h.kw), firstIndex: hits.length ? Math.min(...hits.map((h) => h.index)) : -1 });
+    }
+    return out;
+  };
+  const diseases = pick(db.kenkai.filter((e) => e.disease), blockWords);
+  const diseaseWords = diseases.flatMap((e) => e.words);
+  const symptoms = pick(db.kenkai.filter((e) => !e.disease), [...blockWords, ...diseaseWords]);
+  let out = [...diseases, ...symptoms];
   // 「痛み（全般）」のような広い見解は、ほかに当てはまる見解が無い時だけ出す
   const specific = out.filter((e) => !e.fallback_only);
-  if (specific.length) out.splice(0, out.length, ...specific);
+  if (specific.length) out = specific;
   return out.sort((a, b) => (a.firstIndex < 0) - (b.firstIndex < 0) || a.firstIndex - b.firstIndex);
+}
+
+// 全集で霊的な原因と結びつけられている病気（見解を載せない）
+export function findSpiritual(db, text) {
+  const sp = db.raw.kenkai?.spiritual;
+  if (!sp) return [];
+  return findHits(normalize(text), sp.keywords.map(normalize), (sp.exclude || []).map(normalize)).map((h) => h.kw);
 }
 
 function detectSide(norm) {
@@ -201,11 +216,13 @@ export function analyze(db, text, selected = []) {
     const hits = findHits(norm, rule._kw, rule._ex);
     if (hits.length) safety.push({ id: rule.id, level: rule.level, message: rule.message, words: hits.map((h) => h.kw), blockSymptoms: !!rule.block_symptoms });
   }
-  // 病名として検出した語は症状の照合に使わない（例：「糖尿病」の「尿」）
+  // 病名・急を要する語は症状カテゴリの照合に使わない（例：「糖尿病」の「尿」）
   const blockWords = safety.filter((s) => s.blockSymptoms).flatMap((s) => s.words);
+  const urgentWords = safety.filter((s) => s.level === 'urgent').flatMap((s) => s.words);
+  const spiritual = findSpiritual(db, text);
 
   const matched = [];
-  for (const cat of db.categories) {
+  for (const cat of spiritual.length ? [] : db.categories) {
     const hits = norm ? findHits(norm, cat._kw, [...cat._ex, ...blockWords]) : [];
     const chosen = selected.includes(cat.id);
     if (!hits.length && !chosen) continue;
@@ -229,7 +246,8 @@ export function analyze(db, text, selected = []) {
     });
   }
   // 症状別の見解：つながる症状カテゴリがあればそこに添え、無ければ見解そのものを一つの症状として扱う
-  const kenkai = findKenkai(db, text, selected, blockWords);
+  // 霊的な原因と結びつけられた病名を含む時は、見解・探査箇所を出さず受診の案内だけにする
+  const kenkai = spiritual.length ? [] : findKenkai(db, text, selected, urgentWords);
   for (const m of matched) {
     m.kenkai = kenkai.filter((e) => e.categories.includes(m.id));
     if (m.chosen && !m.words.length && !m.kenkai.length) m.kenkai = db.kenkai.filter((e) => e.categories[0] === m.id);
@@ -322,6 +340,8 @@ export function analyze(db, text, selected = []) {
     fallback,
     pelvic: matched.some((m) => m.pelvic),
     urgent: safety.some((s) => s.level === 'urgent'),
+    spiritual,
+    disease: kenkai.some((e) => e.disease) || safety.some((s) => s.id === 'disease') || spiritual.length > 0,
   };
 }
 
@@ -336,19 +356,35 @@ const REGION_FACTOR = {
   shoulder: { f: 1.2, why: '重要施術部位：肩（肩の硬軟は健康の目安）', ref: 'kata_gauge' },
 };
 
+// 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加え、重なる所（急所）をさらに重くする
 export function findingScore(f) {
   if (!f) return 0;
-  const h = f.heat || 0;
-  const k = f.kouketsu || 0;
-  const a = f.atsutsuu || 0;
-  return 1.5 * h + k + a + (h && k && a ? 2 : 0);
+  const h = (f.heat || 0) * 0.6;
+  const k = (f.kouketsu || 0) * 0.6;
+  const a = (f.atsutsuu || 0) * 0.6;
+  return 1.5 * h + k + a + (h && k ? 1 : 0) + (h && k && a ? 1 : 0);
 }
 
-export function planSession(db, findings, total, analysis = null) {
+// 施術の順序。既定は体の上から下（背面図での高さ順）、'text' はテキストの探査順
+export function orderPoints(db, items, order = 'top') {
+  const key = (it) => {
+    const p = db.pointById[it.id];
+    if (order === 'text') return [p.no, 0];
+    const a = p.anchor || (p.chart || [[0, 0]])[0];
+    return [a[1], p.no];
+  };
+  return items.slice().sort((x, y) => {
+    const [a1, a2] = key(x);
+    const [b1, b2] = key(y);
+    return a1 - b1 || a2 - b2;
+  });
+}
+
+export function planSession(db, findings, total, analysis = null, { order = 'top' } = {}) {
   const roleOf = Object.fromEntries((analysis?.points || []).map((p) => [p.id, p]));
   const hasAnalysis = !!analysis && !analysis.fallback;
   const lowerCongested = OUTLET_POINTS.concat(['jinzo_kahou', 'jinzo_kahou_side'])
-    .some((id) => (findings[id]?.kouketsu || 0) >= 2);
+    .some((id) => (findings[id]?.kouketsu || 0) >= 3);
 
   const cands = [];
   for (const [id, f] of Object.entries(findings)) {
@@ -360,7 +396,8 @@ export function planSession(db, findings, total, analysis = null) {
     const h = f.heat || 0;
     const k = f.kouketsu || 0;
     const a = f.atsutsuu || 0;
-    if (h && k && a) reasons.push({ text: '熱・固結・圧痛の一致点（急所）', ref: 'netsu' });
+    if (h && k && a) reasons.push({ text: '熱・固結・圧痛が重なる所（急所）', ref: 'netsu' });
+    else if (h && k) reasons.push({ text: '熱と固結が重なる所', ref: 'netsu' });
     else if (h) reasons.push({ text: '熱がある＝溶けて排泄に向かっている（第二浄化作用）', ref: 'netsu' });
     // 1. 重要施術部位
     const rf = REGION_FACTOR[p.region];
@@ -407,8 +444,8 @@ export function planSession(db, findings, total, analysis = null) {
   raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { mins[i]++; left--; } });
 
   const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: c.P / sumP }));
-  // 施術の順序：頭→首→肩→背→腎臓→腰（まず頭を清め、首・肩、次に腎臓部）
-  const order = items.slice().sort((a, b) => a.no - b.no);
+  // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）
+  const ordered = orderPoints(db, items, order);
   const others = cands.filter((c) => !chosen.includes(c));
-  return { ok: true, total: probe + check + order.reduce((s, c) => s + c.minutes, 0), probe, check, items: order, others };
+  return { ok: true, order, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
 }

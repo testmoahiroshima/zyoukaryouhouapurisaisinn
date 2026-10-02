@@ -396,3 +396,44 @@ select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid 
 .kk-form { display: flex; gap: 8px; margin-top: 8px; }
 .kk-form input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); }
 .kk-form button { flex: none; }
+
+/* 病気の見解 */
+.dis-tag { display: inline-block; font-size: .7rem; padding: 0 6px; margin-right: 6px; border-radius: 4px; background: var(--warn-line); color: #fff; vertical-align: 1px; }
+.dis-line { color: var(--point-key); margin: 4px 0; }
+.disease-notice { font-size: .85rem; }
+
+/* 塗って入力 */
+.region-chips { display: flex; flex-wrap: wrap; margin: 6px 0 4px; }
+.region-chip { font-size: .8rem; padding: 3px 10px; }
+.paint-wrap { margin: 6px 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+.paint-canvas { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; }
+.paint-tools { display: grid; gap: 8px; margin-top: 6px; }
+.tool-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tool-l { font-size: .8rem; color: var(--muted); min-width: 2.5em; }
+.layer-b, .brush-b { font: inherit; font-size: .85rem; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
+.layer-b i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.layer-b[aria-pressed="true"] { border-color: var(--c); box-shadow: 0 0 0 2px var(--c) inset; font-weight: 700; }
+.brush-b i { display: inline-block; width: var(--s); height: var(--s); min-width: 4px; min-height: 4px; border-radius: 50%; background: var(--text); }
+.brush-b[aria-pressed="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.brush-b[aria-pressed="true"] i { background: var(--surface); }
+.shade-b { width: 34px; height: 34px; padding: 0; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; display: grid; place-items: center; }
+.shade-b i { width: 26px; height: 26px; border-radius: 6px; background: var(--c); }
+.shade-b[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--text); }
+.c-heat { color: rgb(214,48,36); } .c-kou { color: rgb(36,92,214); } .c-atsu { color: rgb(146,58,190); }
+.readout { list-style: none; padding: 0; margin: 6px 0 0; }
+.readout li { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.readout li:first-child { border-top: 0; }
+.readout li.hl .name { color: var(--point-key); }
+.readout .name { font-weight: 700; font-size: .9rem; }
+.readout .shade-bars, .readout .cmp, .readout > li > .small { grid-column: 1 / -1; }
+.shade-bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sb { display: flex; align-items: center; gap: 4px; font-size: .72rem; color: var(--muted); }
+.sb-l { flex: none; }
+.sb-track { flex: 1; height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.sb-track i { display: block; height: 100%; border-radius: 4px; }
+.cmp { display: grid; grid-template-columns: 1.6em 1fr; align-items: center; }
+.cmp-l { font-size: .75rem; color: var(--muted); }
+.diff { display: inline-block; font-size: .75rem; padding: 0 6px; margin-right: 4px; border-radius: 4px; border: 1px solid var(--line); }
+.diff.down { color: var(--accent); border-color: var(--accent); }
+.diff.up { color: var(--point-key); border-color: var(--point-key); }
+.order-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-top: 6px; }
