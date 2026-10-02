@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>浄化療法 実践サポート</title>
+<meta name="description" content="岡田式浄化療法 3級講座の受講者が、本日の症状から探査して見つめる箇所を確かめるためのアプリ">
+<meta name="theme-color" content="#3f6b4f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app/style.css">
+</head>
+<body>
+<header class="top">
+  <h1>浄化療法 実践サポート</h1>
+  <p class="sub">岡田式浄化療法 3級講座</p>
+</header>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="today" aria-selected="true">本日の症状</button>
+  <button role="tab" data-tab="points" aria-selected="false">探査19か所</button>
+  <button role="tab" data-tab="learn" aria-selected="false">流れと用語</button>
+</nav>
+
+<main>
+  <section id="tab-today" class="tab-panel">
+    <form id="symptom-form" class="card input-card" autocomplete="off">
+      <label for="symptom-text" class="field-label">本日の症状を入力してください</label>
+      <textarea id="symptom-text" rows="3" placeholder="例：朝から頭が重く、肩が張っている"></textarea>
+      <details class="chips-box">
+        <summary>症状を候補から選ぶ</summary>
+        <div id="chips"></div>
+      </details>
+      <div class="actions">
+        <button type="submit" class="primary">探査する箇所を確かめる</button>
+        <button type="button" id="clear-btn" class="ghost">クリア</button>
+      </div>
+    </form>
+    <div id="result" aria-live="polite"></div>
+  </section>
+
+  <section id="tab-points" class="tab-panel" hidden></section>
+  <section id="tab-learn" class="tab-panel" hidden></section>
+
+  <p id="always-note" class="always-note"></p>
+</main>
+
+<div id="load-error" class="card warn" hidden>データを読み込めませんでした。GitHub Pages など Web サーバー上で開いてください。</div>
+
+<script type="module" src="app/app.js"></script>
+</body>
+</html>

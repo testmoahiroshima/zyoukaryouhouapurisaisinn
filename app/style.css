@@ -1,0 +1,237 @@
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-2: #eef2ec;
+  --text: #22302a;
+  --muted: #5d6b63;
+  --line: #d9dfd6;
+  --accent: #3f6b4f;
+  --accent-soft: #dfeadf;
+  --point: #c8553d;
+  --point-key: #9c2f1c;
+  --point-dim: #b9c1bb;
+  --rakuya: #2f5d8a;
+  --warn-bg: #fff4dc;
+  --warn-line: #e3b24d;
+  --urgent-bg: #fde5e1;
+  --urgent-line: #c8553d;
+  --radius: 12px;
+  --font: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --font-head: "Noto Serif JP", "Hiragino Mincho ProN", "Yu Mincho", serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161b18;
+    --surface: #1f2622;
+    --surface-2: #26302a;
+    --text: #e6ece7;
+    --muted: #a3b0a8;
+    --line: #34403a;
+    --accent: #8fc09f;
+    --accent-soft: #2b3a30;
+    --point: #f08a6e;
+    --point-key: #ffb39c;
+    --point-dim: #56615a;
+    --rakuya: #8ab8e6;
+    --warn-bg: #3a3120;
+    --warn-line: #a88633;
+    --urgent-bg: #3d2420;
+    --urgent-line: #f08a6e;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #161b18;
+  --surface: #1f2622;
+  --surface-2: #26302a;
+  --text: #e6ece7;
+  --muted: #a3b0a8;
+  --line: #34403a;
+  --accent: #8fc09f;
+  --accent-soft: #2b3a30;
+  --point: #f08a6e;
+  --point-key: #ffb39c;
+  --point-dim: #56615a;
+  --rakuya: #8ab8e6;
+  --warn-bg: #3a3120;
+  --warn-line: #a88633;
+  --urgent-bg: #3d2420;
+  --urgent-line: #f08a6e;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.7;
+  font-feature-settings: "palt" 0;
+}
+h1, h2, h3 { font-family: var(--font-head); font-weight: 600; line-height: 1.4; }
+
+.top {
+  padding: 18px 16px 10px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+.top h1 { margin: 0; font-size: 1.35rem; color: var(--accent); }
+.top .sub { margin: 2px 0 0; color: var(--muted); font-size: .85rem; }
+
+.tabs {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; gap: 4px;
+  max-width: 720px; margin: 0 auto;
+  padding: 6px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+.tabs button {
+  flex: 1;
+  font: inherit; font-size: .9rem;
+  padding: 8px 4px;
+  border: 0; border-radius: 999px;
+  background: transparent; color: var(--muted);
+  cursor: pointer;
+}
+.tabs button[aria-selected="true"] { background: var(--accent); color: var(--surface); font-weight: 700; }
+
+#result { scroll-margin-top: 64px; }
+main { max-width: 720px; margin: 0 auto; padding: 12px 16px 40px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin: 0 0 14px;
+}
+.card h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.card h3 { margin: 14px 0 6px; font-size: 1rem; }
+.muted { color: var(--muted); }
+.small { font-size: .85rem; }
+
+.field-label { display: block; font-weight: 700; margin-bottom: 6px; }
+textarea {
+  width: 100%;
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--text);
+  resize: vertical;
+}
+textarea:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.chips-box { margin-top: 10px; }
+.chips-box summary { cursor: pointer; color: var(--accent); font-size: .9rem; }
+.chip-group { margin-top: 8px; }
+.chip-group h4 { margin: 6px 0 4px; font-size: .8rem; color: var(--muted); font-weight: 500; }
+.chip {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit; font-size: .85rem;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--surface); }
+.tag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  font-size: .85rem;
+}
+
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+button.primary, button.ghost {
+  font: inherit; font-weight: 700;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+button.primary { flex: 1; border: 0; background: var(--accent); color: var(--surface); }
+button.ghost { border: 1px solid var(--line); background: transparent; color: var(--muted); font-weight: 500; }
+
+.banner { border-radius: var(--radius); padding: 12px 14px; margin: 0 0 12px; border: 1px solid; }
+.banner.urgent { background: var(--urgent-bg); border-color: var(--urgent-line); font-weight: 700; }
+.banner.notice, .card.warn { background: var(--warn-bg); border-color: var(--warn-line); }
+
+/* 人体図 */
+.chart { position: relative; width: 100%; max-width: 460px; margin: 0 auto; }
+.chart img { display: block; width: 100%; height: auto; border-radius: 8px; background: #fff; }
+.chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chart .pt circle { fill: var(--point-dim); stroke: #fff; stroke-width: 1; opacity: .75; }
+.chart .pt text { font-size: 8.5px; font-weight: 700; fill: #fff; text-anchor: middle; dominant-baseline: central; pointer-events: none; font-family: var(--font); }
+.chart .pt.on circle { fill: var(--point); opacity: 1; }
+.chart .pt.self circle { fill: var(--rakuya); opacity: .85; }
+.chart .pt.key circle { fill: var(--point-key); stroke: #ffd36b; stroke-width: 1.6; }
+.chart .pt.sel circle { stroke: #ffd36b; stroke-width: 2.2; }
+.chart .pt { cursor: pointer; }
+.chart-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; justify-content: center; margin-top: 8px; font-size: .8rem; color: var(--muted); }
+.chart-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+/* 探査箇所の一覧 */
+.point-list { list-style: none; padding: 0; margin: 8px 0 0; }
+.point-list li {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.point-list li:first-child { border-top: 0; }
+.no {
+  flex: none;
+  display: inline-grid; place-items: center;
+  width: 1.7em; height: 1.7em;
+  border-radius: 50%;
+  background: var(--point); color: #fff;
+  font-size: .8rem; font-weight: 700;
+}
+.no.key { background: var(--point-key); box-shadow: 0 0 0 2px #ffd36b; }
+.no.dim { background: var(--point-dim); }
+.point-list .name { font-weight: 700; }
+.point-list .region { color: var(--muted); font-size: .8rem; margin-left: 4px; }
+.badge { font-size: .7rem; padding: 1px 6px; border-radius: 4px; background: var(--point-key); color: #fff; margin-left: 6px; vertical-align: 1px; }
+.point-list .detail { font-size: .85rem; color: var(--muted); }
+
+/* 楽屋と舞台 */
+.route { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 6px 0; }
+.route .node { padding: 2px 8px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--line); font-size: .85rem; }
+.route .node.rakuya { border-color: var(--rakuya); color: var(--rakuya); font-weight: 700; }
+.route .node.butai { border-color: var(--point); color: var(--point); font-weight: 700; }
+.route .arrow { color: var(--muted); font-size: .8rem; }
+.basis { margin: 6px 0; padding-left: 10px; border-left: 3px solid var(--accent-soft); }
+.cite { font-size: .8rem; color: var(--muted); }
+.flow-block { padding: 10px 0; border-top: 1px dashed var(--line); }
+.flow-block:first-of-type { border-top: 0; }
+.flow-title { font-weight: 700; }
+.src-label { display: inline-block; font-size: .7rem; padding: 0 6px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted); margin-right: 6px; }
+
+details.zenshu { margin-top: 6px; font-size: .85rem; }
+details.zenshu summary { cursor: pointer; color: var(--accent); }
+details.zenshu ul { margin: 6px 0 0; padding-left: 1.2em; }
+
+.steps { margin: 0; padding-left: 1.3em; }
+.steps li { margin: 4px 0; }
+.caution { font-size: .85rem; background: var(--warn-bg); border-radius: 8px; padding: 6px 10px; margin: 6px 0; }
+
+.always-note { font-size: .8rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; margin-top: 24px; }
+
+table.routes { width: 100%; border-collapse: collapse; font-size: .85rem; }
+table.routes td { border-top: 1px solid var(--line); padding: 6px 4px; vertical-align: top; }
+table.routes td:first-child { width: 2.2em; color: var(--muted); text-align: right; padding-right: 8px; }
+dl.terms dt { font-weight: 700; margin-top: 10px; }
+dl.terms dd { margin: 2px 0 0; }
+
+.point-info { min-height: 3em; margin-top: 10px; }
+
+@media (min-width: 640px) {
+  .top h1 { font-size: 1.6rem; }
+}
