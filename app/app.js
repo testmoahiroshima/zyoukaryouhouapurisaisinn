@@ -1,5 +1,6 @@
 import { prepare, analyze, planSession, normalize } from './engine.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES } from './paint.js';
+import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
 const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'zenshu_terms'];
@@ -396,7 +397,7 @@ function setupToday() {
 }
 
 // ---- 探査と施術（塗って入力 → 時間配分 → タイマー） ----
-const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', region: null, painter: null, afterPainter: null };
+const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', region: null, painter: null, afterPainter: null, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
 
 function newPainter() {
   const { width, height, image } = db.raw.points.chart;
@@ -537,6 +538,29 @@ function criteriaCard() {
   </details>`;
 }
 
+function receiverHTML() {
+  const codes = [...new Set(loadRecords().map((r) => r.receiver_code))].sort();
+  return `<label class="row rec-row">受け手コード
+      <input id="rec-code" list="rec-codes" value="${esc(session.receiver)}" placeholder="例：A-01" maxlength="20" autocomplete="off">
+      <datalist id="rec-codes">${codes.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
+    </label>
+    <p class="small muted">氏名は入れず、受け手ごとの記号で記録します（自分自身なら「自分」など）。記録はこの端末の中にだけ保存されます。</p>`;
+}
+function ratingHTML(key, label, value) {
+  return `<label class="rating"><span>${label}</span>
+      <input type="range" min="0" max="10" step="1" value="${value}" data-rating="${key}" aria-label="${label}（0〜10）">
+      <b data-rating-v="${key}">${value}</b></label>
+    <div class="rating-scale small muted"><span>0 なし</span><span>10 とてもつらい</span></div>`;
+}
+function wireRecordInputs(root) {
+  $('#rec-code', root)?.addEventListener('input', (e) => { session.receiver = e.target.value.trim(); store.set('joka.lastReceiver', session.receiver); });
+  $$('[data-rating]', root).forEach((r) => r.addEventListener('input', () => {
+    const v = Number(r.value);
+    if (r.dataset.rating === 'before') session.ratingBefore = v; else session.ratingAfter = v;
+    $(`[data-rating-v="${r.dataset.rating}"]`, root).textContent = v;
+  }));
+}
+
 function renderSessionPlan() {
   const plan = session.plan;
   const ref = (r) => (r.ref && db.principleById[r.ref] ? ` <span class="ref">${esc(db.principleById[r.ref].cites.map(citeText)[0] || '')}</span>` : '');
@@ -563,12 +587,18 @@ function renderSessionPlan() {
         <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
       </li>`).join('')}</ol>
       ${plan.others.length ? `<p class="small muted">今回は外した箇所：${plan.others.map((o) => esc(o.name)).join('、')}（時間があれば続けて）</p>` : ''}
+    </div>
+    <div class="card">
+      <h2>記録の準備</h2>
+      ${receiverHTML()}
+      ${ratingHTML('before', '施術前のつらさ', session.ratingBefore)}
       <div class="actions">
         <button type="button" class="primary" id="start-run">施術を始める</button>
         <button type="button" class="ghost" id="back-input">入力に戻る</button>
       </div>
     </div>
     ${criteriaCard()}`;
+  wireRecordInputs($('#tab-session'));
   $$('.mini[data-adj]').forEach((b) => b.addEventListener('click', () => {
     const it = plan.items[Number(b.dataset.i)];
     it.minutes = Math.max(1, it.minutes + Number(b.dataset.adj));
@@ -733,9 +763,22 @@ function renderDone() {
     <div class="card">
       <h2>施術の前と後</h2>
       <div id="compare">${compareHTML(items)}</div>
+    </div>
+    <div class="card">
+      <h2>記録する</h2>
+      ${receiverHTML()}
+      ${ratingHTML('after', '施術後のつらさ', session.ratingAfter)}
+      <p class="small">施術前のつらさ：${session.ratingBefore}</p>
+      <fieldset class="changes"><legend class="small">施術中・施術後に起きた変化</legend>
+        ${db.raw.changes.patterns.map((c) => `<label><input type="checkbox" data-change="${esc(c.id)}" ${session.changes.includes(c.id) ? 'checked' : ''}> ${esc(c.trigger.split('（')[0])}</label>`).join('')}
+      </fieldset>
+      <label class="field-label small" for="rec-memo">メモ</label>
+      <textarea id="rec-memo" rows="2" placeholder="気づいたこと（氏名は書かないでください）">${esc(session.memo)}</textarea>
       <div class="actions">
+        <button type="button" class="primary" id="save-record">${session.savedId ? '記録を上書き保存' : '記録を保存'}</button>
         <button type="button" class="ghost" id="new-session">はじめから</button>
       </div>
+      <p id="save-msg" class="small" hidden></p>
       <p class="small muted">施術後、溶けた毒素が胸や胃に降りる、反対側に痛みが出る（平均浄化）などの変化が起こることがあります。「用語」の施術後の変化も見てください。</p>
     </div>`;
   const root = $('#tab-session');
@@ -743,15 +786,49 @@ function renderDone() {
     session.after = painter.sample(db.pointList);
     $('#compare').innerHTML = compareHTML(items);
   });
+  wireRecordInputs(root);
+  $$('[data-change]', root).forEach((cb) => cb.addEventListener('change', () => {
+    session.changes = $$('[data-change]:checked', root).map((x) => x.dataset.change);
+  }));
+  $('#rec-memo', root).addEventListener('input', (e) => { session.memo = e.target.value; });
+  $('#save-record', root).addEventListener('click', () => {
+    const msg = $('#save-msg', root);
+    if (!session.receiver) { msg.textContent = '受け手コードを入れてください。'; msg.hidden = false; return; }
+    const rec = buildRecord();
+    const ok = session.savedId ? updateRecord(session.savedId, rec) : addRecord(rec);
+    if (ok) session.savedId = rec.session_id;
+    msg.innerHTML = ok ? '保存しました。<button type="button" class="ghost small-btn" id="go-records">記録を見る →</button>' : '保存できませんでした（この端末では保存が使えない設定のようです）。';
+    msg.hidden = false;
+    $('#save-record', root).textContent = '記録を上書き保存';
+    $('#go-records', root)?.addEventListener('click', () => showTab('records'));
+  });
   $('#new-session').addEventListener('click', () => {
-    session.findings = {};
-    session.after = {};
-    session.plan = null;
-    session.painter = null;
-    session.afterPainter = null;
-    session.state = 'input';
+    Object.assign(session, { findings: {}, after: {}, plan: null, painter: null, afterPainter: null, state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
     renderSession();
   });
+}
+
+const r1 = (v) => Math.round((v || 0) * 10) / 10;
+function buildRecord() {
+  const toList = (f) => Object.entries(f).map(([point_id, v]) => ({ point_id, heat: r1(v.heat), kouketsu: r1(v.kouketsu), atsutsuu: r1(v.atsutsuu) }));
+  const complaints = [];
+  if (lastAnalysis?.input?.trim()) complaints.push(lastAnalysis.input.trim());
+  for (const c of lastAnalysis?.categories || []) complaints.push(c.label);
+  return {
+    session_id: session.savedId || newId(),
+    date: today(),
+    receiver_code: session.receiver,
+    complaints: [...new Set(complaints)],
+    self_rating_before: { つらさ: session.ratingBefore },
+    findings: toList(session.findings),
+    treatments: session.plan.items.map((it, i) => ({ point_id: it.id, minutes: it.minutes, order: i + 1 })),
+    findings_after: toList(session.after),
+    self_rating_after: { つらさ: session.ratingAfter },
+    changes_observed: session.changes.slice(),
+    memo: session.memo,
+    follow_up: '',
+    plan_minutes: { probe: session.plan.probe, check: session.plan.check },
+  };
 }
 
 function renderSession() {
@@ -870,6 +947,164 @@ async function renderSettings() {
     unlockAudio();
     if (settings.chime) chime();
     setTimeout(() => speak('施術した箇所の、熱、固結、圧痛を確認してみましょう。'), settings.chime ? 1000 : 0);
+  });
+}
+
+// ---- 施術の記録（見える化） ----
+let recFilter = 'all';
+
+// つらさの前→後（1色の濃淡で、前＝淡い点・後＝濃い点を線で結ぶ）
+function dumbbellSVG(list) {
+  const rows = list.filter((r) => Number.isFinite(r.self_rating_before?.つらさ) && Number.isFinite(r.self_rating_after?.つらさ)).slice(-20);
+  if (!rows.length) return '<p class="small muted">つらさの記録がまだありません。</p>';
+  const W = 360, H = 190, L = 28, R = 10, T = 10, B = 28;
+  const iw = W - L - R, ih = H - T - B;
+  const x = (i) => L + (rows.length === 1 ? iw / 2 : (i * iw) / (rows.length - 1));
+  const y = (v) => T + ih - (v / 10) * ih;
+  const step = Math.ceil(rows.length / 5);
+  const grid = [0, 5, 10].map((v) => `<line class="viz-grid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="viz-axis" x="${L - 6}" y="${y(v)}" text-anchor="end" dominant-baseline="middle">${v}</text>`).join('');
+  const marks = rows.map((r, i) => {
+    const b = r.self_rating_before.つらさ;
+    const a = r.self_rating_after.つらさ;
+    const cx = x(i);
+    const tip = `${r.date}　${r.receiver_code}　つらさ ${b} → ${a}`;
+    const label = i % step === 0 || i === rows.length - 1 ? `<text class="viz-axis" x="${cx}" y="${H - 8}" text-anchor="middle">${esc(r.date.slice(5).replace('-', '/'))}</text>` : '';
+    return `<g class="viz-col" data-tip="${esc(tip)}" tabindex="0">
+      <rect class="viz-hit" x="${cx - Math.max(8, iw / rows.length / 2)}" y="${T}" width="${Math.max(16, iw / rows.length)}" height="${ih}"/>
+      <line class="viz-link" x1="${cx}" x2="${cx}" y1="${y(b)}" y2="${y(a)}"/>
+      <circle class="viz-before" cx="${cx}" cy="${y(b)}" r="4.5"/>
+      <circle class="viz-after" cx="${cx}" cy="${y(a)}" r="4.5"/>${label}</g>`;
+  }).join('');
+  return `<div class="viz-legend small"><span><i class="lg-before"></i>施術前</span><span><i class="lg-after"></i>施術後</span></div>
+    <svg class="viz" viewBox="0 0 ${W} ${H}" role="img" aria-label="つらさの施術前と施術後（直近${rows.length}回）">${grid}${marks}</svg>`;
+}
+
+function minutesBarsHTML(minutes) {
+  const rows = Object.entries(minutes).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!rows.length) return '<p class="small muted">施術の記録がまだありません。</p>';
+  const max = rows[0][1];
+  return `<ul class="viz-bars">${rows.map(([id, m]) => {
+    const p = db.pointById[id];
+    return `<li data-tip="${esc(`${p?.name || id}　合計${m}分`)}" tabindex="0"><span class="vb-name">${p ? `${p.no} ${esc(p.name)}` : esc(id)}</span>
+      <span class="vb-track"><i style="width:${Math.max(2, (m / max) * 100)}%"></i></span><span class="vb-val">${m}分</span></li>`;
+  }).join('')}</ul>`;
+}
+
+function changeTableHTML(change) {
+  const rows = Object.entries(change).sort((a, b) => b[1].n - a[1].n).slice(0, 12);
+  if (!rows.length) return '<p class="small muted">施術の前後を塗った記録がまだありません。</p>';
+  const f = (v) => (Math.round(v * 10) / 10).toFixed(1);
+  return `<table class="routes rec-table"><tr><td>箇所</td><td>回</td><td>熱 前→後</td><td>固結 前→後</td></tr>${rows.map(([id, c]) => {
+    const p = db.pointById[id];
+    const hb = c.heatB / c.n, ha = c.heatA / c.n, kb = c.kouB / c.n, ka = c.kouA / c.n;
+    return `<tr><td>${p ? `${p.no} ${esc(p.name)}` : esc(id)}</td><td>${c.n}</td><td>${f(hb)}→${f(ha)}${ha < hb ? ' <b class="down">↓</b>' : ''}</td><td>${f(kb)}→${f(ka)}${ka < kb ? ' <b class="down">↓</b>' : ''}</td></tr>`;
+  }).join('')}</table><p class="small muted">値は塗りの濃さ（0〜5）の平均です。</p>`;
+}
+
+function recordItemHTML(r) {
+  const name = (id) => db.pointById[id]?.name || id;
+  const minutes = (r.treatments || []).reduce((s, t) => s + (t.minutes || 0), 0);
+  const fb = Object.fromEntries((r.findings || []).map((x) => [x.point_id, x]));
+  const fa = Object.fromEntries((r.findings_after || []).map((x) => [x.point_id, x]));
+  const changes = (r.changes_observed || []).map((id) => db.raw.changes.patterns.find((c) => c.id === id)?.trigger.split('（')[0] || id);
+  return `<details class="rec-item">
+    <summary><span class="rec-date">${esc(r.date)}</span> <span class="tag">${esc(r.receiver_code)}</span>
+      <span class="small muted">${minutes}分・つらさ ${r.self_rating_before?.つらさ ?? '−'}→${r.self_rating_after?.つらさ ?? '−'}</span></summary>
+    ${(r.complaints || []).length ? `<p class="small">症状：${r.complaints.map(esc).join('、')}</p>` : ''}
+    <ul class="readout compare-list">${(r.treatments || []).map((t) => `<li><span class="no">${db.pointById[t.point_id]?.no ?? ''}</span><span class="name">${esc(name(t.point_id))}　${t.minutes}分</span>
+      <div class="cmp"><span class="cmp-l">前</span>${shadeBars(fb[t.point_id])}</div>
+      <div class="cmp"><span class="cmp-l">後</span>${shadeBars(fa[t.point_id])}</div></li>`).join('')}</ul>
+    ${changes.length ? `<p class="small">変化：${changes.map(esc).join('、')}</p>` : ''}
+    ${r.memo ? `<p class="small">メモ：${esc(r.memo)}</p>` : ''}
+    <label class="field-label small">翌日以降の変化（排泄・平均浄化・再浄化など）</label>
+    <textarea rows="2" data-follow="${esc(r.session_id)}">${esc(r.follow_up || '')}</textarea>
+    <div class="actions"><button type="button" class="ghost small-btn" data-follow-save="${esc(r.session_id)}">保存</button>
+      <button type="button" class="ghost small-btn" data-del="${esc(r.session_id)}">この記録を消す</button></div>
+  </details>`;
+}
+
+function renderRecordsTab() {
+  const all = loadRecords().sort((a, b) => (a.date + a.session_id).localeCompare(b.date + b.session_id));
+  const codes = [...new Set(all.map((r) => r.receiver_code))].sort();
+  if (recFilter !== 'all' && !codes.includes(recFilter)) recFilter = 'all';
+  const list = recFilter === 'all' ? all : all.filter((r) => r.receiver_code === recFilter);
+  const sum = summarize(list);
+  $('#tab-records').innerHTML = `
+    <div class="card">
+      <h2>施術の記録</h2>
+      <div class="filter-row" role="group" aria-label="受け手">
+        <button type="button" class="chip rec-filter" data-code="all" aria-pressed="${recFilter === 'all'}">すべて</button>
+        ${codes.map((c) => `<button type="button" class="chip rec-filter" data-code="${esc(c)}" aria-pressed="${recFilter === c}">${esc(c)}</button>`).join('')}
+      </div>
+      <div class="stats">
+        <div class="stat"><b>${sum.count}</b><span>記録</span></div>
+        <div class="stat"><b>${sum.total}</b><span>施術の合計（分）</span></div>
+        <div class="stat"><b>${sum.avgDelta === null ? '−' : (sum.avgDelta > 0 ? '+' : '') + (Math.round(sum.avgDelta * 10) / 10)}</b><span>つらさの変化（平均）</span></div>
+      </div>
+    </div>
+    <div class="card"><h2>つらさの前と後</h2>${dumbbellSVG(list)}</div>
+    <div class="card"><h2>箇所ごとの施術時間</h2>${minutesBarsHTML(sum.minutes)}</div>
+    <div class="card"><h2>箇所ごとの変化</h2>${changeTableHTML(sum.change)}</div>
+    <div class="card"><h2>記録の一覧</h2>
+      ${list.length ? list.slice().reverse().map(recordItemHTML).join('') : '<p class="small muted">まだ記録がありません。施術の終わりに「記録を保存」で残せます。</p>'}
+    </div>
+    <div class="card"><h2>書き出し・読み込み</h2>
+      <div class="actions">
+        <button type="button" class="ghost" id="exp-json">JSONで書き出す</button>
+        <button type="button" class="ghost" id="exp-csv">CSVで書き出す</button>
+      </div>
+      <label class="file-add">JSONを読み込む<input type="file" id="imp-json" accept="application/json,.json" hidden></label>
+      <p id="imp-msg" class="small" hidden></p>
+      <p class="small muted">記録はこの端末の中にだけ保存されています。機種変更やブラウザのデータ消去に備えて、ときどき書き出しておいてください。</p>
+    </div>
+    <div class="viz-tip" id="viz-tip" hidden></div>`;
+  const root = $('#tab-records');
+  $$('.rec-filter', root).forEach((b) => b.addEventListener('click', () => { recFilter = b.dataset.code; renderRecordsTab(); }));
+  $$('[data-follow-save]', root).forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.followSave;
+    updateRecord(id, { follow_up: $(`[data-follow="${CSS.escape(id)}"]`, root).value });
+    b.textContent = '保存しました';
+  }));
+  $$('[data-del]', root).forEach((b) => b.addEventListener('click', () => {
+    if (!confirm('この記録を消します。元に戻せません。よろしいですか？')) return;
+    deleteRecord(b.dataset.del);
+    renderRecordsTab();
+  }));
+  const stamp = today();
+  $('#exp-json', root).addEventListener('click', () => download(`浄化療法記録_${stamp}.json`, exportJSON(loadRecords()), 'application/json'));
+  $('#exp-csv', root).addEventListener('click', () => download(`浄化療法記録_${stamp}.csv`, exportCSV(loadRecords(), (id) => db.pointById[id]?.name || id), 'text/csv'));
+  $('#imp-json', root).addEventListener('change', async (e) => {
+    const m = $('#imp-msg', root);
+    try {
+      const n = importRecords(JSON.parse(await e.target.files[0].text()));
+      renderRecordsTab();
+      const m2 = $('#imp-msg');
+      m2.textContent = `${n}件の記録を読み込みました。`;
+      m2.hidden = false;
+    } catch {
+      m.textContent = '読み込めませんでした。このアプリで書き出したJSONか確かめてください。';
+      m.hidden = false;
+    }
+  });
+  wireTips(root);
+}
+
+// グラフの値を、触れた所・指した所に出す
+function wireTips(root) {
+  const tip = $('#viz-tip', root);
+  const show = (el, x, y) => {
+    tip.textContent = el.dataset.tip;
+    tip.hidden = false;
+    const w = tip.offsetWidth;
+    tip.style.left = `${Math.min(window.innerWidth - w - 8, Math.max(8, x - w / 2))}px`;
+    tip.style.top = `${y - tip.offsetHeight - 12}px`;
+  };
+  $$('[data-tip]', root).forEach((el) => {
+    el.addEventListener('pointerenter', (e) => show(el, e.clientX, e.clientY));
+    el.addEventListener('pointermove', (e) => show(el, e.clientX, e.clientY));
+    el.addEventListener('pointerleave', () => { tip.hidden = true; });
+    el.addEventListener('focus', () => { const r = el.getBoundingClientRect(); show(el, r.left + r.width / 2, r.top); });
+    el.addEventListener('blur', () => { tip.hidden = true; });
   });
 }
 
@@ -1008,6 +1243,7 @@ function showTab(name) {
   $$('.tab-panel').forEach((p) => { p.hidden = p.id !== `tab-${name}`; });
   if (name === 'session') renderSession();
   if (name === 'settings') renderSettings();
+  if (name === 'records') renderRecordsTab();
   // タイトルの音楽は、施術中でなければ静かに止める
   if (player.playing && player.titleMode) { player.titleMode = false; player.stop(4); }
   window.scrollTo({ top: 0 });
