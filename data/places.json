@@ -1,0 +1,312 @@
+{
+ "_note": "流れの経路名→探査部位id（stations）と、探査部位以外の舞台・経由地の人体図上の位置（anchors：施術記録人体図.jpg 433×472px）。levels は経路の補完に使う段階（上昇：腎臓部0→肩甲間部1→肩2→頸部3→頭4／下降：腎臓部0→腎臓下方部1→腰部2）。",
+ "stations": {
+  "頭脳": [
+   "zentoubu",
+   "touchoubu",
+   "sokutoubu",
+   "koutoubu"
+  ],
+  "頭部": [
+   "zentoubu",
+   "touchoubu",
+   "sokutoubu",
+   "koutoubu"
+  ],
+  "頸部": [
+   "enzui",
+   "koukeibu",
+   "keibu_lymph"
+  ],
+  "肩部": [
+   "kata",
+   "maekata"
+  ],
+  "肩": [
+   "kata",
+   "maekata"
+  ],
+  "左の肩": [
+   "kata"
+  ],
+  "肩甲間部": [
+   "kenkoukan"
+  ],
+  "脊柱の両側（肩甲間部）": [
+   "kenkoukan"
+  ],
+  "腎臓部": [
+   "haimen_jinzo",
+   "jinzo_kahou",
+   "jinzo_kahou_side"
+  ],
+  "腎臓": [
+   "haimen_jinzo",
+   "jinzo_kahou",
+   "jinzo_kahou_side"
+  ],
+  "背面腎臓部": [
+   "haimen_jinzo"
+  ],
+  "前頭部": [
+   "zentoubu"
+  ],
+  "後頭部": [
+   "koutoubu"
+  ],
+  "頭頂部": [
+   "touchoubu"
+  ],
+  "前頭部・後頭部": [
+   "zentoubu",
+   "koutoubu"
+  ],
+  "延髄部": [
+   "enzui"
+  ],
+  "背中": [
+   "kenkoukan",
+   "kenkoukotsu",
+   "kenkoukotsu_ka",
+   "sekichuu"
+  ],
+  "背部": [
+   "kenkoukan",
+   "kenkoukotsu",
+   "kenkoukotsu_ka",
+   "sekichuu"
+  ],
+  "頸部淋巴腺": [
+   "keibu_lymph"
+  ],
+  "頸部リンパ腺": [
+   "keibu_lymph"
+  ],
+  "耳下腺部": [
+   "jikasen"
+  ],
+  "頸部・肩部": [
+   "enzui",
+   "koukeibu",
+   "keibu_lymph",
+   "kata",
+   "maekata"
+  ],
+  "腎臓下方部": [
+   "jinzo_kahou",
+   "jinzo_kahou_side"
+  ],
+  "腰部": [
+   "youkotsu",
+   "biteikotsu"
+  ],
+  "腰": [
+   "youkotsu",
+   "biteikotsu"
+  ],
+  "腰の中心": [
+   "youkotsu",
+   "biteikotsu"
+  ],
+  "尾骶骨部": [
+   "biteikotsu"
+  ],
+  "脊柱": [
+   "sekichuu"
+  ],
+  "鼠蹊部": [
+   "sokeibu"
+  ]
+ },
+ "levels": {
+  "up": {
+   "haimen_jinzo": 0,
+   "jinzo_kahou": 0,
+   "jinzo_kahou_side": 0,
+   "kenkoukan": 1,
+   "kenkoukotsu": 1,
+   "kenkoukotsu_ka": 1,
+   "sekichuu": 1,
+   "kata": 2,
+   "maekata": 2,
+   "enzui": 3,
+   "koukeibu": 3,
+   "keizui": 3,
+   "jikasen": 3,
+   "keibu_lymph": 3,
+   "hentousen": 3,
+   "zentoubu": 4,
+   "touchoubu": 4,
+   "sokutoubu": 4,
+   "koutoubu": 4
+  },
+  "up_fill": {
+   "0": [
+    "haimen_jinzo"
+   ],
+   "1": [
+    "kenkoukan"
+   ],
+   "2": [
+    "kata"
+   ],
+   "3": [
+    "enzui",
+    "keibu_lymph"
+   ]
+  },
+  "down": {
+   "haimen_jinzo": 0,
+   "jinzo_kahou": 1,
+   "jinzo_kahou_side": 1,
+   "youkotsu": 2,
+   "biteikotsu": 2
+  },
+  "down_fill": {
+   "0": [
+    "haimen_jinzo"
+   ],
+   "1": [
+    "jinzo_kahou"
+   ]
+  }
+ },
+ "anchors": {
+  "眼": [
+   101,
+   57
+  ],
+  "鼻": [
+   107,
+   64
+  ],
+  "顔面": [
+   100,
+   66
+  ],
+  "歯齦": [
+   107,
+   74
+  ],
+  "耳": [
+   213,
+   127
+  ],
+  "扁桃腺": [
+   197,
+   148
+  ],
+  "肺": [
+   92,
+   128
+  ],
+  "心臓": [
+   118,
+   140
+  ],
+  "心臓付近": [
+   118,
+   140
+  ],
+  "肋膜": [
+   80,
+   150
+  ],
+  "肋骨": [
+   80,
+   150
+  ],
+  "横隔膜": [
+   107,
+   152
+  ],
+  "胃": [
+   112,
+   163
+  ],
+  "肝臓": [
+   96,
+   165
+  ],
+  "膵臓": [
+   108,
+   172
+  ],
+  "胆嚢": [
+   98,
+   172
+  ],
+  "腹部": [
+   107,
+   190
+  ],
+  "下腹部・膀胱": [
+   107,
+   210
+  ],
+  "前立腺": [
+   107,
+   222
+  ],
+  "睾丸": [
+   107,
+   232
+  ],
+  "子宮・陰部": [
+   107,
+   228
+  ],
+  "子宮・卵巣": [
+   107,
+   215
+  ],
+  "肛門": [
+   314,
+   252
+  ],
+  "手指": [
+   232,
+   280
+  ],
+  "腕": [
+   258,
+   200
+  ],
+  "脚部": [
+   298,
+   330
+  ],
+  "足": [
+   298,
+   330
+  ],
+  "股": [
+   300,
+   262
+  ],
+  "大腿部": [
+   298,
+   300
+  ],
+  "膝": [
+   298,
+   345
+  ],
+  "ふくらはぎ": [
+   298,
+   385
+  ],
+  "足首": [
+   298,
+   430
+  ],
+  "踵": [
+   300,
+   455
+  ],
+  "足裏": [
+   187,
+   432
+  ]
+ }
+}

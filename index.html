@@ -4,26 +4,48 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>浄化療法 実践サポート</title>
-<meta name="description" content="岡田式浄化療法 3級講座の受講者が、本日の症状から探査して見つめる箇所を確かめるためのアプリ">
+<meta name="description" content="3級テキストと岡田茂吉全集に基づき、本日の症状から探査する箇所・毒素の流れ・施術の時間配分を示す実践サポートアプリ">
 <meta name="theme-color" content="#3f6b4f">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="app/style.css">
 </head>
 <body>
-<header class="top">
+
+<!-- タイトル画面（メニュー） -->
+<section id="title-screen" class="title-screen">
+  <div class="title-inner">
+    <p class="title-kicker">岡田式浄化療法</p>
+    <h1 class="title-name">浄化療法<br>実践サポート</h1>
+    <p class="title-lead">3級テキストと岡田茂吉全集に基づく<br>探査と施術の手引き</p>
+    <button id="tap-start" class="tap-start" type="button">タップしてはじめる</button>
+    <nav id="title-menu" class="title-menu" hidden>
+      <button type="button" data-go="today"><span class="mi">症</span>本日の症状から</button>
+      <button type="button" data-go="session"><span class="mi">施</span>探査と施術タイマー</button>
+      <button type="button" data-go="points"><span class="mi">探</span>探査19か所</button>
+      <button type="button" data-go="learn"><span class="mi">流</span>流れと用語</button>
+      <button type="button" data-go="settings"><span class="mi">♪</span>音楽と音声</button>
+    </nav>
+    <button id="title-music" class="title-music" type="button" hidden aria-pressed="true">♪ 音楽 オン</button>
+  </div>
+</section>
+
+<header class="top" hidden>
+  <button type="button" id="menu-btn" class="menu-btn" aria-label="メニューに戻る">≡</button>
   <h1>浄化療法 実践サポート</h1>
-  <p class="sub">岡田式浄化療法 3級講座</p>
+  <button type="button" id="music-btn" class="music-btn" aria-label="音楽">♪</button>
 </header>
 
-<nav class="tabs" role="tablist">
-  <button role="tab" data-tab="today" aria-selected="true">本日の症状</button>
-  <button role="tab" data-tab="points" aria-selected="false">探査19か所</button>
-  <button role="tab" data-tab="learn" aria-selected="false">流れと用語</button>
+<nav class="tabs" role="tablist" hidden>
+  <button role="tab" data-tab="today" aria-selected="true">症状</button>
+  <button role="tab" data-tab="session" aria-selected="false">施術</button>
+  <button role="tab" data-tab="points" aria-selected="false">19か所</button>
+  <button role="tab" data-tab="learn" aria-selected="false">用語</button>
+  <button role="tab" data-tab="settings" aria-selected="false">音楽</button>
 </nav>
 
-<main>
+<main hidden>
   <section id="tab-today" class="tab-panel">
     <form id="symptom-form" class="card input-card" autocomplete="off">
       <label for="symptom-text" class="field-label">本日の症状を入力してください</label>
@@ -40,8 +62,10 @@
     <div id="result" aria-live="polite"></div>
   </section>
 
+  <section id="tab-session" class="tab-panel" hidden></section>
   <section id="tab-points" class="tab-panel" hidden></section>
   <section id="tab-learn" class="tab-panel" hidden></section>
+  <section id="tab-settings" class="tab-panel" hidden></section>
 
   <p id="always-note" class="always-note"></p>
 </main>
