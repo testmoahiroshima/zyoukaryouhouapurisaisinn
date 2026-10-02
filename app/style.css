@@ -384,3 +384,15 @@ details.criteria > summary h2 { display: inline; color: var(--accent); }
 .file-add { display: inline-block; margin-top: 6px; padding: 8px 12px; border-radius: 10px; border: 1px dashed var(--accent); color: var(--accent); cursor: pointer; font-size: .9rem; }
 label.row { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
 select { font: inherit; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--text); }
+
+/* 岡田先生の見解 */
+.kenkai-notice { font-size: .8rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; }
+.kenkai-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.kenkai-item:first-of-type { border-top: 0; }
+.kenkai-item > summary { cursor: pointer; font-weight: 700; color: var(--accent); }
+.kenkai-item p { margin: 6px 0; }
+.kenkai-card h3 { margin-top: 10px; }
+.small-btn { font-size: .85rem; padding: 6px 10px; margin-top: 6px; }
+.kk-form { display: flex; gap: 8px; margin-top: 8px; }
+.kk-form input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); }
+.kk-form button { flex: none; }

@@ -1,5 +1,5 @@
 {
- "_note": "岡田茂吉全集から読み取った施術の知見。summary は全集本文の要旨を3級テキストの言葉で書き直したもの（宗教的な語は用いない）。cites は全集の項（zenshu_index.jsonl の id と同じ規則）と巻・頁・年。checked は本文を読んで内容を確かめたことを示す（SFの確認は未）。",
+ "_note": "岡田茂吉全集から読み取った施術の知見。summary は全集本文の要旨を3級テキストの言葉で書き直したもの（宗教的な語は用いない）。cites は全集の項（zenshu_index.jsonl の id と同じ規則）と巻・頁・年。checked は本文を読んで内容を確かめたことを示す（SFの確認は未）。治癒を約束する言い方はせず、「説かれている」「教えられている」の紹介の形で記す。。",
  "principles": [
   {
    "id": "jinzo_first",
@@ -7,7 +7,13 @@
    "title": "腎臓部を第一に",
    "summary": "施術は頭・首・肩を行い、次に俯せで左右の腎臓部を探査する。腎臓部を第一、背部から肩甲骨部を第二、その他を第三の順位にする。腎臓部の固結が溶けると、他の局部の固結も溶けやすくなり、全身の浄化作用が旺盛になる。",
    "textbook": "p65-69",
-   "cites": [{"id": "chojutsu04#80", "page": "著述篇四巻p303", "year": 1943}],
+   "cites": [
+    {
+     "id": "chojutsu04#80",
+     "page": "著述篇四巻p303",
+     "year": 1943
+    }
+   ],
    "checked": true
   },
   {
@@ -16,7 +22,13 @@
    "title": "まず頭から",
    "summary": "四肢五体の根元は頭脳。まず頭を清めて取り掛かり、首、肩へと進む。",
    "textbook": "p72-73",
-   "cites": [{"id": "chojutsu04#80", "page": "著述篇四巻p303", "year": 1943}],
+   "cites": [
+    {
+     "id": "chojutsu04#80",
+     "page": "著述篇四巻p303",
+     "year": 1943
+    }
+   ],
    "checked": true
   },
   {
@@ -25,7 +37,13 @@
    "title": "肩の硬軟は健康の目安",
    "summary": "肩が柔軟で、指で圧して指頭が一寸くらい没する人は健康。肩の固い人は回復しにくく、強い浄化も起こりやすい。",
    "textbook": "p69-72",
-   "cites": [{"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}],
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    }
+   ],
    "checked": true
   },
   {
@@ -34,25 +52,53 @@
    "title": "腎臓からの上昇経路",
    "summary": "腎臓で処理しきれない毒素は、背部の脊柱の両側（肩甲間部）を上がって肩の凝りとなり、さらに頸部の周囲から頭脳、眼、耳、鼻、歯齦、咽喉に及ぶ。胸部、腕の付け根、胃部、肝臓部へ及ぶこともあり、下がって脚部にも及ぶ。",
    "textbook": "p66",
-   "cites": [{"id": "chojutsu04#78", "page": "著述篇四巻p299", "year": 1943}, {"id": "chojutsu10#71", "page": "著述篇十巻p196", "year": 1952}],
+   "cites": [
+    {
+     "id": "chojutsu04#78",
+     "page": "著述篇四巻p299",
+     "year": 1943
+    },
+    {
+     "id": "chojutsu10#71",
+     "page": "著述篇十巻p196",
+     "year": 1952
+    }
+   ],
    "checked": true
   },
   {
    "id": "senaka_main",
    "element": "楽屋と舞台",
    "title": "前の症状は背部から",
-   "summary": "背部の固結が溶けただけ前面の症状は軽くなる。胃・心臓・肺・腸の症状も背部を主に施術する。胃の激しい痛みも、肩甲骨と脊柱の中間の固結を溶かすと消えることが多い。",
+   "summary": "背部の固結が溶けただけ前面の症状は軽くなると説かれている。胃・心臓・肺・腸の症状も背部を主に施術する。胃が痛む時は、肩甲骨と脊柱の中間の固結を見るよう教えられている。",
    "textbook": "p59-61",
-   "cites": [{"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}, {"id": "chojutsu04#80", "page": "著述篇四巻p303", "year": 1943}],
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu04#80",
+     "page": "著述篇四巻p303",
+     "year": 1943
+    }
+   ],
    "checked": true
   },
   {
    "id": "kyuusho",
    "element": "楽屋と舞台",
    "title": "苦痛の元（急所）を見つける",
-   "summary": "苦痛には元があり急所がある。苦痛の箇所だけを施術しても治りにくい。急所を外れると、労多くして効少なし。",
+   "summary": "苦痛には元があり急所があると説かれている。苦痛の箇所だけでなく、その元を見つける。急所を外れると「労多くして効少なし」とされる。",
    "textbook": "p59-61",
-   "cites": [{"id": "chojutsu10#0", "page": "著述篇十巻p7", "year": 1952}],
+   "cites": [
+    {
+     "id": "chojutsu10#0",
+     "page": "著述篇十巻p7",
+     "year": 1952
+    }
+   ],
    "checked": true
   },
   {
@@ -61,7 +107,18 @@
    "title": "溶けた毒素は出口を求める",
    "summary": "発熱で溶けて液体となった毒素は、いずれかに出口を求めてその方向へ進む。その動きが神経を刺激するのが痛み。出口が閉ざされると、毒素は別の出口を求める。",
    "textbook": "p63-65",
-   "cites": [{"id": "chojutsu05#51", "page": "著述篇五巻p192", "year": 1947}, {"id": "chojutsu03#125", "page": "著述篇三巻p350", "year": 1942}],
+   "cites": [
+    {
+     "id": "chojutsu05#51",
+     "page": "著述篇五巻p192",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu03#125",
+     "page": "著述篇三巻p350",
+     "year": 1942
+    }
+   ],
    "checked": true
   },
   {
@@ -71,10 +128,26 @@
    "summary": "下降する毒素は陰部を中心にその周囲に溜まり、下腹部、肛門の周囲へ下がる。肛門は便以外の汚物の排泄口も兼ねている。鼠蹊部（股の付け根）に固結（グリグリ）があり、そこが熱を持つと、咳・痰や熱の元になっていることがある。骨盤周辺（鼠蹊部・腰骨部・尾てい骨部）の固結が強いと出口が詰まり、溶けた毒素が下がりきれないので、脚・腰・下腹部の訴えや咳の時は、ここも探査する。",
    "textbook": "p63-65",
    "cites": [
-    {"id": "chojutsu10#84", "page": "著述篇十巻p221", "year": 1952},
-    {"id": "chojutsu10#83", "page": "著述篇十巻p219", "year": 1952},
-    {"id": "chojutsu08#42", "page": "著述篇八巻p106", "year": 1950},
-    {"id": "chojutsu10#89", "page": "著述篇十巻p251", "year": 1952}
+    {
+     "id": "chojutsu10#84",
+     "page": "著述篇十巻p221",
+     "year": 1952
+    },
+    {
+     "id": "chojutsu10#83",
+     "page": "著述篇十巻p219",
+     "year": 1952
+    },
+    {
+     "id": "chojutsu08#42",
+     "page": "著述篇八巻p106",
+     "year": 1950
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952
+    }
    ],
    "checked": true,
    "synthesis": "最後の一文（出口が詰まり下がりきれない）は、上の各記述と『出口を求める』の原則をつないだ整理（SF了承済み）"
@@ -86,9 +159,21 @@
    "summary": "腎臓部から下方へ腰骨部まで固結が続いていることが多く、腰骨に接して固結がある人は脚に異状があることが多い。脚・足首・指は、鼠蹊部のグリグリ、腹部下端、腰骨部の順に施術する。股、股の外側、臀部の下もよく見る。",
    "textbook": "p64-65",
    "cites": [
-    {"id": "chojutsu04#80", "page": "著述篇四巻p303", "year": 1943},
-    {"id": "chojutsu05#87", "page": "著述篇五巻p257", "year": 1947},
-    {"id": "kowa03#731", "page": "講話篇三巻", "year": 1950}
+    {
+     "id": "chojutsu04#80",
+     "page": "著述篇四巻p303",
+     "year": 1943
+    },
+    {
+     "id": "chojutsu05#87",
+     "page": "著述篇五巻p257",
+     "year": 1947
+    },
+    {
+     "id": "kowa03#731",
+     "page": "講話篇三巻",
+     "year": 1950
+    }
    ],
    "checked": true
   },
@@ -99,9 +184,21 @@
    "summary": "前は前頭部に、後ろは肛門に関係する。肛門に関わる症状の元は後頭部の固結にあることが多く、股間を良くすると頭が良くなり、前頭部を良くすると下の症状が良くなる。",
    "textbook": "p63-65",
    "cites": [
-    {"id": "chojutsu10#0", "page": "著述篇十巻p7", "year": 1952},
-    {"id": "chojutsu11#18", "page": "著述篇十一巻p39", "year": 1953},
-    {"id": "kowa10#0", "page": "講話篇十巻p166", "year": 1953}
+    {
+     "id": "chojutsu10#0",
+     "page": "著述篇十巻p7",
+     "year": 1952
+    },
+    {
+     "id": "chojutsu11#18",
+     "page": "著述篇十一巻p39",
+     "year": 1953
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p166",
+     "year": 1953
+    }
    ],
    "checked": true
   },
@@ -109,9 +206,20 @@
    "id": "netsu",
    "element": "探査",
    "title": "熱は溶けている印",
-   "summary": "熱と痛みがある時は、まさに治りつつある時。手を当てて熱い所には毒素がある。施術で冷たくなった分だけ苦痛は除れる。施術後に手を当てて、熱が冷めたかを確かめる。",
+   "summary": "熱と痛みは、固まった毒素を溶かして外へ出そうとしている印と説かれている。手を当てて熱い所には毒素がある。施術後に手を当てて、熱が冷めたかを確かめる。",
    "textbook": "p93-98",
-   "cites": [{"id": "chojutsu02#79", "page": "著述篇二巻p201", "year": 1936}, {"id": "chojutsu02#88", "page": "著述篇二巻p228", "year": 1936}],
+   "cites": [
+    {
+     "id": "chojutsu02#79",
+     "page": "著述篇二巻p201",
+     "year": 1936
+    },
+    {
+     "id": "chojutsu02#88",
+     "page": "著述篇二巻p228",
+     "year": 1936
+    }
+   ],
    "checked": true
   },
   {
@@ -120,16 +228,38 @@
    "title": "熱の出所を順に探す",
    "summary": "額に触れて熱い時は、原因は額の奥・耳下腺・後頭部のいずれか。まず額を施術し、熱が下がらなければ耳下腺、次に後頭部、それでも下がらなければ肩を施術する。第一の急所は耳下腺と頸部淋巴腺、第二は後頭部。",
    "textbook": "p93-98",
-   "cites": [{"id": "kowa01#416", "page": "講話篇一巻p543", "year": 1948}, {"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}],
+   "cites": [
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948
+    },
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    }
+   ],
    "checked": true
   },
   {
    "id": "chikara",
    "element": "施術",
    "title": "力を抜く",
-   "summary": "溶かす時は力を抜く。力を入れると溶けにくく、熱も冷めにくい。軽い楽な気持ちで行う。治りが悪いと感じたら力が入っている。",
+   "summary": "溶かす時は力を抜く。力を入れると溶けにくく、熱も冷めにくいと説かれている。軽い楽な気持ちで行う。",
    "textbook": "p75-77",
-   "cites": [{"id": "kowa01#31", "page": "講話篇一巻p224", "year": 1940}, {"id": "chojutsu08#293", "page": "著述篇八巻p706", "year": 1950}],
+   "cites": [
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940
+    },
+    {
+     "id": "chojutsu08#293",
+     "page": "著述篇八巻p706",
+     "year": 1950
+    }
+   ],
    "checked": true
   },
   {
@@ -138,7 +268,13 @@
    "title": "一回の時間",
    "summary": "一回の施術は普通十分から三十分くらい。",
    "textbook": null,
-   "cites": [{"id": "chojutsu01#52", "page": "著述篇一巻p182", "year": 1935}],
+   "cites": [
+    {
+     "id": "chojutsu01#52",
+     "page": "著述篇一巻p182",
+     "year": 1935
+    }
+   ],
    "checked": true
   },
   {
@@ -147,138 +283,433 @@
    "title": "話しながら行わない",
    "summary": "施術は話しながら行わない。話しながらでは手先だけの施術になる。",
    "textbook": null,
-   "cites": [{"id": "kowa12#202", "page": "講話篇十二巻p418", "year": null}],
+   "cites": [
+    {
+     "id": "kowa12#202",
+     "page": "講話篇十二巻p418",
+     "year": null
+    }
+   ],
    "checked": true
   }
  ],
  "kakuron": [
   {
    "id": "k_headache",
-   "categories": ["headache", "temple", "frontal"],
+   "categories": [
+    "headache",
+    "temple",
+    "frontal"
+   ],
    "title": "頭痛",
-   "summary": "前額部・前頭部・こめかみに手を当てると熱い。施術で冷たくなった分だけ痛みは除れる。前額部をやっても効かない時は、耳下腺を主に頸部淋巴腺にかけての固結を施術する。頸の周りの固結が頭への血の巡りを妨げて起こる頭痛もある。",
-   "points": ["zentoubu", "sokutoubu", "jikasen", "keibu_lymph"],
-   "cites": [{"id": "chojutsu02#88", "page": "著述篇二巻p228", "year": 1936}, {"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}, {"id": "chojutsu10#16", "page": "著述篇十巻p20", "year": 1952}]
+   "summary": "前額部・前頭部・こめかみに手を当てると熱いことが多い。施術で冷たくなるのを確かめる。前額部をやっても変わらない時は、耳下腺を主に頸部淋巴腺にかけての固結を施術するよう説かれている。頸の周りの固結が頭への血の巡りを妨げて起こる頭痛もあるとされる。",
+   "points": [
+    "zentoubu",
+    "sokutoubu",
+    "jikasen",
+    "keibu_lymph"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#88",
+     "page": "著述篇二巻p228",
+     "year": 1936
+    },
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu10#16",
+     "page": "著述篇十巻p20",
+     "year": 1952
+    }
+   ]
   },
   {
    "id": "k_head_neck",
-   "categories": ["headache", "occipital", "head_use", "top", "dizziness"],
+   "categories": [
+    "headache",
+    "occipital",
+    "head_use",
+    "top",
+    "dizziness"
+   ],
    "title": "頭の重さ・朦朧感",
-   "summary": "頭の訴えの元は首の周り。左右いずれかの頸部淋巴腺の固結、または片側が高く腫れた延髄部に熱がある。ここを施術すると頭重・朦朧感が軽くなる。",
-   "points": ["keibu_lymph", "enzui"],
-   "cites": [{"id": "chojutsu10#0", "page": "著述篇十巻p7", "year": 1952}, {"id": "chojutsu01#24", "page": "著述篇一巻p124", "year": 1935}]
+   "summary": "頭の訴えの元は首の周りにあることが多いと説かれている。左右いずれかの頸部淋巴腺の固結、または片側が高く腫れた延髄部に熱があり、ここを施術するよう教えられている。",
+   "points": [
+    "keibu_lymph",
+    "enzui"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu10#0",
+     "page": "著述篇十巻p7",
+     "year": 1952
+    },
+    {
+     "id": "chojutsu01#24",
+     "page": "著述篇一巻p124",
+     "year": 1935
+    }
+   ]
   },
   {
    "id": "k_dizziness",
-   "categories": ["dizziness"],
+   "categories": [
+    "dizziness"
+   ],
    "title": "めまい",
    "summary": "首の付け根の太い筋にゴリゴリした固結があり、頭への血の巡りを妨げる。前額部全体に微熱があることもある。",
-   "points": ["jikasen", "keibu_lymph", "keizui", "zentoubu"],
-   "cites": [{"id": "chojutsu02#89", "page": "著述篇二巻p228", "year": 1936}]
+   "points": [
+    "jikasen",
+    "keibu_lymph",
+    "keizui",
+    "zentoubu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#89",
+     "page": "著述篇二巻p228",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_insomnia",
-   "categories": ["insomnia"],
+   "categories": [
+    "insomnia"
+   ],
    "title": "眠れない",
    "summary": "後頭部の左右に固い固結ができていることが多い。",
-   "points": ["koutoubu", "enzui"],
-   "cites": [{"id": "chojutsu02#90", "page": "著述篇二巻p229", "year": 1936}]
+   "points": [
+    "koutoubu",
+    "enzui"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#90",
+     "page": "著述篇二巻p229",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_fever",
-   "categories": ["fever"],
+   "categories": [
+    "fever"
+   ],
    "title": "熱っぽい",
    "summary": "額に触れて熱い時は、額→耳下腺→後頭部→肩の順に施術して熱の出所を探す。耳下腺・頸部淋巴腺・扁桃腺付近を指で探ると固結があることが多い。",
-   "points": ["zentoubu", "jikasen", "keibu_lymph", "hentousen", "koutoubu", "kata"],
-   "cites": [{"id": "kowa01#416", "page": "講話篇一巻p543", "year": 1948}, {"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}]
+   "points": [
+    "zentoubu",
+    "jikasen",
+    "keibu_lymph",
+    "hentousen",
+    "koutoubu",
+    "kata"
+   ],
+   "cites": [
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948
+    },
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    }
+   ]
   },
   {
    "id": "k_eyes",
-   "categories": ["eyes"],
+   "categories": [
+    "eyes"
+   ],
    "title": "眼",
    "summary": "眉毛の部や上瞼を押して痛い人は、眼に毒素が溜まっている。眼を中心に頭部・顔面・後頭部を施術する。",
-   "points": ["zentoubu", "koutoubu"],
-   "cites": [{"id": "chojutsu02#85", "page": "著述篇二巻p225", "year": 1936}, {"id": "chojutsu02#96", "page": "著述篇二巻p254", "year": 1936}]
+   "points": [
+    "zentoubu",
+    "koutoubu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#85",
+     "page": "著述篇二巻p225",
+     "year": 1936
+    },
+    {
+     "id": "chojutsu02#96",
+     "page": "著述篇二巻p254",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_nose",
-   "categories": ["nose"],
+   "categories": [
+    "nose"
+   ],
    "title": "鼻",
    "summary": "鼻柱の両脇を押して痛い、眉間の中央が重い時は、そこに固結がある。",
-   "points": ["zentoubu"],
-   "cites": [{"id": "chojutsu02#97", "page": "著述篇二巻p256", "year": 1936}]
+   "points": [
+    "zentoubu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#97",
+     "page": "著述篇二巻p256",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_face",
-   "categories": ["face"],
+   "categories": [
+    "face"
+   ],
    "title": "顔面",
    "summary": "頸腺や肩部の固結が顔面に移る。顔面を押して痛む所も探る。",
-   "points": ["keibu_lymph", "jikasen", "kata"],
-   "cites": [{"id": "chojutsu02#98", "page": "著述篇二巻p258", "year": 1936}]
+   "points": [
+    "keibu_lymph",
+    "jikasen",
+    "kata"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu02#98",
+     "page": "著述篇二巻p258",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_hands",
-   "categories": ["hands"],
+   "categories": [
+    "hands"
+   ],
    "title": "腕・手指",
    "summary": "元である頸部淋巴腺から、肩、腕の付け根を十分に施術する。頭脳を主に、淋巴腺を次に、腕、患部の順。手の訴えは肩が大切。",
-   "points": ["keibu_lymph", "kata", "maekata", "zentoubu", "touchoubu"],
-   "cites": [{"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}, {"id": "chojutsu05#87", "page": "著述篇五巻p257", "year": 1947}, {"id": "kowa01#416", "page": "講話篇一巻p543", "year": 1948}]
+   "points": [
+    "keibu_lymph",
+    "kata",
+    "maekata",
+    "zentoubu",
+    "touchoubu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu05#87",
+     "page": "著述篇五巻p257",
+     "year": 1947
+    },
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948
+    }
+   ]
   },
   {
    "id": "k_stomach",
-   "categories": ["stomach", "top", "heart"],
+   "categories": [
+    "stomach",
+    "top",
+    "heart"
+   ],
    "title": "胃・気のふさぎ",
    "summary": "肩甲骨の間から背骨の両側に土手のように盛り上がった固結がある。胃の悪い人、気のふさぐ人はここに原因がある。元は腎臓。",
-   "points": ["kenkoukan", "kenkoukotsu", "haimen_jinzo"],
-   "cites": [{"id": "kowa01#416", "page": "講話篇一巻p543", "year": 1948}, {"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}]
+   "points": [
+    "kenkoukan",
+    "kenkoukotsu",
+    "haimen_jinzo"
+   ],
+   "cites": [
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948
+    },
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    }
+   ]
   },
   {
    "id": "k_koshi",
-   "categories": ["lowback", "abdomen"],
+   "categories": [
+    "lowback",
+    "abdomen"
+   ],
    "title": "腰・腹の痛み",
    "summary": "腎臓の少し下を横から押すと痛む所（腎臓下方部の側面）に熱が出やすい。腰や腹が痛む時はここを施術する。",
-   "points": ["jinzo_kahou_side", "jinzo_kahou", "haimen_jinzo"],
-   "cites": [{"id": "kowa01#416", "page": "講話篇一巻p543", "year": 1948}]
+   "points": [
+    "jinzo_kahou_side",
+    "jinzo_kahou",
+    "haimen_jinzo"
+   ],
+   "cites": [
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948
+    }
+   ]
   },
   {
    "id": "k_legs",
-   "categories": ["legs", "breath"],
+   "categories": [
+    "legs",
+    "breath"
+   ],
    "title": "脚",
    "summary": "元である腎臓部と脚の付け根をよく施術する。鼠蹊部のグリグリ、腹部下端、腰骨部の順。腎臓下の固結が腰骨に接していると脚に異状が出やすい。脚全体が重い時は腎臓部と腹部を十分に。",
-   "points": ["haimen_jinzo", "jinzo_kahou", "youkotsu", "sokeibu", "biteikotsu"],
-   "cites": [{"id": "chojutsu05#84", "page": "著述篇五巻p251", "year": 1947}, {"id": "chojutsu05#87", "page": "著述篇五巻p257", "year": 1947}, {"id": "chojutsu04#80", "page": "著述篇四巻p303", "year": 1943}, {"id": "chojutsu02#124", "page": "著述篇二巻p321", "year": 1936}]
+   "points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "youkotsu",
+    "sokeibu",
+    "biteikotsu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu05#87",
+     "page": "著述篇五巻p257",
+     "year": 1947
+    },
+    {
+     "id": "chojutsu04#80",
+     "page": "著述篇四巻p303",
+     "year": 1943
+    },
+    {
+     "id": "chojutsu02#124",
+     "page": "著述篇二巻p321",
+     "year": 1936
+    }
+   ]
   },
   {
    "id": "k_anus",
-   "categories": ["anus"],
+   "categories": [
+    "anus"
+   ],
    "title": "肛門",
    "summary": "元は後頭部の固結と股間の鼠蹊部。右側が痛む時は右の鼠蹊部にグリグリがある。",
-   "points": ["koutoubu", "sokeibu", "biteikotsu"],
-   "cites": [{"id": "chojutsu08#217", "page": "著述篇八巻p538", "year": 1950}, {"id": "chojutsu11#18", "page": "著述篇十一巻p39", "year": 1953}, {"id": "chojutsu10#0", "page": "著述篇十巻p7", "year": 1952}]
+   "points": [
+    "koutoubu",
+    "sokeibu",
+    "biteikotsu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu08#217",
+     "page": "著述篇八巻p538",
+     "year": 1950
+    },
+    {
+     "id": "chojutsu11#18",
+     "page": "著述篇十一巻p39",
+     "year": 1953
+    },
+    {
+     "id": "chojutsu10#0",
+     "page": "著述篇十巻p7",
+     "year": 1952
+    }
+   ]
   },
   {
    "id": "k_cough",
-   "categories": ["lungs"],
+   "categories": [
+    "lungs"
+   ],
    "title": "咳・痰",
    "summary": "頭・首・肩を施術しても変わらない時は、股・鼠蹊部にグリグリがあり熱を持っていることがある。",
-   "points": ["sokeibu", "haimen_jinzo"],
-   "cites": [{"id": "chojutsu08#42", "page": "著述篇八巻p106", "year": 1950}, {"id": "chojutsu10#89", "page": "著述篇十巻p251", "year": 1952}]
+   "points": [
+    "sokeibu",
+    "haimen_jinzo"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu08#42",
+     "page": "著述篇八巻p106",
+     "year": 1950
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952
+    }
+   ]
   },
   {
    "id": "k_women",
-   "categories": ["women", "urinary"],
+   "categories": [
+    "women",
+    "urinary"
+   ],
    "title": "下腹部・陰部",
    "summary": "腎臓背部の固結が元。もう一つは陰部を中心に下がってくる毒素の溜まり。場所が場所だけに、自分で行うか家族に行ってもらう。",
-   "points": ["haimen_jinzo", "jinzo_kahou", "sokeibu", "zentoubu"],
-   "cites": [{"id": "chojutsu10#84", "page": "著述篇十巻p221", "year": 1952}, {"id": "kowa10#0", "page": "講話篇十巻p166", "year": 1953}]
+   "points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "sokeibu",
+    "zentoubu"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu10#84",
+     "page": "著述篇十巻p221",
+     "year": 1952
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p166",
+     "year": 1953
+    }
+   ]
   },
   {
    "id": "k_rheuma",
-   "categories": ["fatigue", "legs", "katakori"],
+   "categories": [
+    "fatigue",
+    "legs",
+    "katakori"
+   ],
    "title": "全身の重さ・肩の凝り・脚の重さ",
    "summary": "腎臓部の固結で腎臓が圧迫されると、むくみ、だるさ、肩の凝り、腰痛、脚の重さが出る。腎臓部を特に施術する。",
-   "points": ["haimen_jinzo", "jinzo_kahou", "jinzo_kahou_side"],
-   "cites": [{"id": "chojutsu03#41", "page": "著述篇三巻p53", "year": 1939}, {"id": "chojutsu02#123", "page": "著述篇二巻p319", "year": 1936}]
+   "points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ],
+   "cites": [
+    {
+     "id": "chojutsu03#41",
+     "page": "著述篇三巻p53",
+     "year": 1939
+    },
+    {
+     "id": "chojutsu02#123",
+     "page": "著述篇二巻p319",
+     "year": 1936
+    }
+   ]
   }
  ]
 }

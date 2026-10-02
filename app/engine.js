@@ -74,7 +74,12 @@ export function prepare(raw) {
   for (const p of pointList) {
     for (const n of [p.name, ...(p.aliases || [])]) if (!stationNames[n]) stationNames[n] = [p.id];
   }
-  return { raw, pointList, pointById, flowById, routeByNo, categories, safetyRules, knowledge, principleById, stationNames };
+  const kenkai = (raw.kenkai?.entries || []).map((e) => ({
+    ...e,
+    _kw: e.keywords.map(normalize),
+    _ex: (e.exclude || []).map(normalize),
+  }));
+  return { raw, pointList, pointById, flowById, routeByNo, categories, safetyRules, knowledge, principleById, stationNames, kenkai };
 }
 
 // ---- 毒素の流れ（経路） ----
@@ -159,6 +164,24 @@ export function buildFlow(db, src, kind) {
 const ROLE_WEIGHT = { rakuya: 1.0, keiro: 0.8, butai: 0.9, look: 0.8, kakuron: 1.0, outlet: 0.6, extra: 0.9 };
 const PELVIC_CATS = new Set(['legs', 'breath', 'lowback', 'abdomen', 'urinary', 'women', 'anus', 'lungs', 'fatigue']);
 const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu'];
+const PELVIC_KENKAI = new Set(['hie', 'ashi', 'ashiura', 'oshiri', 'koshi', 'ji', 'fujin', 'seki', 'darui', 'mukumi', 'geri', 'benpi']);
+const KIDNEY = ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side'];
+
+// 症状別の見解（kenkai.json）を引く。selected に 'k:id' があれば、その見解を選んだものとする
+export function findKenkai(db, text, selected = [], blockWords = []) {
+  const norm = normalize(text);
+  const out = [];
+  for (const e of db.kenkai) {
+    const hits = norm ? findHits(norm, e._kw, [...e._ex, ...blockWords]) : [];
+    const chosen = selected.includes(`k:${e.id}`);
+    if (!hits.length && !chosen) continue;
+    out.push({ ...e, words: hits.sort((a, b) => a.index - b.index).map((h) => h.kw), firstIndex: hits.length ? Math.min(...hits.map((h) => h.index)) : -1 });
+  }
+  // 「痛み（全般）」のような広い見解は、ほかに当てはまる見解が無い時だけ出す
+  const specific = out.filter((e) => !e.fallback_only);
+  if (specific.length) out.splice(0, out.length, ...specific);
+  return out.sort((a, b) => (a.firstIndex < 0) - (b.firstIndex < 0) || a.firstIndex - b.firstIndex);
+}
 
 function detectSide(norm) {
   const left = norm.includes('左') || norm.includes('ひだり');
@@ -205,6 +228,32 @@ export function analyze(db, text, selected = []) {
       extra: cat.extra_points || [],
     });
   }
+  // 症状別の見解：つながる症状カテゴリがあればそこに添え、無ければ見解そのものを一つの症状として扱う
+  const kenkai = findKenkai(db, text, selected, blockWords);
+  for (const m of matched) {
+    m.kenkai = kenkai.filter((e) => e.categories.includes(m.id));
+    if (m.chosen && !m.words.length && !m.kenkai.length) m.kenkai = db.kenkai.filter((e) => e.categories[0] === m.id);
+  }
+  for (const e of kenkai) {
+    if (matched.some((m) => m.kenkai.includes(e))) continue;
+    matched.push({
+      id: `k:${e.id}`,
+      label: e.label,
+      group: e.group,
+      words: e.words,
+      chosen: e.firstIndex < 0,
+      firstIndex: e.firstIndex,
+      flows: [],
+      routes: [],
+      kakuron: [],
+      kenkai: [e],
+      pelvic: PELVIC_KENKAI.has(e.id),
+      basis: null,
+      textbook: e.textbook || null,
+      extra: [],
+      fromKenkai: true,
+    });
+  }
   // 入力文に出てきた順（候補ボタンのみの選択は後ろ）
   matched.sort((a, b) => (a.firstIndex < 0) - (b.firstIndex < 0) || a.firstIndex - b.firstIndex);
 
@@ -234,6 +283,9 @@ export function analyze(db, text, selected = []) {
         for (const id of fl.src.look_points || []) add(id, 'look', m.id);
       }
       for (const k of m.kakuron) for (const id of k.points) add(id, 'kakuron', m.id);
+      for (const e of m.kenkai) for (const id of e.points) add(id, 'kakuron', m.id);
+      // 見解に施術箇所の記述が無い症状は、重要施術部位の腎臓部（施術の第一）を見る
+      if (m.fromKenkai && !m.kenkai.some((e) => e.points.length)) for (const id of KIDNEY) add(id, 'look', m.id);
       for (const id of m.extra) add(id, 'extra', m.id);
       if (m.pelvic) for (const id of OUTLET_POINTS) add(id, 'outlet', m.id);
     }
@@ -264,6 +316,7 @@ export function analyze(db, text, selected = []) {
     input: text,
     safety,
     categories: matched,
+    kenkai: matched.flatMap((m) => m.kenkai).filter((e, i, a) => a.indexOf(e) === i),
     points,
     side: detectSide(norm),
     fallback,
