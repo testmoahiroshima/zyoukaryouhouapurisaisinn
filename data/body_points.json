@@ -1,5 +1,11 @@
 {
- "_note": "探査部位。名称は3級講座スライド（第2〜4講座）に基づく。confirmed=false はSFが確認・記入する。",
+ "_note": "探査部位19か所（＋自己探査2か所）。名称と番号（no＝探査の順序）は『基本的な探査箇所と探査の順序』（岡田式浄化療法の実際 p130-131／第3講座スライド p51『全身の探査にチャレンジ』）による。『脳天』は『頭頂部』に統一。chart は 施術記録人体図.jpg（433×472px）上の座標。",
+ "source": "岡田式浄化療法の実際 p130-131（第3講座スライド p51）",
+ "chart": {
+  "image": "施術記録人体図.jpg",
+  "width": 433,
+  "height": 472
+ },
  "regions": [
   {
    "id": "head",
@@ -9,27 +15,36 @@
    "points": [
     {
      "id": "zentoubu",
+     "no": 1,
      "name": "前頭部",
      "confirmed": true,
-     "note": "理知的機能。学校教育の関係で毒素が集溜しやすい（p72）"
+     "note": "理知的機能は前頭部。小児時より学校教育を受ける関係上、毒素は頭脳特に前頭部に集溜する（p72）",
+     "chart": [[107, 48]]
+    },
+    {
+     "id": "touchoubu",
+     "no": 2,
+     "name": "頭頂部",
+     "aliases": ["脳天"],
+     "confirmed": true,
+     "note": "心配するのは感情と智性と両方使うから脳天〔頭頂部〕に来る（p73）",
+     "chart": [[208, 32]]
+    },
+    {
+     "id": "sokutoubu",
+     "no": 3,
+     "name": "こめかみ部、側頭部",
+     "aliases": ["こめかみ", "側頭部"],
+     "confirmed": true,
+     "chart": [[203, 111]]
     },
     {
      "id": "koutoubu",
+     "no": 4,
      "name": "後頭部",
      "confirmed": true,
-     "note": "感情的機能（p72）"
-    },
-    {
-     "id": "nouten",
-     "name": "脳天",
-     "confirmed": true,
-     "note": "心配は感情と智性の両方を使うから脳天に来る（p73）"
-    },
-    {
-     "id": "head_4",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "note": "感情的機能は後頭部（p72）",
+     "chart": [[314, 52]]
     }
    ]
   },
@@ -38,37 +53,53 @@
    "name": "頸部",
    "count": 6,
    "textbook": "p60-61, p71-72",
-   "caution": "強く押すと有害な反射が起きる可能性あり。三指（人差・中・薬指）で丁寧に探査（第4講座）",
+   "caution": "頸部は強く押すと有害な反射が起きる可能性有。三指（人差、中、薬指）で丁寧に探査（第4講座）",
    "points": [
     {
      "id": "enzui",
+     "no": 5,
      "name": "延髄部",
-     "confirmed": true
+     "confirmed": true,
+     "chart": [[314, 76]]
     },
     {
      "id": "koukeibu",
+     "no": 6,
      "name": "後頸部",
-     "confirmed": true
-    },
-    {
-     "id": "jikasen",
-     "name": "耳下腺部",
-     "confirmed": true
+     "aliases": ["後頚部"],
+     "confirmed": true,
+     "chart": [[314, 90]]
     },
     {
      "id": "keizui",
+     "no": 7,
      "name": "頸髄部",
-     "confirmed": true
+     "aliases": ["頚髄部", "頚髄"],
+     "confirmed": true,
+     "chart": [[224, 150]]
+    },
+    {
+     "id": "jikasen",
+     "no": 8,
+     "name": "耳下腺部",
+     "confirmed": true,
+     "chart": [[217, 139]]
     },
     {
      "id": "keibu_lymph",
-     "name": "頸部リンパ腺",
-     "confirmed": true
+     "no": 9,
+     "name": "頸部淋巴腺部",
+     "aliases": ["頸部リンパ腺", "頸部淋巴腺", "頚部リンパ腺"],
+     "confirmed": true,
+     "chart": [[209, 153]]
     },
     {
      "id": "hentousen",
-     "name": "扁桃腺部",
-     "confirmed": true
+     "no": 10,
+     "name": "扁桃腺付近",
+     "aliases": ["扁桃腺部"],
+     "confirmed": true,
+     "chart": [[197, 148]]
     }
    ]
   },
@@ -77,18 +108,23 @@
    "name": "肩部",
    "count": 2,
    "textbook": "p69-72",
+   "caution": "マナー上、鎖骨より下は触れない（第2講座）",
    "points": [
     {
-     "id": "shoulder_1",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "kata",
+     "no": 11,
+     "name": "肩",
+     "confirmed": true,
+     "note": "肩が柔軟で、指で圧して指頭が一寸（約3㎝）くらい没するような人は必ず健康である（p69-70）",
+     "chart": [[293, 107], [335, 107]]
     },
     {
-     "id": "shoulder_2",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "maekata",
+     "no": 12,
+     "name": "鎖骨部周辺（前肩）",
+     "aliases": ["前肩"],
+     "confirmed": true,
+     "chart": [[86, 104], [128, 104]]
     }
    ],
    "note": "テキストには『肩凹部』（p71）の語あり"
@@ -100,31 +136,35 @@
    "textbook": "p62, p66",
    "points": [
     {
-     "id": "back_1",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "sekichuu",
+     "no": 13,
+     "name": "脊柱",
+     "confirmed": true,
+     "chart": [[314, 150]]
     },
     {
-     "id": "back_2",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "kenkoukan",
+     "no": 14,
+     "name": "肩甲間部",
+     "confirmed": true,
+     "note": "テキストの『脊柱の両側』（p66）に当たる上行路",
+     "chart": [[303, 128], [325, 128]]
     },
     {
-     "id": "back_3",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "kenkoukotsu_ka",
+     "no": 15,
+     "name": "肩甲骨下部",
+     "confirmed": true,
+     "chart": [[291, 162], [337, 162]]
     },
     {
-     "id": "back_4",
-     "name": null,
-     "confirmed": false,
-     "todo": "第3講座スライドの名称で記入（未確認）"
+     "id": "kenkoukotsu",
+     "no": 16,
+     "name": "肩甲骨部",
+     "confirmed": true,
+     "chart": [[291, 133], [337, 133]]
     }
-   ],
-   "note": "アプリ上の『肩甲間部』は、テキストの『脊柱の両側』（p66）に当たる上行路として扱う。テキスト表記を併記すること"
+   ]
   },
   {
    "id": "kidney",
@@ -134,19 +174,50 @@
    "points": [
     {
      "id": "haimen_jinzo",
+     "no": 17,
      "name": "背面腎臓部",
-     "confirmed": true
+     "confirmed": true,
+     "chart": [[300, 187], [328, 187]]
     },
     {
      "id": "jinzo_kahou",
+     "no": 18,
      "name": "腎臓下方部",
      "confirmed": true,
-     "note": "ベルトの上まで"
+     "note": "ベルトの上まで",
+     "chart": [[303, 203], [325, 203]]
     },
     {
      "id": "jinzo_kahou_side",
-     "name": "腎臓下方部（側面）",
-     "confirmed": true
+     "no": 19,
+     "name": "腎臓下方部（側面部）",
+     "confirmed": true,
+     "chart": [[283, 200], [345, 200]]
+    }
+   ]
+  },
+  {
+   "id": "koshi",
+   "name": "腰部",
+   "count": 2,
+   "self_probe": true,
+   "textbook": "p64-65",
+   "note": "※自己探査（19か所の外）。脚・腰に関わる流れで用いる",
+   "points": [
+    {
+     "id": "youkotsu",
+     "no": 20,
+     "name": "腰骨部",
+     "confirmed": true,
+     "chart": [[314, 216]]
+    },
+    {
+     "id": "biteikotsu",
+     "no": 21,
+     "name": "尾てい骨部（仙骨、尾骨付近）",
+     "aliases": ["尾てい骨", "尾骶骨部", "仙骨"],
+     "confirmed": true,
+     "chart": [[314, 236]]
     }
    ]
   }

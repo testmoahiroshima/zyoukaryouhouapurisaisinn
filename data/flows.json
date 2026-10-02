@@ -1,5 +1,5 @@
 {
- "_note": "症状（舞台）から、探査して見つめる箇所（楽屋を含む）への流れ。route は毒素が流れてくる順（元→症状）。look_order は探査で見つめる順の提案。根拠は3級テキスト頁と全集の候補。zenshu_candidates は語句一致による自動候補で verified=false。SFが確認後 true にする。",
+ "_note": "症状（舞台）から、探査して見つめる箇所（楽屋を含む）への流れ。route は毒素が流れてくる順（元→症状）。look_order は探査で見つめる順の提案。根拠は3級テキスト頁と全集の候補。zenshu_candidates は語句一致による自動候補で verified=false。SFが確認後 true にする。 look_points は look_order を body_points.json の id に展開したもの（探査で見つめる箇所）。",
  "flows": [
   {
    "id": "headache_general",
@@ -23,7 +23,19 @@
    "zenshu_candidates": [
     "chojutsu10#71"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "zentoubu",
+    "touchoubu",
+    "sokutoubu",
+    "koutoubu",
+    "enzui",
+    "koukeibu",
+    "keibu_lymph",
+    "kata",
+    "kenkoukan",
+    "haimen_jinzo"
+   ]
   },
   {
    "id": "head_warmth",
@@ -37,7 +49,13 @@
    "zenshu_candidates": [
     "chojutsu10#71"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "zentoubu",
+    "touchoubu",
+    "sokutoubu",
+    "koutoubu"
+   ]
   },
   {
    "id": "headache_occipital",
@@ -57,7 +75,14 @@
    "zenshu_candidates": [
     "chojutsu04#105"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "koutoubu",
+    "enzui",
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ]
   },
   {
    "id": "headache_frontal",
@@ -83,7 +108,11 @@
     "kowa02#563",
     "kowa05#123"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "zentoubu",
+    "keibu_lymph"
+   ]
   },
   {
    "id": "head_use",
@@ -101,20 +130,28 @@
    "zenshu_candidates": [
     "kowa10#0"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "zentoubu",
+    "touchoubu",
+    "sokutoubu",
+    "koutoubu",
+    "kata",
+    "maekata"
+   ]
   },
   {
    "id": "worry",
-   "stage": "心配事が多い・脳天の重さ",
+   "stage": "心配事が多い・頭頂部の重さ",
    "route": [
-    "脳天"
+    "頭頂部"
    ],
    "look_order": [
-    "脳天",
+    "頭頂部",
     "後頭部",
     "延髄部"
    ],
-   "basis": "心配は感情と智性の両方を使うから脳天に来る。脳天→後頭部→延髄の順で施術",
+   "basis": "心配は感情と智性の両方を使うから脳天〔頭頂部〕に来る。頭頂部→後頭部→延髄の順で施術",
    "textbook": "p73（昭和28年）",
    "zenshu_candidates": [
     "chojutsu11#298",
@@ -122,7 +159,12 @@
     "kowa08#7",
     "kowa10#0"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "touchoubu",
+    "koutoubu",
+    "enzui"
+   ]
   },
   {
    "id": "katakori",
@@ -143,7 +185,14 @@
     "kowa12#164",
     "kowa04#430"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "kata",
+    "maekata",
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ]
   },
   {
    "id": "neck_stiff",
@@ -159,7 +208,17 @@
    "basis": "いったん肩に固まった物が頸の方へ行く。肩をやると頸の廻りの固まりが溶けやすくなる",
    "textbook": "p71-72（昭和28年）",
    "zenshu_candidates": [],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "enzui",
+    "koukeibu",
+    "keizui",
+    "jikasen",
+    "keibu_lymph",
+    "hentousen",
+    "kata",
+    "maekata"
+   ]
   },
   {
    "id": "eyes",
@@ -177,7 +236,11 @@
    "zenshu_candidates": [
     "chojutsu04#105"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "koutoubu",
+    "enzui"
+   ]
   },
   {
    "id": "nose",
@@ -195,7 +258,11 @@
    "zenshu_candidates": [
     "chojutsu04#105"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "enzui",
+    "haimen_jinzo"
+   ]
   },
   {
    "id": "stomach",
@@ -209,7 +276,11 @@
    "basis": "胃をやるより肩を柔らかくした方がよい",
    "textbook": "p71（昭和28年）",
    "zenshu_candidates": [],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "kata",
+    "maekata"
+   ]
   },
   {
    "id": "heart",
@@ -226,7 +297,11 @@
    "zenshu_candidates": [
     "kowa05#94"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "kata"
+   ],
+   "side": "left"
   },
   {
    "id": "legs",
@@ -243,7 +318,12 @@
    "zenshu_candidates": [
     "kowa10#0"
    ],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "youkotsu",
+    "biteikotsu",
+    "kata"
+   ]
   },
   {
    "id": "breath",
@@ -258,7 +338,11 @@
    "basis": "腰から足が悪い人は軽くゆかない。それが息切れになる",
    "textbook": "p65（昭和28年）",
    "zenshu_candidates": [],
-   "verified": false
+   "verified": false,
+   "look_points": [
+    "youkotsu",
+    "biteikotsu"
+   ]
   }
  ]
 }
