@@ -6,7 +6,7 @@ const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.
 const db = prepare({
   points: load('body_points'), flows: load('flows'), routes: load('routes'),
   symptoms: load('symptoms'), safety: load('safety'),
-  places: load('places'), knowledge: load('knowledge'),
+  places: load('places'), knowledge: load('knowledge'), kenkai: load('kenkai'),
 });
 
 const cases = [
@@ -30,6 +30,14 @@ const cases = [
   ['鼻水とくしゃみ', ['nose'], [], []],
   ['全身がだるい', ['fatigue'], [], []],
   ['なんだか眠れない', ['insomnia'], [], []],
+  ['かゆみがひどい', ['k:kayumi'], [], []],
+  ['痒くてたまらない', ['k:kayumi'], [], []],
+  ['手足が冷える', ['k:hie'], [], []],
+  ['背中が張る', ['k:senaka'], [], []],
+  ['寝汗をかく', ['k:ase'], [], []],
+  ['車酔いしやすい', ['k:norimono'], [], []],
+  ['口内炎ができた', ['k:kuchi'], [], []],
+  ['手がしびれる', ['k:shibire', 'hands'], [], []],
   ['よくわからない', [], [], []],
   ['立ちくらみがする', ['dizziness'], ['eyes'], []],
   ['熱っぽくて寒気がする', ['fever'], [], []],
@@ -44,6 +52,7 @@ const cases = [
   ['生理痛がつらい', ['women'], [], []],
 ];
 
+const KENKAI_EXPECT = { '朝から頭が重くて、肩が張っている': 'katakori', '胃がもたれて食欲がない': 'i', '首が回らない': 'kubi', 'めまいがする': 'memai' };
 let fail = 0;
 for (const [text, must, mustNot, safety] of cases) {
   const r = analyze(db, text);
@@ -55,6 +64,8 @@ for (const [text, must, mustNot, safety] of cases) {
   for (const s of safety) if (!sids.includes(s)) errs.push(`missing safety ${s}`);
   for (const s of sids) if (!safety.includes(s)) errs.push(`unexpected safety ${s}`);
   if (!must.length && ids.length) errs.push(`expected none, got ${ids}`);
+  // 見解が出るべき症状
+  if (KENKAI_EXPECT[text] && !r.kenkai.some((e) => e.id === KENKAI_EXPECT[text])) errs.push(`missing kenkai ${KENKAI_EXPECT[text]}`);
   if (!must.length && !r.fallback) errs.push('expected fallback');
   const pts = r.points.map((p) => p.no + (p.key ? '*' : '')).join(',');
   console.log(`${errs.length ? 'NG' : 'ok'}  ${text} → [${ids}] safety[${sids}] side=${r.side} points=${pts}${errs.length ? '  !! ' + errs.join('; ') : ''}`);

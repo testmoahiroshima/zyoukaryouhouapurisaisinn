@@ -1,7 +1,7 @@
-import { prepare, analyze, planSession } from './engine.js';
+import { prepare, analyze, planSession, findKenkai, normalize } from './engine.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
-const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge'];
+const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'zenshu_terms'];
 const KEY_FIELDS = { body_points: 'points' };
 const STORE_INPUT = 'joka.lastInput';
 const STORE_SETTINGS = 'joka.settings';
@@ -205,6 +205,50 @@ function principleCard(id) {
   return `<div class="k-item"><div class="k-title">${esc(k.title)}</div><p>${esc(k.summary)}</p>${k.synthesis ? `<p class="small muted">※${esc(k.synthesis)}</p>` : ''}${citesHTML(k)}</div>`;
 }
 
+// ---- 岡田先生の見解（症状から） ----
+function noticeHTML() {
+  return `<p class="kenkai-notice">${esc(db.raw.kenkai.notice)}</p>`;
+}
+function kenkaiItemHTML(e, { open = true, link = false } = {}) {
+  const pts = e.points.map((id) => db.pointById[id]).filter(Boolean);
+  return `<details class="kenkai-item"${open ? ' open' : ''}>
+    <summary>${esc(e.label)}</summary>
+    <p>${esc(e.view)}</p>
+    ${pts.length ? `<div class="small">見解で挙げられている箇所：${pts.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</div>` : '<div class="small muted">見解の中に施術箇所の記述はありません。重要施術部位（腎臓部）から探査してみましょう。</div>'}
+    ${citesHTML(e)}
+    ${link ? `<button type="button" class="ghost small-btn" data-kenkai-go="${esc(e.id)}">この症状で探査する箇所を見る →</button>` : ''}
+  </details>`;
+}
+// 見解の無い言葉は、その言葉が出てくる全集の項（巻・頁・年）を参考に示す
+function termRefs(words) {
+  const terms = db.raw.zenshu_terms.terms;
+  const seen = new Set();
+  const refs = [];
+  for (const w of words) {
+    for (const [id, page, year] of terms[w] || []) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      refs.push({ id, page, year, w });
+    }
+  }
+  return refs.slice(0, 6);
+}
+function termRefsHTML(words) {
+  const refs = termRefs(words);
+  if (!refs.length) return '';
+  return `<div class="k-item"><div class="small">全集でこの言葉が出てくる項（参考・内容は未確認）：</div>
+    <ul class="small">${refs.map((r) => `<li>「${esc(r.w)}」${esc(citeText(r))}</li>`).join('')}</ul></div>`;
+}
+function wireKenkaiLinks(root) {
+  $$('[data-kenkai-go]', root).forEach((b) => b.addEventListener('click', () => {
+    const e = db.kenkai.find((x) => x.id === b.dataset.kenkaiGo);
+    showTab('today');
+    $('#symptom-text').value = e.label;
+    store.set(STORE_INPUT, e.label);
+    renderResult(analyze(db, e.label, [`k:${e.id}`]));
+  }));
+}
+
 function renderResult(r) {
   lastAnalysis = r;
   const out = [];
@@ -223,6 +267,19 @@ function renderResult(r) {
       <div>${r.categories.map((c) => `<span class="tag">${esc(c.label)}</span>`).join('')}</div>
       <p class="small muted">${r.categories.filter((c) => c.words.length).map((c) => `「${esc(c.words.join('」「'))}」`).join(' ')}</p>
       ${r.side ? `<p class="small">「${SIDE_TEXT[r.side]}」の訴えがあります。探査では${SIDE_TEXT[r.side]}を特によく見つめましょう。</p>` : ''}
+    </div>`);
+  }
+
+  // 岡田先生の見解
+  if (!r.fallback && !r.urgent) {
+    const noView = r.categories.filter((c) => !c.kenkai.length);
+    out.push(`<div class="card kenkai-card">
+      <h2>岡田先生の見解</h2>
+      ${noticeHTML()}
+      ${r.kenkai.map((e) => kenkaiItemHTML(e)).join('')}
+      ${noView.map((c) => `<div class="k-item"><div class="k-title">${esc(c.label)}</div>
+        <p class="small muted">この症状について、全集の中にまとまった見解は見当たりませんでした。下の毒素の流れと各論を参考にしてください。</p>
+        ${termRefsHTML(c.words)}</div>`).join('')}
     </div>`);
   }
 
@@ -758,6 +815,57 @@ function renderPointsTab(selected = null) {
   });
 }
 
+// ---- 見解（症状から調べる） ----
+function renderKenkaiTab() {
+  const groups = db.raw.kenkai.groups;
+  $('#tab-kenkai').innerHTML = `
+    <div class="card">
+      <h2>症状から岡田先生の見解を調べる</h2>
+      ${noticeHTML()}
+      <form id="kk-form" class="kk-form" autocomplete="off">
+        <input id="kk-q" type="search" placeholder="例：かゆみ、肩こり、眠れない" aria-label="症状">
+        <button type="submit" class="primary">調べる</button>
+      </form>
+      <p class="small muted">病名ではなく、どこが・どのように辛いか（例：背中が張る、手足が冷える）で調べてください。</p>
+    </div>
+    <div id="kk-result" aria-live="polite"></div>
+    <div class="card">
+      <h2>症状の一覧</h2>
+      ${groups.map((g) => `<h3>${esc(g)}</h3>${db.kenkai.filter((e) => e.group === g).map((e) => kenkaiItemHTML(e, { open: false, link: true })).join('')}`).join('')}
+    </div>`;
+  wireKenkaiLinks($('#tab-kenkai'));
+  $('#kk-form').addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    const q = $('#kk-q').value.trim();
+    const box = $('#kk-result');
+    if (!q) { box.innerHTML = ''; return; }
+    const r = analyze(db, q);
+    const nq = normalize(q);
+    const hits = r.urgent ? [] : r.kenkai.slice();
+    // 見出し（症状名）からも引く
+    for (const e of db.kenkai) if (!hits.includes(e) && !r.urgent && nq.length >= 2 && normalize(e.label).includes(nq)) hits.push(e);
+    const banners = r.safety.map((x) => `<div class="banner ${x.level === 'urgent' ? 'urgent' : 'notice'}">${esc(x.message)}</div>`).join('');
+    const blocked = r.urgent || r.safety.some((x) => x.id === 'disease');
+    let body = '';
+    if (hits.length) {
+      body = hits.map((e) => kenkaiItemHTML(e, { link: true })).join('');
+    } else if (!blocked) {
+      const words = [...new Set([q, ...r.categories.flatMap((c) => c.words)])];
+      body = `<p>「${esc(q)}」について、全集の中にまとまった見解は見当たりませんでした。</p>
+        ${r.categories.length ? `<p class="small">症状の流れでは「${r.categories.map((c) => esc(c.label)).join('」「')}」に当たります。<button type="button" class="ghost small-btn" id="kk-go-today">探査する箇所を見る →</button></p>` : '<p class="small">言い方を変えて（例：「頭が重い」「足がだるい」）調べてみてください。</p>'}
+        ${termRefsHTML(words)}`;
+    }
+    box.innerHTML = `${banners}${body ? `<div class="card kenkai-card">${body}</div>` : ''}`;
+    wireKenkaiLinks(box);
+    $('#kk-go-today', box)?.addEventListener('click', () => {
+      showTab('today');
+      $('#symptom-text').value = q;
+      store.set(STORE_INPUT, q);
+      renderResult(analyze(db, q));
+    });
+  });
+}
+
 // ---- 流れと用語 ----
 function renderLearnTab() {
   const { concepts } = db.raw.concepts;
@@ -868,6 +976,7 @@ async function main() {
   setupToday();
   renderPointsTab();
   renderLearnTab();
+  renderKenkaiTab();
 }
 
 main();
