@@ -34,7 +34,7 @@
   },
   "self_rating_before": {
    "type": "object",
-   "description": "受け手の自己評価 0-10（例: 頭の重さ、肩の張り、気分）",
+   "description": "受け手の自己評価 0-10（つらさ）",
    "additionalProperties": {
     "type": "integer",
     "minimum": 0,
@@ -55,19 +55,22 @@
       "description": "body_points.json の id"
      },
      "heat": {
-      "type": "integer",
+      "type": "number",
       "minimum": 0,
-      "maximum": 3
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
      },
      "kouketsu": {
-      "type": "integer",
+      "type": "number",
       "minimum": 0,
-      "maximum": 3
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
      },
      "atsutsuu": {
-      "type": "integer",
+      "type": "number",
       "minimum": 0,
-      "maximum": 3
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
      },
      "note": {
       "type": "string"
@@ -98,7 +101,40 @@
   },
   "findings_after": {
    "type": "array",
-   "description": "施術後の再探査（findings と同じ形式）"
+   "description": "施術後の再探査（findings と同じ形式）",
+   "items": {
+    "type": "object",
+    "required": [
+     "point_id"
+    ],
+    "properties": {
+     "point_id": {
+      "type": "string",
+      "description": "body_points.json の id"
+     },
+     "heat": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
+     },
+     "kouketsu": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
+     },
+     "atsutsuu": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 5,
+      "description": "塗りの濃さから読み取った値（0〜5）"
+     },
+     "note": {
+      "type": "string"
+     }
+    }
+   }
   },
   "self_rating_after": {
    "type": "object",
@@ -118,6 +154,22 @@
   "follow_up": {
    "type": "string",
    "description": "翌日以降の変化（排泄・平均浄化・再浄化など）"
+  },
+  "memo": {
+   "type": "string",
+   "description": "施術時のメモ（氏名は書かない）"
+  },
+  "plan_minutes": {
+   "type": "object",
+   "description": "探査・確認にかけた分",
+   "properties": {
+    "probe": {
+     "type": "number"
+    },
+    "check": {
+     "type": "number"
+    }
+   }
   }
  }
 }

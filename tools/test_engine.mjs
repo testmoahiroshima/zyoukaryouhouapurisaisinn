@@ -41,7 +41,12 @@ const cases = [
   ['よくわからない', [], [], []],
   ['立ちくらみがする', ['dizziness'], ['eyes'], []],
   ['熱っぽくて寒気がする', ['fever'], [], []],
-  ['糖尿病です', [], [], ['disease']],
+  ['糖尿病です', ['k:d_tounyou'], ['urinary'], ['disease']],
+  ['高血圧で肩がこる', ['k:d_ketsuatsu', 'katakori'], [], ['disease']],
+  ['喘息の発作', ['k:d_zensoku'], [], ['disease']],
+  ['インフルエンザにかかった', ['k:d_kansen'], [], ['disease']],
+  ['胃がんの疑い', [], ['stomach'], ['disease']],
+  ['うつ病と言われた', ['k:yuutsu'], [], ['disease']],
   ['頑張りすぎて肩が痛い', ['katakori'], [], []],
   ['頭がガンガンする', ['headache'], [], []],
   ['胸に激痛がある', [], [], ['urgent']],
@@ -94,19 +99,26 @@ if (!flow.stations.some((s) => s.points?.includes('kenkoukan'))) { console.log('
 
 // 時間配分
 const plan = planSession(db, {
-  kata: { heat: 2, kouketsu: 3, atsutsuu: 2 },
-  kenkoukan: { heat: 1, kouketsu: 2, atsutsuu: 1 },
-  haimen_jinzo: { heat: 1, kouketsu: 3, atsutsuu: 0 },
-  zentoubu: { heat: 0, kouketsu: 1, atsutsuu: 0 },
-}, 30, kat);
+  kata: { heat: 3, kouketsu: 5, atsutsuu: 3 },
+  kenkoukan: { heat: 2, kouketsu: 3, atsutsuu: 1 },
+  haimen_jinzo: { heat: 2, kouketsu: 5, atsutsuu: 0 },
+  zentoubu: { heat: 0, kouketsu: 2, atsutsuu: 0 },
+  kenkoukotsu_ka: { heat: 4, kouketsu: 4, atsutsuu: 4 },
+  kenkoukotsu: { heat: 4, kouketsu: 4, atsutsuu: 4 },
+}, 45, kat);
 const sum = plan.probe + plan.check + plan.items.reduce((s, i) => s + i.minutes, 0);
-console.log(`${sum === 30 ? 'ok' : 'NG'}  plan 30分: 探査${plan.probe} ` + plan.items.map((i) => `${i.name}${i.minutes}`).join(' ') + ` 確認${plan.check} (合計${sum})`);
-if (sum !== 30) fail++;
-if (plan.items[0].no > plan.items[plan.items.length - 1].no) { console.log('NG order'); fail++; }
+console.log(`${sum === 45 ? 'ok' : 'NG'}  plan 45分: 探査${plan.probe} ` + plan.items.map((i) => `${i.name}${i.minutes}`).join(' ') + ` 確認${plan.check} (合計${sum})`);
+if (sum !== 45) fail++;
+// 上から下の順（背面図での高さ）
+const ys = plan.items.map((i) => db.pointById[i.id].anchor[1]);
+if (ys.some((y, i) => i && y < ys[i - 1])) { console.log('NG order top-down', plan.items.map((i) => i.name)); fail++; }
+console.log('     順序（上から下）:', plan.items.map((i) => i.name).join(' → '));
+const planT = planSession(db, { kenkoukotsu_ka: { heat: 4, kouketsu: 4 }, kenkoukotsu: { heat: 4, kouketsu: 4 } }, 30, kat, { order: 'text' });
+if (planT.items[0].no > planT.items[1].no) { console.log('NG order text'); fail++; }
 const none = planSession(db, {}, 30, kat);
 if (none.ok) { console.log('NG empty plan should fail'); fail++; }
 for (const t of [15, 20, 45, 60]) {
-  const p2 = planSession(db, { kata: { heat: 2, kouketsu: 2, atsutsuu: 1 }, sokeibu: { heat: 1, kouketsu: 2, atsutsuu: 1 }, haimen_jinzo: { heat: 0, kouketsu: 2, atsutsuu: 0 } }, t, kat);
+  const p2 = planSession(db, { kata: { heat: 3, kouketsu: 3, atsutsuu: 2 }, sokeibu: { heat: 2, kouketsu: 3, atsutsuu: 2 }, haimen_jinzo: { heat: 0, kouketsu: 3, atsutsuu: 0 } }, t, kat);
   const s2 = p2.probe + p2.check + p2.items.reduce((s, i) => s + i.minutes, 0);
   console.log(`${s2 === t ? 'ok' : 'NG'}  plan ${t}分 → 合計${s2}: ` + p2.items.map((i) => `${i.name}${i.minutes}`).join(' '));
   if (s2 !== t) fail++;

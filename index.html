@@ -22,8 +22,9 @@
     <button id="tap-start" class="tap-start" type="button">タップしてはじめる</button>
     <nav id="title-menu" class="title-menu" hidden>
       <button type="button" data-go="today"><span class="mi">症</span>本日の症状から</button>
-      <button type="button" data-go="kenkai"><span class="mi">見</span>岡田先生の見解（症状から）</button>
+      <button type="button" data-go="kenkai"><span class="mi">見</span>岡田先生の見解（症状・病気から）</button>
       <button type="button" data-go="session"><span class="mi">施</span>探査と施術タイマー</button>
+      <button type="button" data-go="records"><span class="mi">録</span>施術の記録</button>
       <button type="button" data-go="points"><span class="mi">探</span>探査19か所</button>
       <button type="button" data-go="learn"><span class="mi">流</span>流れと用語</button>
       <button type="button" data-go="settings"><span class="mi">♪</span>音楽と音声</button>
@@ -42,6 +43,7 @@
   <button role="tab" data-tab="today" aria-selected="true">症状</button>
   <button role="tab" data-tab="kenkai" aria-selected="false">見解</button>
   <button role="tab" data-tab="session" aria-selected="false">施術</button>
+  <button role="tab" data-tab="records" aria-selected="false">記録</button>
   <button role="tab" data-tab="points" aria-selected="false">19か所</button>
   <button role="tab" data-tab="learn" aria-selected="false">用語</button>
 </nav>
@@ -65,6 +67,7 @@
 
   <section id="tab-kenkai" class="tab-panel" hidden></section>
   <section id="tab-session" class="tab-panel" hidden></section>
+  <section id="tab-records" class="tab-panel" hidden></section>
   <section id="tab-points" class="tab-panel" hidden></section>
   <section id="tab-learn" class="tab-panel" hidden></section>
   <section id="tab-settings" class="tab-panel" hidden></section>
