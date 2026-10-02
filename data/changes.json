@@ -1,0 +1,60 @@
+{
+ "_note": "施術中・施術後に起こりうる変化と、その時に伝える知識（講座運営・アプリの『変化メモ』用）",
+ "patterns": [
+  {
+   "id": "mune_hara",
+   "trigger": "肩・頸を施術した後、胸がむかつく／軽い嘔吐感→腹痛・下痢（婦人はコシケ、皮膚の粘膜から出ることも）",
+   "meaning": "溶けたものが胃に集まり、さらに下がって出ていく（毒素の溶解と排泄の順序）",
+   "textbook": "p63-64（昭和28年）",
+   "zenshu_candidates": [
+    "kowa02#643",
+    "chojutsu01#24",
+    "chojutsu03#117",
+    "chojutsu04#57",
+    "chojutsu11#128"
+   ],
+   "verified": false
+  },
+  {
+   "id": "heikin",
+   "trigger": "一方が良くなると反対側や別の所が痛くなる",
+   "meaning": "平均浄化。痛みが移動しているのではない。腎臓部周囲の固結が少ないほど強く作用",
+   "textbook": "p56-58（昭和17年・25年）／第4講座",
+   "zenshu_candidates": [
+    "chojutsu03#136",
+    "chojutsu03#172",
+    "chojutsu04#78",
+    "chojutsu08#211",
+    "chojutsu03#138",
+    "chojutsu03#174",
+    "chojutsu04#80",
+    "chojutsu05#84",
+    "kowa02#395",
+    "kowa02#644",
+    "kowa05#42"
+   ],
+   "verified": false
+  },
+  {
+   "id": "saijoka",
+   "trigger": "いったん良くなった後、時日を経て同じ浄化が起こる",
+   "meaning": "再浄化。最初の施術は浄化発生分の毒素が解消。体力・活力が出ると残りの毒素を排除する浄化が起こる",
+   "textbook": "p57-58（昭和27年・28年）",
+   "zenshu_candidates": [
+    "chojutsu10#32"
+   ],
+   "verified": false
+  },
+  {
+   "id": "kata_soft",
+   "trigger": "肩が柔らかくなった（指頭が一寸くらい没する）",
+   "meaning": "肩の硬軟は健康判定の目安",
+   "textbook": "p69-70（昭和25年・22年）",
+   "zenshu_candidates": [
+    "chojutsu08#204",
+    "chojutsu05#84"
+   ],
+   "verified": false
+  }
+ ]
+}

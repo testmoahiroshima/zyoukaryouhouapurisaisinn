@@ -1,0 +1,130 @@
+{
+ "kidney_up": [
+  "chojutsu10#71"
+ ],
+ "kidney_main": [
+  "chojutsu10#71"
+ ],
+ "kidney_scheme": [
+  "chojutsu03#113",
+  "chojutsu04#53"
+ ],
+ "rakuya": [
+  "kowa01#6",
+  "kowa12#105",
+  "kowa12#164"
+ ],
+ "kata_jinzo": [],
+ "heikin1": [
+  "chojutsu03#136",
+  "chojutsu03#172",
+  "chojutsu04#78"
+ ],
+ "heikin2": [
+  "chojutsu08#211"
+ ],
+ "saijoka1": [
+  "chojutsu10#32"
+ ],
+ "saijoka2": [],
+ "zento_inbu": [
+  "kowa02#252",
+  "kowa02#563",
+  "kowa05#123"
+ ],
+ "zento_lymph": [
+  "chojutsu04#105",
+  "chojutsu10#35",
+  "chojutsu10#89",
+  "kowa07#56",
+  "kowa07#66",
+  "kowa08#10"
+ ],
+ "kotou_enzui": [
+  "chojutsu04#105"
+ ],
+ "shinkei": [
+  "chojutsu11#125"
+ ],
+ "seishi": [
+  "chojutsu05#31"
+ ],
+ "senaka": [
+  "kowa01#79",
+  "kowa01#417",
+  "kowa11#17"
+ ],
+ "kata_mune": [
+  "kowa02#643"
+ ],
+ "koshi_ashi": [],
+ "kata_shindan": [
+  "chojutsu08#204"
+ ],
+ "kata_issun": [
+  "chojutsu05#84"
+ ],
+ "kata_yusou": [
+  "chojutsu02#16"
+ ],
+ "kata_shinzo": [
+  "kowa05#94"
+ ],
+ "kata_kubi": [],
+ "atama_chufu": [
+  "chojutsu01#53"
+ ],
+ "atama_zento": [
+  "chojutsu05#87"
+ ],
+ "atama_noten": [
+  "chojutsu11#298",
+  "kowa01#31",
+  "kowa08#7",
+  "kowa10#0"
+ ],
+ "atama_kata": [],
+ "atama_onmi": [
+  "chojutsu10#71"
+ ],
+ "daiichi": [
+  "kowa01#29",
+  "kowa01#33"
+ ],
+ "chikara": [
+  "kowa01#31"
+ ],
+ "rakuya_s28": [
+  "kowa01#6",
+  "kowa04#430"
+ ],
+ "kata_mune2": [
+  "chojutsu01#24",
+  "chojutsu03#117",
+  "chojutsu04#57",
+  "chojutsu11#128"
+ ],
+ "koshi_ashi2": [
+  "kowa10#0"
+ ],
+ "kata_kubi2": [],
+ "atama_kata2": [
+  "kowa10#0"
+ ],
+ "kata_issun2": [
+  "chojutsu05#84"
+ ],
+ "kata_jinzo2": [],
+ "heikin_jinzo": [
+  "chojutsu03#136",
+  "chojutsu03#138",
+  "chojutsu03#172",
+  "chojutsu03#174",
+  "chojutsu04#78",
+  "chojutsu04#80",
+  "chojutsu05#84",
+  "kowa02#395",
+  "kowa02#644",
+  "kowa05#42"
+ ]
+}

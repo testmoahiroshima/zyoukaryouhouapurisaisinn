@@ -1,0 +1,123 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "施術記録（1回分）",
+ "type": "object",
+ "required": [
+  "session_id",
+  "date",
+  "receiver_code",
+  "findings",
+  "treatments"
+ ],
+ "properties": {
+  "session_id": {
+   "type": "string"
+  },
+  "date": {
+   "type": "string",
+   "format": "date"
+  },
+  "practitioner": {
+   "type": "string",
+   "description": "施術者（受講者）"
+  },
+  "receiver_code": {
+   "type": "string",
+   "description": "受け手の匿名コード。氏名は保存しない"
+  },
+  "complaints": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "受け手の訴え（flows.json の stage を選択＋自由記述）"
+  },
+  "self_rating_before": {
+   "type": "object",
+   "description": "受け手の自己評価 0-10（例: 頭の重さ、肩の張り、気分）",
+   "additionalProperties": {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 10
+   }
+  },
+  "findings": {
+   "type": "array",
+   "description": "探査結果",
+   "items": {
+    "type": "object",
+    "required": [
+     "point_id"
+    ],
+    "properties": {
+     "point_id": {
+      "type": "string",
+      "description": "body_points.json の id"
+     },
+     "heat": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+     },
+     "kouketsu": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+     },
+     "atsutsuu": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+     },
+     "note": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "treatments": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "required": [
+     "point_id",
+     "minutes"
+    ],
+    "properties": {
+     "point_id": {
+      "type": "string"
+     },
+     "minutes": {
+      "type": "number"
+     },
+     "order": {
+      "type": "integer"
+     }
+    }
+   }
+  },
+  "findings_after": {
+   "type": "array",
+   "description": "施術後の再探査（findings と同じ形式）"
+  },
+  "self_rating_after": {
+   "type": "object",
+   "additionalProperties": {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 10
+   }
+  },
+  "changes_observed": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "changes.json の id または自由記述"
+  },
+  "follow_up": {
+   "type": "string",
+   "description": "翌日以降の変化（排泄・平均浄化・再浄化など）"
+  }
+ }
+}

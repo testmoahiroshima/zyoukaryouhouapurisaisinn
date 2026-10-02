@@ -1,0 +1,264 @@
+{
+ "_note": "症状（舞台）から、探査して見つめる箇所（楽屋を含む）への流れ。route は毒素が流れてくる順（元→症状）。look_order は探査で見つめる順の提案。根拠は3級テキスト頁と全集の候補。zenshu_candidates は語句一致による自動候補で verified=false。SFが確認後 true にする。",
+ "flows": [
+  {
+   "id": "headache_general",
+   "stage": "頭痛・頭重（全般）",
+   "route": [
+    "背面腎臓部",
+    "脊柱の両側（肩甲間部）",
+    "肩部",
+    "頸部",
+    "頭部"
+   ],
+   "look_order": [
+    "頭部",
+    "頸部",
+    "肩部",
+    "背部",
+    "腎臓部"
+   ],
+   "basis": "腎臓で処理されない毒素が背部腎臓面に溜まり、脊柱の両側を上向延長して肩や頸の辺りに及び、ついに頭脳内に進入して頭重・頭痛等となる",
+   "textbook": "p66（昭和27年）",
+   "zenshu_candidates": [
+    "chojutsu10#71"
+   ],
+   "verified": false
+  },
+  {
+   "id": "head_warmth",
+   "stage": "頭に温味がある",
+   "route": [],
+   "look_order": [
+    "頭部"
+   ],
+   "basis": "頭脳に手を触れて少しでも温味があれば毒素のある証拠",
+   "textbook": "p66（昭和27年）",
+   "zenshu_candidates": [
+    "chojutsu10#71"
+   ],
+   "verified": false
+  },
+  {
+   "id": "headache_occipital",
+   "stage": "後頭部の頭痛",
+   "route": [
+    "腎臓部",
+    "延髄部",
+    "後頭部"
+   ],
+   "look_order": [
+    "後頭部",
+    "延髄部",
+    "腎臓部"
+   ],
+   "basis": "後頭部の頭痛は延髄部毒結の浄化熱のためであり、その部とその根原である腎臓の施術による",
+   "textbook": "p61（昭和18年）",
+   "zenshu_candidates": [
+    "chojutsu04#105"
+   ],
+   "verified": false
+  },
+  {
+   "id": "headache_frontal",
+   "stage": "前頭部の頭痛・熱／イライラ",
+   "route": [
+    "頸部リンパ腺",
+    "前頭部"
+   ],
+   "look_order": [
+    "前頭部",
+    "頸部リンパ腺"
+   ],
+   "basis": "前頭部頭痛の病原は頸部淋巴腺の浄化熱。前頭部の熱の毒は下から来るので、下も施術すると前頭部の熱も冷める",
+   "textbook": "p60-61（昭和28年・昭和18年）",
+   "zenshu_candidates": [
+    "chojutsu04#105",
+    "chojutsu10#35",
+    "chojutsu10#89",
+    "kowa07#56",
+    "kowa07#66",
+    "kowa08#10",
+    "kowa02#252",
+    "kowa02#563",
+    "kowa05#123"
+   ],
+   "verified": false
+  },
+  {
+   "id": "head_use",
+   "stage": "頭を使う人の頭の固まり",
+   "route": [
+    "肩部",
+    "頭部"
+   ],
+   "look_order": [
+    "頭部",
+    "肩部"
+   ],
+   "basis": "肩に溜まったものが、頭を使うので頭に来る。肩を柔らかくすると頭も柔らかくなる",
+   "textbook": "p73（昭和28年）",
+   "zenshu_candidates": [
+    "kowa10#0"
+   ],
+   "verified": false
+  },
+  {
+   "id": "worry",
+   "stage": "心配事が多い・脳天の重さ",
+   "route": [
+    "脳天"
+   ],
+   "look_order": [
+    "脳天",
+    "後頭部",
+    "延髄部"
+   ],
+   "basis": "心配は感情と智性の両方を使うから脳天に来る。脳天→後頭部→延髄の順で施術",
+   "textbook": "p73（昭和28年）",
+   "zenshu_candidates": [
+    "chojutsu11#298",
+    "kowa01#31",
+    "kowa08#7",
+    "kowa10#0"
+   ],
+   "verified": false
+  },
+  {
+   "id": "katakori",
+   "stage": "肩こり",
+   "route": [
+    "腎臓部",
+    "肩部"
+   ],
+   "look_order": [
+    "肩部",
+    "腎臓部"
+   ],
+   "basis": "楽屋と舞台。肩の毒は大体は腎臓。腎臓で処理されない分が肩に来る",
+   "textbook": "p59-60（昭和28年）／第4講座",
+   "zenshu_candidates": [
+    "kowa01#6",
+    "kowa12#105",
+    "kowa12#164",
+    "kowa04#430"
+   ],
+   "verified": false
+  },
+  {
+   "id": "neck_stiff",
+   "stage": "頸の廻りの固まり",
+   "route": [
+    "肩部",
+    "頸部"
+   ],
+   "look_order": [
+    "頸部",
+    "肩部"
+   ],
+   "basis": "いったん肩に固まった物が頸の方へ行く。肩をやると頸の廻りの固まりが溶けやすくなる",
+   "textbook": "p71-72（昭和28年）",
+   "zenshu_candidates": [],
+   "verified": false
+  },
+  {
+   "id": "eyes",
+   "stage": "近眼・乱視",
+   "route": [
+    "後頭部",
+    "延髄部"
+   ],
+   "look_order": [
+    "後頭部",
+    "延髄部"
+   ],
+   "basis": "後頭部、延髄付近の固結が原因",
+   "textbook": "p61（昭和18年）",
+   "zenshu_candidates": [
+    "chojutsu04#105"
+   ],
+   "verified": false
+  },
+  {
+   "id": "nose",
+   "stage": "鼻のつまり",
+   "route": [
+    "延髄部",
+    "背面腎臓部"
+   ],
+   "look_order": [
+    "延髄部",
+    "背面腎臓部"
+   ],
+   "basis": "延髄部及び背面腎臓部の毒素溶解によって快癒",
+   "textbook": "p61（昭和18年）",
+   "zenshu_candidates": [
+    "chojutsu04#105"
+   ],
+   "verified": false
+  },
+  {
+   "id": "stomach",
+   "stage": "胃の悪い人・消化不良",
+   "route": [
+    "肩部"
+   ],
+   "look_order": [
+    "肩部"
+   ],
+   "basis": "胃をやるより肩を柔らかくした方がよい",
+   "textbook": "p71（昭和28年）",
+   "zenshu_candidates": [],
+   "verified": false
+  },
+  {
+   "id": "heart",
+   "stage": "心臓（左肩の凝り）",
+   "route": [
+    "左の肩",
+    "心臓付近"
+   ],
+   "look_order": [
+    "肩部（左）"
+   ],
+   "basis": "左の肩の凝りが少しずつ溶けて心臓の付近に垂れて固まる",
+   "textbook": "p71（昭和28年）",
+   "zenshu_candidates": [
+    "kowa05#94"
+   ],
+   "verified": false
+  },
+  {
+   "id": "legs",
+   "stage": "足が悪い・だるい・吊る・膝",
+   "route": [
+    "腰の中心",
+    "足"
+   ],
+   "look_order": [
+    "腰の中心・尾てい骨（背面から）"
+   ],
+   "basis": "足に関係したのは、いったん腰に集まったものが足に流れる。腰の中心、尾てい骨を狙って背面から施術。肩をやると足の工合もよくなる",
+   "textbook": "p64-65, p72（昭和28年）",
+   "zenshu_candidates": [
+    "kowa10#0"
+   ],
+   "verified": false
+  },
+  {
+   "id": "breath",
+   "stage": "坂や階段での息切れ",
+   "route": [
+    "腰",
+    "足"
+   ],
+   "look_order": [
+    "腰の中心・尾てい骨（背面から）"
+   ],
+   "basis": "腰から足が悪い人は軽くゆかない。それが息切れになる",
+   "textbook": "p65（昭和28年）",
+   "zenshu_candidates": [],
+   "verified": false
+  }
+ ]
+}

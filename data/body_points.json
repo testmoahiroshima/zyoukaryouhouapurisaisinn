@@ -1,0 +1,154 @@
+{
+ "_note": "探査部位。名称は3級講座スライド（第2〜4講座）に基づく。confirmed=false はSFが確認・記入する。",
+ "regions": [
+  {
+   "id": "head",
+   "name": "頭部",
+   "count": 4,
+   "textbook": "p72-73",
+   "points": [
+    {
+     "id": "zentoubu",
+     "name": "前頭部",
+     "confirmed": true,
+     "note": "理知的機能。学校教育の関係で毒素が集溜しやすい（p72）"
+    },
+    {
+     "id": "koutoubu",
+     "name": "後頭部",
+     "confirmed": true,
+     "note": "感情的機能（p72）"
+    },
+    {
+     "id": "nouten",
+     "name": "脳天",
+     "confirmed": true,
+     "note": "心配は感情と智性の両方を使うから脳天に来る（p73）"
+    },
+    {
+     "id": "head_4",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    }
+   ]
+  },
+  {
+   "id": "neck",
+   "name": "頸部",
+   "count": 6,
+   "textbook": "p60-61, p71-72",
+   "caution": "強く押すと有害な反射が起きる可能性あり。三指（人差・中・薬指）で丁寧に探査（第4講座）",
+   "points": [
+    {
+     "id": "enzui",
+     "name": "延髄部",
+     "confirmed": true
+    },
+    {
+     "id": "koukeibu",
+     "name": "後頸部",
+     "confirmed": true
+    },
+    {
+     "id": "jikasen",
+     "name": "耳下腺部",
+     "confirmed": true
+    },
+    {
+     "id": "keizui",
+     "name": "頸髄部",
+     "confirmed": true
+    },
+    {
+     "id": "keibu_lymph",
+     "name": "頸部リンパ腺",
+     "confirmed": true
+    },
+    {
+     "id": "hentousen",
+     "name": "扁桃腺部",
+     "confirmed": true
+    }
+   ]
+  },
+  {
+   "id": "shoulder",
+   "name": "肩部",
+   "count": 2,
+   "textbook": "p69-72",
+   "points": [
+    {
+     "id": "shoulder_1",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    },
+    {
+     "id": "shoulder_2",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    }
+   ],
+   "note": "テキストには『肩凹部』（p71）の語あり"
+  },
+  {
+   "id": "back",
+   "name": "背部",
+   "count": 4,
+   "textbook": "p62, p66",
+   "points": [
+    {
+     "id": "back_1",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    },
+    {
+     "id": "back_2",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    },
+    {
+     "id": "back_3",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    },
+    {
+     "id": "back_4",
+     "name": null,
+     "confirmed": false,
+     "todo": "第3講座スライドの名称で記入（未確認）"
+    }
+   ],
+   "note": "アプリ上の『肩甲間部』は、テキストの『脊柱の両側』（p66）に当たる上行路として扱う。テキスト表記を併記すること"
+  },
+  {
+   "id": "kidney",
+   "name": "腎臓部",
+   "count": 3,
+   "textbook": "p65-69",
+   "points": [
+    {
+     "id": "haimen_jinzo",
+     "name": "背面腎臓部",
+     "confirmed": true
+    },
+    {
+     "id": "jinzo_kahou",
+     "name": "腎臓下方部",
+     "confirmed": true,
+     "note": "ベルトの上まで"
+    },
+    {
+     "id": "jinzo_kahou_side",
+     "name": "腎臓下方部（側面）",
+     "confirmed": true
+    }
+   ]
+  }
+ ]
+}
