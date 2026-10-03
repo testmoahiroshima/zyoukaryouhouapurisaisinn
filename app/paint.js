@@ -1,11 +1,60 @@
-// 探査結果を人体図に塗って記録する（熱＝赤、固結・張り＝青、圧痛＝紫。濃淡5段階）
-// 塗りは人体図（433×472）の1画素を SCALE×SCALE に分けた格子に 0〜255 で持つ。端末の外へは送らない。
+// 探査結果を人体図に塗って記録する（熱＝赤、固結・張り＝青、圧痛＝紫。各1色で20段階。重ねて塗るほど濃くなる）
+// 平面図（433×472）の塗りは、1画素を SCALE×SCALE に分けた格子に「段階×10」（0〜200）で持つ。端末の外へは送らない。
+// 3D人体図（body3d.js）も、ここの色・段階・道具を使う。
 
 export const LAYERS = [
-  { id: 'heat', name: '熱', rgb: [214, 48, 36] },
-  { id: 'kouketsu', name: '固結・張り', rgb: [36, 92, 214] },
-  { id: 'atsutsuu', name: '圧痛', rgb: [146, 58, 190] },
+  { id: 'heat', name: '熱', rgb: [214, 48, 36], light: [248, 200, 190], deep: [160, 18, 10] },
+  { id: 'kouketsu', name: '固結・張り', rgb: [36, 92, 214], light: [196, 214, 248], deep: [16, 52, 160] },
+  { id: 'atsutsuu', name: '圧痛', rgb: [146, 58, 190], light: [228, 204, 242], deep: [98, 24, 144] },
 ];
+export const LEVELS = 20;
+// 塗る：一筆で4段階濃くなる。濃くする・薄くする：塗ってある所だけを1.5段階ずつ変える
+export const TOOLS = [
+  { id: 'paint', name: '塗る', step: 4 },
+  { id: 'deepen', name: '濃くする', step: 1.5 },
+  { id: 'lighten', name: '薄くする', step: -1.5 },
+  { id: 'erase', name: '消す' },
+];
+// 読み取った値（探査箇所ごと）は 0〜5
+export const SHADES = 5;
+
+// 段階（0〜20）の色
+export function levelColor(layer, lv) {
+  const t = Math.max(0, Math.min(1, lv / LEVELS));
+  return layer.light.map((c, i) => Math.round(c + (layer.deep[i] - c) * t));
+}
+
+// 一筆の中で、その所に一番強くかかった筆の強さ f（0〜1）で、元の段階 old から変える
+export function applyTool(toolId, old, f) {
+  const tool = TOOLS.find((t) => t.id === toolId);
+  if (tool.id === 'erase') return old * (1 - f);
+  if (tool.id === 'paint') return Math.min(LEVELS, old + tool.step * f);
+  if (old < 0.5) return old;
+  return Math.max(0, Math.min(LEVELS, old + tool.step * f));
+}
+
+// 塗った所を、一番近い探査箇所にだけ割り当てて読み取る（隣の箇所に漏れない）。
+// その箇所の周りで塗られた所が少なすぎる（1割未満）時は読まない。濃い方から2割の平均（0〜20）を 0〜5 に直す。
+// perTarget: Map（探査箇所の1か所ごと。左右にある箇所は左右別々）→ { id, n, min, vals: { 層: [段階...] } }
+export function summarizeLevels(perTarget) {
+  const out = {};
+  for (const a of perTarget.values()) {
+    const f = {};
+    for (const l of LAYERS) {
+      const v = a.vals[l.id].sort((x, y) => y - x);
+      if (v.length < Math.max(a.min || 4, a.n * 0.1)) { f[l.id] = 0; continue; }
+      const top = v.slice(0, Math.max(1, Math.ceil(v.length * 0.2)));
+      const lv = top.reduce((s, x) => s + x, 0) / top.length;
+      f[l.id] = Math.round((lv / LEVELS) * SHADES * 10) / 10;
+      if (f[l.id] < 0.3) f[l.id] = 0;
+    }
+    if (!LAYERS.some((l) => f[l.id] > 0)) continue;
+    // 左右の両方を塗った時は、濃い方をその箇所の値とする
+    const cur = out[a.id];
+    out[a.id] = cur ? Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(cur[l.id], f[l.id])])) : f;
+  }
+  return out;
+}
 
 // 拡大して塗る範囲（人体図の座標）
 export const REGIONS = [
@@ -20,7 +69,6 @@ export const REGIONS = [
   { id: 'front_full', name: '前面全身', box: [0, 0, 222, 472] },
 ];
 
-export const SHADES = 5;
 export const BRUSHES = [
   { id: 'fine', name: '細', r: 1.6 },
   { id: 'mid', name: '中', r: 3.2 },
@@ -38,9 +86,8 @@ export class Painter {
     this.gh = height * SCALE;
     this.grids = Object.fromEntries(LAYERS.map((l) => [l.id, new Uint8Array(this.gw * this.gh)]));
     this.layer = 'heat';
-    this.shade = 3;
+    this.tool = 'paint';
     this.brush = 'mid';
-    this.erase = false;
     this.history = [];
     this.onChange = null;
     this.region = REGIONS[0];
@@ -118,8 +165,9 @@ export class Painter {
             const v = this.grids[l.id][gi];
             if (!v) continue;
             if (pick-- > 0) continue;
-            const al = (v / 255) * 0.85;
-            [r, g, b] = l.rgb.map((c) => c * al);
+            const lv = v / 10;
+            const al = Math.min(0.92, 0.3 + (lv / LEVELS) * 0.62);
+            [r, g, b] = levelColor(l, lv).map((c) => c * al);
             a = al;
             break;
           }
@@ -214,15 +262,13 @@ export class Painter {
     return BRUSHES.find((b) => b.id === this.brush).r;
   }
 
-  // 筆先：中心は選んだ濃さ、縁に向かってやわらかく薄れる。
-  // 一筆の中では、その格子に一番強くかかった筆の強さだけで、元の濃さから選んだ濃さへ近づける
-  // （薄い濃さで塗れば薄く塗り直せる。何度なぞっても縁が濃くなりすぎない）
+  // 筆先：中心が一番強く、縁に向かってやわらかく弱まる。
+  // 一筆の中では、その格子に一番強くかかった筆の強さだけで変える（同じ所を何度なぞっても一筆分しか濃くならない）
   stamp(ix, iy, stroke) {
     const grid = this.grids[this.layer];
     const R = this.radius() * SCALE;
     const cx = ix * SCALE;
     const cy = iy * SCALE;
-    const target = Math.round((this.shade / SHADES) * 255);
     const xa = Math.max(0, Math.floor(cx - R));
     const xb = Math.min(this.gw - 1, Math.ceil(cx + R));
     const ya = Math.max(0, Math.floor(cy - R));
@@ -238,7 +284,7 @@ export class Painter {
         if (!rec) { rec = { old: grid[i], f: 0 }; stroke.set(i, rec); }
         if (f <= rec.f) continue;
         rec.f = f;
-        grid[i] = this.erase ? Math.round(rec.old * (1 - f)) : Math.round(rec.old + (target - rec.old) * f);
+        grid[i] = Math.round(applyTool(this.tool, rec.old / 10, f) * 10);
       }
     }
   }
@@ -266,36 +312,29 @@ export class Painter {
   }
 
   // ---- 読み取り ----
-  // 各探査箇所の周り（半径 rad 画素）で、濃い方から15%の平均を、その箇所の値（0〜5）とする
-  sample(points, rad = 7) {
-    const out = {};
+  // 探査箇所の周り（半径 rad 画素）の格子を、一番近い探査箇所に割り当てて読む
+  sample(points, rad = 8) {
     const R = rad * SCALE;
-    for (const p of points) {
-      const vals = Object.fromEntries(LAYERS.map((l) => [l.id, []]));
-      for (const [px, py] of p.chart || []) {
-        const cx = px * SCALE;
-        const cy = py * SCALE;
-        for (let y = Math.max(0, Math.floor(cy - R)); y <= Math.min(this.gh - 1, Math.ceil(cy + R)); y++) {
-          for (let x = Math.max(0, Math.floor(cx - R)); x <= Math.min(this.gw - 1, Math.ceil(cx + R)); x++) {
-            if (Math.hypot(x - cx, y - cy) > R) continue;
-            const i = y * this.gw + x;
-            for (const l of LAYERS) vals[l.id].push(this.grids[l.id][i]);
+    const all = [];
+    for (const p of points) for (const [px, py] of p.chart || []) all.push({ id: p.id, x: px * SCALE, y: py * SCALE });
+    const per = new Map();
+    for (const c of all) {
+      for (let y = Math.max(0, Math.floor(c.y - R)); y <= Math.min(this.gh - 1, Math.ceil(c.y + R)); y++) {
+        for (let x = Math.max(0, Math.floor(c.x - R)); x <= Math.min(this.gw - 1, Math.ceil(c.x + R)); x++) {
+          const d = Math.hypot(x - c.x, y - c.y);
+          if (d > R) continue;
+          if (all.some((o) => o !== c && Math.hypot(x - o.x, y - o.y) < d)) continue;
+          let a = per.get(c);
+          if (!a) per.set(c, (a = { id: c.id, n: 0, min: 6, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
+          a.n++;
+          const i = y * this.gw + x;
+          for (const l of LAYERS) {
+            const v = this.grids[l.id][i] / 10;
+            if (v >= 0.5) a.vals[l.id].push(v);
           }
         }
       }
-      const f = {};
-      let any = false;
-      for (const l of LAYERS) {
-        const v = vals[l.id].filter((x) => x > 0).sort((a, b) => b - a);
-        if (!v.length) { f[l.id] = 0; continue; }
-        const top = v.slice(0, Math.max(1, Math.ceil(vals[l.id].length * 0.15)));
-        const mean = top.reduce((s, x) => s + x, 0) / top.length;
-        const lv = Math.round((mean / 255) * SHADES * 10) / 10;
-        f[l.id] = lv < 0.5 ? 0 : lv;
-        if (f[l.id] > 0) any = true;
-      }
-      if (any) out[p.id] = f;
     }
-    return out;
+    return summarizeLevels(per);
   }
 }

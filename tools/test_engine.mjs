@@ -123,6 +123,15 @@ for (const t of [15, 20, 45, 60]) {
   console.log(`${s2 === t ? 'ok' : 'NG'}  plan ${t}分 → 合計${s2}: ` + p2.items.map((i) => `${i.name}${i.minutes}`).join(' '));
   if (s2 !== t) fail++;
 }
+// 重要施術部位（頭・肩・腎臓部）は所見が無くても必ず入る
+for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5 }, biteikotsu: { kouketsu: 5 } }, 30], [{ koutoubu: { heat: 2 } }, 60]]) {
+  const p3 = planSession(db, f, t, null);
+  const regs = new Set(p3.items.map((i) => db.pointById[i.id].region));
+  const s3 = p3.probe + p3.check + p3.items.reduce((s, i) => s + i.minutes, 0);
+  const good = ['head', 'shoulder', 'kidney'].every((r) => regs.has(r)) && s3 === t && p3.items.every((i) => i.minutes >= 2);
+  console.log(`${good ? 'ok' : 'NG'}  頭・肩・腎臓部を必ず含む ${t}分: ` + p3.items.map((i) => `${i.name}${i.minutes}${i.stub ? '(所見なし)' : ''}`).join(' '));
+  if (!good) fail++;
+}
 
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
