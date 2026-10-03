@@ -207,6 +207,27 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (!good) fail++;
 }
 
+// 鼠蹊部・恥骨部（自己探査）に張り・痛み・熱があれば、ほかの所見が強くても必ず入る
+{
+  const strong = { kata: { heat: 5, kouketsu: 5, atsutsuu: 4 }, kenkoukan: { heat: 5, kouketsu: 5, atsutsuu: 5 }, kenkoukotsu: { heat: 5, kouketsu: 5 }, haimen_jinzo: { heat: 4, kouketsu: 5, atsutsuu: 4 }, sekichuu: { heat: 4, kouketsu: 4 }, koukeibu: { heat: 4, kouketsu: 4 }, enzui: { heat: 4, kouketsu: 4 } };
+  for (const [extra, want, t] of [
+    [{ sokeibu: { heat: 0, kouketsu: 0, atsutsuu: 1.5 } }, ['sokeibu'], 30],
+    [{ chikotsu: { heat: 0, kouketsu: 2, atsutsuu: 0 } }, ['chikotsu'], 30],
+    [{ sokeibu: { heat: 1, kouketsu: 0, atsutsuu: 0 }, chikotsu: { heat: 0, kouketsu: 0, atsutsuu: 2 } }, ['sokeibu', 'chikotsu'], 60],
+    [{ sokeibu: { heat: 0, kouketsu: 2, atsutsuu: 1 }, chikotsu: { heat: 0, kouketsu: 1, atsutsuu: 0 } }, ['sokeibu', 'chikotsu'], 15],
+  ]) {
+    const pl = planSession(db, { ...strong, ...extra }, t, null);
+    const got = pl.items.filter((i) => want.includes(i.id));
+    const sum = pl.probe + pl.check + pl.items.reduce((x, i) => x + i.minutes, 0);
+    const good = got.length === want.length && got.every((i) => i.must && i.minutes >= 1) && pl.items.filter((i) => i.key).length >= 5;
+    console.log(`${good ? 'ok' : 'NG'}  鼠蹊部・恥骨部を必ず含む ${t}分（合計${sum}）: ` + pl.items.map((i) => `${i.name}${i.minutes}${i.must ? '(必ず)' : ''}`).join(' '));
+    if (!good) fail++;
+  }
+  // ごく薄い所見（1未満）は、ほかの所見に押し出されてもよい
+  const thin = planSession(db, { ...strong, sokeibu: { heat: 0, kouketsu: 0.5, atsutsuu: 0 } }, 30, null);
+  if (thin.items.some((i) => i.must)) { console.log('NG 薄い所見まで必ず入れている'); fail++; }
+}
+
 // 左右と排泄経路：右の腎臓部が強く、右の腸骨の内側にも固結 → 右の腎臓部を重点・出口を先に
 {
   const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });

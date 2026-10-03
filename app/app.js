@@ -1147,7 +1147,7 @@ function criteriaCard() {
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
       <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
-      <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。頭部は一か所あたり3分ほどまで（頭痛など頭部が特に大事と読み取れる時だけ長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
+      <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。鼠蹊部・恥骨部（自己探査）に張り・痛み・熱があれば、短くても必ず入れる（排泄の出口）。頭部は一か所あたり3分ほどまで（頭痛など頭部が特に大事と読み取れる時だけ長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について岡田先生が説かれた急所を重く。</li>
@@ -1265,7 +1265,7 @@ function renderSessionPlan() {
         ${['outlet', 'top', 'text'].map((o) => `<button type="button" class="chip order-chip" data-order="${o}" aria-pressed="${plan.order === o}">${ORDER_NAME[o]}${o === 'outlet' && plan.excretion.level === 'blocked' ? '（おすすめ）' : o === 'top' && plan.excretion.level !== 'blocked' ? '（基本）' : ''}</button>`).join('')}
       </div>
       <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item" data-focus="${i}">
-        <div class="plan-head"><span class="ord">${i + 1}</span><span class="name"><span class="no">${it.no}</span>${esc(it.name)}${it.side ? ` <span class="tag tag-side">${SIDE_JA[it.side]}重点</span>` : ''}${it.stub ? ' <span class="tag">重要施術部位</span>' : ''}${OUTLET_POINTS.includes(it.id) ? ' <span class="tag tag-outlet">出口</span>' : ''}</span>
+        <div class="plan-head"><span class="ord">${i + 1}</span><span class="name"><span class="no">${it.no}</span>${esc(it.name)}${it.side ? ` <span class="tag tag-side">${SIDE_JA[it.side]}重点</span>` : ''}${it.key ? ' <span class="tag">重要施術部位</span>' : ''}${it.must ? ' <span class="tag tag-must">自己探査・必ず入れる</span>' : ''}${OUTLET_POINTS.includes(it.id) ? ' <span class="tag tag-outlet">出口</span>' : ''}</span>
           <span class="mins"><button type="button" class="mini" data-adj="-1" data-i="${i}" aria-label="1分減らす">−</button><b>${it.minutes}</b>分<button type="button" class="mini" data-adj="1" data-i="${i}" aria-label="1分増やす">＋</button></span></div>
         ${splitText(it) ? `<div class="split">${esc(splitText(it))}</div>` : ''}
         <details class="why"><summary>なぜここを？</summary>

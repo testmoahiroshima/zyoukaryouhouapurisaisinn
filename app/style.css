@@ -832,3 +832,8 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 .peek-banner { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); margin: 0; padding: 4px 12px; border-radius: 999px; background: rgba(138, 85, 16, .9); color: #fff; font-size: .8rem; white-space: nowrap; pointer-events: none; z-index: 2; }
 /* 拡大・回転のボタンは右下に2段で（左の塗る道具と重ならないように） */
 .b3-zoom { max-width: 204px; gap: 6px; }
+.tag.tag-must { background: #fdf3e3; color: #8a5510; border-color: #e7c48f; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag.tag-must { background: #3a2a1c; color: #f5c899; border-color: #6b4a22; }
+}
+:root[data-theme="dark"] .tag.tag-must { background: #3a2a1c; color: #f5c899; border-color: #6b4a22; }
