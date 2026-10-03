@@ -481,6 +481,10 @@ function renderTodayForm() {
           <div class="region-chips" role="group" aria-label="向き">${['front', 'back', 'left', 'right', 'head', 'lowerback'].map((v) => `<button type="button" class="chip region-chip" data-ask-view="${v}">${esc(VIEWS3.find((x) => x.id === v).name)}</button>`).join('')}</div>
           <div class="b3-stage">
             <div class="b3-wrap" id="ask-3d"><p class="small muted b3-loading">からだの図を読み込んでいます…</p></div>
+            <div class="b3-float b3-edit" role="group" aria-label="印の操作">
+              <button type="button" id="pin-undo" aria-label="最後の印を戻す" disabled><span aria-hidden="true">↶</span>戻す</button>
+              <button type="button" id="pin-clear" aria-label="印を全部消す" disabled><span aria-hidden="true">✕</span>消す</button>
+            </div>
             ${zoomHTML('ask')}
           </div>
           <p class="small muted">つらい所に、指で軽く触れてください。触れた所に印がつき、下に場所の名前が出ます。1本指で縦になぞると上下に動き、横になぞると回ります。2本指で広げると大きくなります。</p>
@@ -517,6 +521,8 @@ function renderTodayForm() {
   $('#open-picker', form).addEventListener('click', () => openPicker(!$('#picker-box').hidden ? false : true));
   $$('[data-ask-view]', form).forEach((b) => b.addEventListener('click', () => { askPicker?.setView(b.dataset.askView); markAsk(); }));
   wireZoom(form, 'ask', () => askPicker);
+  $('#pin-undo', form).addEventListener('click', () => undoPin());
+  $('#pin-clear', form).addEventListener('click', () => clearPinZones());
   $('#clear-btn', form).addEventListener('click', () => {
     ta.value = '';
     ask.zones = [];
@@ -537,6 +543,7 @@ function markAsk() {
   $$('.place-b').forEach((b) => b.setAttribute('aria-pressed', String(ask.zones.includes(b.dataset.zone))));
   $$('.sense-b').forEach((b) => b.setAttribute('aria-pressed', String(ask.senses.includes(b.dataset.sense))));
   $$('[data-ask-view]').forEach((b) => b.setAttribute('aria-pressed', String(askPicker?.view === b.dataset.askView)));
+  for (const id of ['pin-undo', 'pin-clear']) { const b = $(`#${id}`); if (b) b.disabled = !ask.pins.length; }
   const box = $('#chosen-places');
   if (box) {
     box.innerHTML = ask.zones.length
@@ -545,6 +552,26 @@ function markAsk() {
     $$('[data-unzone]', box).forEach((b) => b.addEventListener('click', () => toggleZone(b.dataset.unzone)));
   }
   store.set(STORE_ASK, { zones: ask.zones, senses: ask.senses });
+}
+
+// 最後につけた印を外す（その場所に他の印が無ければ、選んだ場所からも外す）
+function undoPin() {
+  const last = ask.pins.pop();
+  if (!last) return;
+  askPicker?.removeLastPin();
+  if (!ask.pins.some((x) => x.zone === last.zone)) ask.zones = ask.zones.filter((z) => z !== last.zone);
+  toast(`「${placeName(last.zone)}」の印を戻しました`);
+  markAsk();
+}
+// 図につけた印を全部消す（ボタンで選んだ場所はそのまま）
+function clearPinZones() {
+  if (!ask.pins.length) return;
+  const zones = new Set(ask.pins.map((x) => x.zone));
+  ask.pins = [];
+  askPicker?.clearPins();
+  ask.zones = ask.zones.filter((z) => !zones.has(z));
+  toast('図の印を消しました');
+  markAsk();
 }
 
 function toggleZone(id, pin = null) {
@@ -737,6 +764,9 @@ function painterHTML(prefix) {
       <div class="region-chips" role="group" aria-label="向き">${views.map((id) => `<button type="button" class="chip region-chip" ${P}-view="${id}">${esc(VIEWS3.find((v) => v.id === id).name)}</button>`).join('')}</div>
       <div class="b3-stage">
         <div class="b3-wrap" id="${prefix}-3d"><p class="small muted b3-loading">3D人体図を読み込んでいます…</p></div>
+        <div class="b3-float b3-edit" role="group" aria-label="入れた結果の操作">
+          <button type="button" ${P}-undo="1" aria-label="最後に入れたものを戻す"><span aria-hidden="true">↶</span>戻す</button>
+        </div>
         <div class="b3-float b3-right" role="group" aria-label="表示">
           <button type="button" ${P}-organs="1">内臓</button>
           <button type="button" ${P}-nums="1">番号</button>

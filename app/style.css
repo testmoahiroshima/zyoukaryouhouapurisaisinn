@@ -799,3 +799,7 @@ button.ghost.picker-open { border: 2px solid var(--accent); color: var(--accent)
 /* 上下に動かすボタン（右端のまん中） */
 .b3-updown { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: grid; gap: 8px; }
 .b3-updown button { width: 48px; height: 48px; border-radius: 50%; border: 1px solid #c9cfc6; background: rgba(255, 255, 255, .92); color: #22302a; font: inherit; font-size: 1.05rem; cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+/* 図の上の「戻す」「消す」（小さく、左上に） */
+.b3-edit button { display: inline-flex; align-items: center; gap: 3px; min-height: 40px; padding: 4px 10px; font-size: .82rem; }
+.b3-edit button span { font-size: 1rem; line-height: 1; }
+.b3-edit button:disabled { opacity: .45; cursor: default; }

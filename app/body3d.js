@@ -628,15 +628,28 @@ export class Body3D {
     this.animateTo({ target: c, r: Math.max(r, spread * 2.6 + 0.35), theta, phi });
   }
 
-  // 示した場所の印
+  // 示した場所の印。体の表面に貼ったシールのように置き、体の陰になる所（裏側）からは見えない
   addPin(p, color = 0xe07a1f) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(0.011, 16, 12), new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
-    m.position.copy(p);
-    m.renderOrder = 8;
-    const ring = new THREE.Mesh(new THREE.SphereGeometry(0.022, 20, 14), new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.25 }));
-    ring.position.copy(p);
-    ring.renderOrder = 8;
-    this.pins.add(m, ring);
+    let best = -1, bd = Infinity;
+    for (const [i, d] of this.near(p.x, p.y, p.z, 0.03)) if (d < bd) { bd = d; best = i; }
+    const n = new THREE.Vector3(...(best >= 0 ? this.vertexNormal(best) : [0, 0, 1])).normalize();
+    const at = new THREE.Vector3(p.x, p.y, p.z).addScaledVector(n, 0.004);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+    const halo = new THREE.Mesh(new THREE.CircleGeometry(0.024, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.3, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, side: THREE.DoubleSide }));
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.011, 24), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, side: THREE.DoubleSide }));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0025, 8, 40), new THREE.MeshBasicMaterial({ color }));
+    for (const m of [halo, dot, ring]) { m.position.copy(at); m.quaternion.copy(q); m.renderOrder = 8; }
+    dot.position.addScaledVector(n, 0.001);
+    const g = new THREE.Group();
+    g.add(halo, dot, ring);
+    this.pins.add(g);
+    this.render();
+  }
+
+  // 最後につけた印を外す
+  removeLastPin() {
+    const last = this.pins?.children[this.pins.children.length - 1];
+    if (last) this.pins.remove(last);
     this.render();
   }
 
@@ -666,8 +679,8 @@ export class Body3D {
         const strong = it.current || it.emphasis;
         const color = it.current ? 0xe0661f : it.done ? 0x9aa59e : 0x2f8a5a;
         const ringR = it.current ? 0.03 : strong ? 0.024 : 0.018;
-        // 今施術する所だけは体を透かして見せ、ほかは体の陰になれば隠れる（裏側の印と紛れないように）
-        const see = !!it.current;
+        // 印は体の陰になる所（裏側）からは見えない（前につけた印が背中側から透けて見えないように）
+        const see = false;
         const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, it.current ? 0.006 : 0.004, 10, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: it.done ? 0.5 : 0.95, depthTest: !see }));
         ring.position.copy(p);
         ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
@@ -681,7 +694,12 @@ export class Body3D {
         if (it.current) this.pulse.push(ring, disc);
         if (it.order) {
           const s = this.label(String(it.order), it.current ? '#ffffff' : '#ffffff', it.current ? 0.03 : 0.022, true, it.current ? '#e0661f' : it.done ? '#9aa59e' : '#2f8a5a');
-          s.position.copy(p).addScaledVector(n, 0.03).addScaledVector(up, 0.028);
+          // 今の所は、矢印に重ならないよう丸の横に番号を置く
+          const side = new THREE.Vector3().crossVectors(up, n);
+          if (side.lengthSq() < 1e-4) side.set(1, 0, 0);
+          side.normalize();
+          if (it.current) s.position.copy(p).addScaledVector(n, 0.02).addScaledVector(side, 0.05);
+          else s.position.copy(p).addScaledVector(n, 0.03).addScaledVector(up, 0.028);
           s.renderOrder = 11;
           s.material.depthTest = !see;
           G.add(s);
@@ -693,9 +711,9 @@ export class Body3D {
           const out = n.clone().multiplyScalar(0.6).addScaledVector(up, 0.8).normalize();
           const dir = out.clone().negate();
           const arrow = new THREE.Group();
-          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, len, 12), new THREE.MeshBasicMaterial({ color: 0xe0661f, depthTest: false }));
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, len, 12), new THREE.MeshBasicMaterial({ color: 0xe0661f }));
           shaft.position.y = len / 2 + 0.03;
-          const head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.03, 16), new THREE.MeshBasicMaterial({ color: 0xe0661f, depthTest: false }));
+          const head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.03, 16), new THREE.MeshBasicMaterial({ color: 0xe0661f }));
           head.position.y = 0.015;
           head.rotation.x = Math.PI;
           arrow.add(shaft, head);
