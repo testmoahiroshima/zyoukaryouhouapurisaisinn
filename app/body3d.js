@@ -2,7 +2,6 @@
 // 色・段階・道具・読み取り方は paint.js（平面図）と同じ。
 // 人体の形は data/body3d.bin（tools/build_body.mjs で作成）。単位はメートル、y が上、z が前、+x が体の左側。
 import * as THREE from './vendor/three.module.min.js';
-import { OrbitControls } from './vendor/OrbitControls.js';
 import { LAYERS, LEVELS, applyTool, levelColor, summarizeLevels } from './paint.js';
 
 export const BRUSHES3 = [
@@ -199,14 +198,16 @@ export class Body3D {
     this.markers.visible = this.showNumbers;
     scene.add(this.markers);
 
-    this.controls = new OrbitControls(this.camera, canvas);
-    this.controls.enableDamping = false;
-    this.controls.minDistance = 0.35;
-    this.controls.maxDistance = 5;
-    this.controls.addEventListener('change', () => this.render());
+    // 向き（注視点のまわりの球面座標）。指の操作とボタンで変える
+    const fresh = !this.orbit;
+    this.orbit ||= { target: new THREE.Vector3(), r: 3, theta: Math.PI, phi: Math.PI / 2 };
+    // 指で示した場所の印（つらい所を教える時）
+    this.pins = new THREE.Group();
+    this.pins.renderOrder = 7;
+    scene.add(this.pins);
     this.raycaster = new THREE.Raycaster();
     this.setMode(this.mode);
-    this.setView(this.view || 'back');
+    if (fresh) this.setView(this.view || 'back'); else this.applyCamera();
     this.updateColors();
     this.bind(canvas);
     this.resize();
@@ -274,15 +275,49 @@ export class Body3D {
     const v = VIEWS3.find((x) => x.id === id) || VIEWS3[1];
     this.view = v.id;
     if (!this.camera) return;
-    this.camera.position.set(...v.pos);
-    this.controls.target.set(...v.target);
-    this.controls.update();
+    const o = this.orbit;
+    o.target.set(...v.target);
+    const off = new THREE.Vector3(...v.pos).sub(o.target);
+    o.r = off.length();
+    o.theta = Math.atan2(off.x, off.z);
+    o.phi = Math.acos(Math.max(-1, Math.min(1, off.y / o.r)));
+    this.applyCamera();
+  }
+
+  applyCamera() {
+    if (!this.camera) return;
+    const o = this.orbit;
+    o.r = Math.max(0.3, Math.min(5, o.r));
+    o.phi = Math.max(0.12, Math.min(Math.PI - 0.12, o.phi));
+    const t = o.target;
+    t.set(Math.max(-0.45, Math.min(0.45, t.x)), Math.max(0, Math.min(1.85, t.y)), Math.max(-0.35, Math.min(0.35, t.z)));
+    const sp = Math.sin(o.phi);
+    this.camera.position.set(t.x + o.r * sp * Math.sin(o.theta), t.y + o.r * Math.cos(o.phi), t.z + o.r * sp * Math.cos(o.theta));
+    this.camera.lookAt(t);
     this.render();
   }
 
+  // 回す（指で横になぞる・ボタン）
+  rotateBy(dTheta, dPhi = 0) {
+    this.orbit.theta -= dTheta;
+    this.orbit.phi -= dPhi;
+    this.applyCamera();
+  }
+
+  // 近づける・離す。point を指すと、そこへ寄っていく
+  zoomBy(f, point = null) {
+    const o = this.orbit;
+    const nr = Math.max(0.3, Math.min(5, o.r / f));
+    const k = 1 - nr / o.r;
+    if (point && k > 0) o.target.lerp(point, k);
+    else if (k < 0) o.target.lerp(new THREE.Vector3(0, o.target.y, 0), Math.min(1, -k * 0.5));
+    o.r = nr;
+    this.applyCamera();
+  }
+
+  // mode：'paint'（1本指で塗る）、'rotate'（1本指で回す）、'pick'（1本指で回す・軽く触れると場所を示す）
   setMode(m) {
     this.mode = m;
-    if (this.controls) this.controls.enabled = m === 'rotate';
     if (this.renderer) this.renderer.domElement.style.cursor = m === 'paint' ? 'crosshair' : 'grab';
   }
 
@@ -317,18 +352,24 @@ export class Body3D {
     this.render();
   }
 
-  // ---- 塗る ----
+  // ---- 指の操作 ----
+  // 1本指：塗る（塗るモード）／回す（見るモード）。2本指：開く・つまむで拡大・縮小、なぞると回す。
+  // マウス：ホイールで拡大・縮小、右ボタン（またはShift）を押しながら動かすと回す。
+  hitAt(clientX, clientY) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+    this.raycaster.setFromCamera(ndc, this.camera);
+    return this.raycaster.intersectObject(this.body, false)[0] || null;
+  }
+
   bind(canvas) {
+    const ptrs = new Map();
     let stroke = null;
-    let raf = 0;
-    const hit = (ev) => {
-      const r = canvas.getBoundingClientRect();
-      const ndc = new THREE.Vector2(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
-      this.raycaster.setFromCamera(ndc, this.camera);
-      const h = this.raycaster.intersectObject(this.body, false)[0];
-      return h ? h.point : null;
-    };
     let last = null;
+    let raf = 0;
+    let drag = null; // 1本指で回す
+    let pinch = null; // 2本指
+    const SPEED = 0.008;
     const apply = (p) => {
       if (!p) return;
       const r = BRUSHES3.find((b) => b.id === this.brush).r;
@@ -340,20 +381,16 @@ export class Body3D {
       last = p.clone();
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.updateColors(); });
     };
-    canvas.addEventListener('pointerdown', (ev) => {
-      if (this.mode !== 'paint') return;
-      ev.preventDefault();
-      canvas.setPointerCapture(ev.pointerId);
-      stroke = new Map();
-      last = null;
-      apply(hit(ev));
-    });
-    canvas.addEventListener('pointermove', (ev) => {
+    // 2本目の指が来たら、1本目で塗り始めた分は取り消す（拡大・回転のつもりの指で塗らない）
+    const cancelStroke = () => {
       if (!stroke) return;
-      ev.preventDefault();
-      apply(hit(ev));
-    });
-    const end = () => {
+      const vals = this.values[this.layer];
+      for (const [i, rec] of stroke) vals[i] = rec.old;
+      stroke = null;
+      last = null;
+      this.updateColors();
+    };
+    const finishStroke = () => {
       if (!stroke) return;
       if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])) });
       if (this.history.length > 40) this.history.shift();
@@ -361,8 +398,87 @@ export class Body3D {
       last = null;
       this.onChange?.();
     };
-    canvas.addEventListener('pointerup', end);
-    canvas.addEventListener('pointercancel', end);
+    const two = () => {
+      const [a, b] = [...ptrs.values()];
+      return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    };
+    canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
+    canvas.addEventListener('pointerdown', (ev) => {
+      ev.preventDefault();
+      try { canvas.setPointerCapture(ev.pointerId); } catch { /* 取れない時もそのまま続ける */ }
+      ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (ptrs.size === 2) {
+        cancelStroke();
+        drag = null;
+        pinch = two();
+        return;
+      }
+      if (ptrs.size > 2) return;
+      const rotateBtn = ev.pointerType === 'mouse' && (ev.button === 2 || ev.shiftKey);
+      if (this.mode === 'paint' && !rotateBtn) {
+        stroke = new Map();
+        last = null;
+        apply(this.hitAt(ev.clientX, ev.clientY)?.point);
+      } else {
+        drag = { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() };
+      }
+    });
+    canvas.addEventListener('pointermove', (ev) => {
+      if (!ptrs.has(ev.pointerId)) return;
+      ev.preventDefault();
+      ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pinch && ptrs.size >= 2) {
+        const now = two();
+        if (now.d > 0 && pinch.d > 0) this.zoomBy(now.d / pinch.d, this.hitAt(now.x, now.y)?.point || null);
+        this.rotateBy((now.x - pinch.x) * SPEED, (now.y - pinch.y) * SPEED);
+        pinch = now;
+        return;
+      }
+      if (stroke) { apply(this.hitAt(ev.clientX, ev.clientY)?.point); return; }
+      if (drag) {
+        this.rotateBy((ev.clientX - drag.x) * SPEED, (ev.clientY - drag.y) * SPEED);
+        drag.x = ev.clientX;
+        drag.y = ev.clientY;
+      }
+    });
+    const up = (ev) => {
+      if (!ptrs.has(ev.pointerId)) return;
+      ptrs.delete(ev.pointerId);
+      if (pinch) { if (ptrs.size < 2) pinch = null; return; }
+      if (stroke) { finishStroke(); return; }
+      if (drag) {
+        // 軽く触れただけ（ほとんど動かさない）なら、その場所を示す
+        const moved = Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy);
+        if (this.mode === 'pick' && moved < 10 && ev.type === 'pointerup') {
+          const h = this.hitAt(ev.clientX, ev.clientY);
+          if (h) this.onPick?.(h.point.clone());
+        }
+        drag = null;
+      }
+    };
+    canvas.addEventListener('pointerup', up);
+    canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('wheel', (ev) => {
+      ev.preventDefault();
+      this.zoomBy(Math.exp(-ev.deltaY * 0.0015), this.hitAt(ev.clientX, ev.clientY)?.point || null);
+    }, { passive: false });
+  }
+
+  // 示した場所の印
+  addPin(p, color = 0xe07a1f) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.011, 16, 12), new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.95 }));
+    m.position.copy(p);
+    m.renderOrder = 8;
+    const ring = new THREE.Mesh(new THREE.SphereGeometry(0.022, 20, 14), new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.25 }));
+    ring.position.copy(p);
+    ring.renderOrder = 8;
+    this.pins.add(m, ring);
+    this.render();
+  }
+
+  clearPins() {
+    this.pins?.clear();
+    this.render();
   }
 
   // 一筆の中では、頂点ごとに一番強くかかった筆の強さで、元の濃さから変える
@@ -421,7 +537,6 @@ export class Body3D {
   dispose() {
     if (this._onResize) window.removeEventListener('resize', this._onResize);
     if (this.renderer) {
-      this.controls?.dispose();
       this.renderer.dispose();
       this.renderer = null;
     }

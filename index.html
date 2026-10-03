@@ -6,6 +6,11 @@
 <title>浄化療法 実践サポート</title>
 <meta name="description" content="3級テキストと岡田茂吉全集に基づき、本日の症状から探査する箇所・毒素の流れ・岡田先生の見解・施術の時間配分を示す実践サポートアプリ">
 <meta name="theme-color" content="#3f6b4f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="浄化療法">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Serif+JP:wght@500;600&display=swap" rel="stylesheet">
@@ -13,67 +18,66 @@
 </head>
 <body>
 
-<!-- タイトル画面（メニュー） -->
+<!-- タイトル画面 -->
 <section id="title-screen" class="title-screen">
   <div class="title-inner">
     <p class="title-kicker">岡田式浄化療法</p>
     <h1 class="title-name">浄化療法<br>実践サポート</h1>
     <p class="title-lead">3級テキストと岡田茂吉全集に基づく<br>探査と施術の手引き</p>
-    <button id="tap-start" class="tap-start" type="button">タップしてはじめる</button>
-    <nav id="title-menu" class="title-menu" hidden>
-      <button type="button" data-go="today"><span class="mi">症</span>本日の症状から</button>
-      <button type="button" data-go="kenkai"><span class="mi">見</span>岡田先生の見解（症状・病気から）</button>
-      <button type="button" data-go="session"><span class="mi">施</span>探査と施術タイマー</button>
-      <button type="button" data-go="records"><span class="mi">録</span>施術の記録</button>
-      <button type="button" data-go="points"><span class="mi">探</span>探査19か所</button>
-      <button type="button" data-go="learn"><span class="mi">流</span>流れと用語</button>
-      <button type="button" data-go="settings"><span class="mi">♪</span>音楽と音声</button>
-    </nav>
-    <button id="title-music" class="title-music" type="button" hidden aria-pressed="true">♪ 音楽 オン</button>
+    <button id="tap-start" class="tap-start" type="button">はじめる</button>
+    <p class="title-hint">画面のどこを触っても始まります</p>
   </div>
 </section>
 
 <header class="top" hidden>
-  <button type="button" id="menu-btn" class="menu-btn" aria-label="メニューに戻る">≡</button>
-  <h1>浄化療法 実践サポート</h1>
-  <button type="button" id="music-btn" class="music-btn" aria-label="音楽">♪</button>
+  <button type="button" id="home-btn" class="brand" aria-label="ホームへ">
+    <span class="brand-mark" aria-hidden="true">浄</span><span class="brand-name"><b>浄化療法</b><small>実践サポート</small></span>
+  </button>
+  <div class="top-actions">
+    <button type="button" id="size-btn" class="icon-btn" aria-label="文字の大きさを変える"><span class="size-a" aria-hidden="true">あ</span><span class="icon-label">文字</span></button>
+    <button type="button" id="music-btn" class="icon-btn" aria-label="音楽"><span class="size-a" aria-hidden="true">♪</span><span class="icon-label">音楽</span></button>
+    <button type="button" id="settings-btn" class="icon-btn" aria-label="設定"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.8 1.8M16.7 16.7l1.8 1.8M5.5 18.5l1.8-1.8M16.7 7.3l1.8-1.8"/></svg><span class="icon-label">設定</span></button>
+  </div>
 </header>
 
-<nav class="tabs" role="tablist" hidden>
-  <button role="tab" data-tab="today" aria-selected="true">症状</button>
-  <button role="tab" data-tab="kenkai" aria-selected="false">見解</button>
-  <button role="tab" data-tab="session" aria-selected="false">施術</button>
-  <button role="tab" data-tab="records" aria-selected="false">記録</button>
-  <button role="tab" data-tab="points" aria-selected="false">19か所</button>
-  <button role="tab" data-tab="learn" aria-selected="false">用語</button>
-</nav>
-
 <main hidden>
-  <section id="tab-today" class="tab-panel">
-    <form id="symptom-form" class="card input-card" autocomplete="off">
-      <label for="symptom-text" class="field-label">本日の症状を入力してください</label>
-      <textarea id="symptom-text" rows="3" placeholder="例：朝から頭が重く、肩が張っている"></textarea>
-      <details class="chips-box">
-        <summary>症状を候補から選ぶ</summary>
-        <div id="chips"></div>
-      </details>
-      <div class="actions">
-        <button type="submit" class="primary">探査する箇所を確かめる</button>
-        <button type="button" id="clear-btn" class="ghost">クリア</button>
-      </div>
-    </form>
+  <section id="tab-home" class="tab-panel"></section>
+
+  <section id="tab-today" class="tab-panel" hidden>
+    <div id="today-form"></div>
     <div id="result" aria-live="polite"></div>
   </section>
 
   <section id="tab-kenkai" class="tab-panel" hidden></section>
   <section id="tab-session" class="tab-panel" hidden></section>
   <section id="tab-records" class="tab-panel" hidden></section>
-  <section id="tab-points" class="tab-panel" hidden></section>
-  <section id="tab-learn" class="tab-panel" hidden></section>
+  <section id="tab-learn" class="tab-panel" hidden>
+    <div class="seg" role="tablist" aria-label="学ぶ">
+      <button type="button" role="tab" data-learn="points">探査19か所</button>
+      <button type="button" role="tab" data-learn="flows">流れと用語</button>
+      <button type="button" role="tab" data-learn="knowledge">全集の知見</button>
+      <button type="button" role="tab" data-learn="practice">実践の心得</button>
+      <button type="button" role="tab" data-learn="guide">使い方</button>
+    </div>
+    <div id="tab-points" class="learn-panel"></div>
+    <div id="learn-flows" class="learn-panel" hidden></div>
+    <div id="learn-knowledge" class="learn-panel" hidden></div>
+    <div id="learn-practice" class="learn-panel" hidden></div>
+    <div id="learn-guide" class="learn-panel" hidden></div>
+  </section>
   <section id="tab-settings" class="tab-panel" hidden></section>
 
   <p id="always-note" class="always-note"></p>
 </main>
+
+<nav class="bottom-nav" aria-label="メニュー" hidden>
+  <button type="button" data-tab="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg><span>ホーム</span></button>
+  <button type="button" data-tab="today"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.4"/><path d="M12 8v7M8 10.5l4-1.5 4 1.5M9.5 21l2.5-6 2.5 6"/></svg><span>症状</span></button>
+  <button type="button" data-tab="kenkai"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5C6.5 4.5 9.5 4.6 12 6c2.5-1.4 5.5-1.5 8-.5V19c-2.5-1-5.5-.9-8 .5-2.5-1.4-5.5-1.5-8-.5z"/><path d="M12 6v13.5"/></svg><span>見解</span></button>
+  <button type="button" data-tab="session"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="7.5"/><path d="M12 9v4.5l3 2M9.5 3h5"/></svg><span>施術</span></button>
+  <button type="button" data-tab="records"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/></svg><span>記録</span></button>
+  <button type="button" data-tab="learn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c-4 3.5-6 6.5-6 10a6 6 0 0 0 12 0c0-3.5-2-6.5-6-10z"/><path d="M12 9v10"/></svg><span>学ぶ</span></button>
+</nav>
 
 <div id="load-error" class="card warn" hidden>データを読み込めませんでした。GitHub Pages など Web サーバー上で開いてください。</div>
 

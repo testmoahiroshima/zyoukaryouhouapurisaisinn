@@ -1,0 +1,16 @@
+{
+  "name": "浄化療法 実践サポート",
+  "short_name": "浄化療法",
+  "description": "3級テキストと岡田茂吉全集に基づく、探査と施術の手引き",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f6f4ee",
+  "theme_color": "#3f6b4f",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
