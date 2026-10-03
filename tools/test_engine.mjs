@@ -133,6 +133,23 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (!good) fail++;
 }
 
+// つらい場所の問い返しと、場所・感じから作る文
+{
+  const { needsPlace, phrasesFor, catsFor } = await import('../app/zones.js');
+  const cases = [['痛い', true], ['ずっとかゆい', true], ['膝が痛い', false], ['肩が重い', false], ['眠れない', false], ['', false]];
+  for (const [t, want] of cases) {
+    const got = needsPlace(t);
+    console.log(`${got === want ? 'ok' : 'NG'}  問い返し「${t}」→ ${got}`);
+    if (got !== want) fail++;
+  }
+  const ph = phrasesFor(['hiza', 'kata'], ['itai', 'nemure']);
+  const r = analyze(db, ph.join('。'), catsFor(['hiza', 'kata']));
+  const ids = r.categories.map((c) => c.id);
+  const good = ph.includes('膝が痛い') && ph.includes('眠れない') && ids.includes('legs') && ids.includes('katakori') && ids.includes('insomnia');
+  console.log(`${good ? 'ok' : 'NG'}  場所＋感じ → ${ph.join('・')} → ${ids.join(',')}`);
+  if (!good) fail++;
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }

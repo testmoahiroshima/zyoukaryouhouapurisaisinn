@@ -55,6 +55,21 @@
     "chojutsu05#84"
    ],
    "verified": false
+  },
+  {
+   "id": "kentou",
+   "trigger": "施術しても熱が下がらない／かえって咳などが増えた",
+   "meaning": "急所を外れていないかを見直す。元の所ではない所を施術すると、そこで溶けたものが元の所に移って、かえって症状が増えることがある（平均浄化）。急所に当たると早く楽になると説かれている。",
+   "textbook": "p56-58",
+   "cites": [
+    {
+     "id": "kowa02#644",
+     "page": null,
+     "year": 1950
+    }
+   ],
+   "zenshu_candidates": [],
+   "verified": true
   }
  ]
 }

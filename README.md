@@ -8,6 +8,7 @@
 - `tools/coverage.mjs` … 症状の言い方の取りこぼし確認（`node tools/coverage.mjs`）
 - `tools/build_terms.py` … 症状の言葉→全集の参照先の索引を作る
 - `tools/build_index.py` … 全集索引の再生成
+- `sw.js`・`manifest.webmanifest`・`icons/` … ホーム画面に追加・電波の無い所でも使えるようにする
 - `tools/build_body.mjs` … 3D人体図の形（`data/body3d.bin`）を作る（`node tools/build_body.mjs`）
 - `app/vendor/` … three.js（MITライセンス、`three-LICENSE.txt`）
 - `docs/FIRST_PROMPT.md` … Claude Code に最初に渡す指示
