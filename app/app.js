@@ -81,27 +81,29 @@ async function loadData() {
 
 // ---- 出典の表示 ----
 const KANJI_NUM = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十', '十一', '十二'];
-function volumeOf(id) {
-  const m = id.match(/^(chojutsu|kowa)(\d+)/);
-  if (!m) return '';
-  return `${m[1] === 'kowa' ? '講話篇' : '著述篇'}${KANJI_NUM[Number(m[2])] || m[2]}巻`;
-}
 function eraOf(year) {
   if (!year) return '';
   if (year >= 1926 && year <= 1988) return `昭和${year - 1925}年`;
   return `${year}年`;
 }
-// 全集の見出しには宗教的な語が含まれることがあるため出さず、巻・頁・年のみを示す
+// 出典は「岡田茂吉全集」とは書かず、年月（昭和〇年〇月）で示す（見出しには宗教的な語が含まれることがあるため出さない）。
+// date は 'YYYYMM' か 'YYYY'（tools/add_cite_dates.py で入れる）
+function dateText(c) {
+  const d = String(c.date || c.year || '');
+  const y = Number(d.slice(0, 4));
+  const m = Number(d.slice(4, 6));
+  if (!y) return '昭和期';
+  return `${eraOf(y)}${m >= 1 && m <= 12 ? `${m}月` : ''}`;
+}
 function citeText(c) {
-  const page = c.page || volumeOf(c.id);
-  const era = eraOf(c.year);
-  return `岡田茂吉全集 ${page}${era ? `（${era}）` : ''}`;
+  return `岡田先生 ${dateText(c)}`;
 }
 function citesHTML(k) {
   const parts = [];
   if (k.textbook) parts.push(`3級テキスト ${esc(k.textbook)}`);
   if (k.t2) parts.push(`2級テキスト実践編 ${esc(k.t2)}`);
-  for (const c of k.cites || []) parts.push(esc(citeText(c)));
+  const dates = [...new Set((k.cites || []).map(dateText))];
+  if (dates.length) parts.push(`岡田先生 ${esc(dates.join('・'))}`);
   return parts.length ? `<div class="cite">根拠：${parts.join('／')}</div>` : '';
 }
 
@@ -119,7 +121,7 @@ async function loadZenshu() {
 function zenshuDetails(ids) {
   if (!ids || !ids.length) return '';
   return `<details class="zenshu" data-ids="${esc(ids.join(','))}">
-    <summary>全集の参考候補（${ids.length}件・未確認）</summary>
+    <summary>参考になる岡田先生の論述（${ids.length}件・未確認）</summary>
     <ul><li class="muted">読み込み中…</li></ul>
   </details>`;
 }
@@ -133,10 +135,10 @@ function wireZenshu(root) {
         const idx = await loadZenshu();
         const rows = el.dataset.ids.split(',').map((id) => ({ id, r: idx[id] }))
           .sort((a, b) => (a.r?.religious_term_count ?? 999) - (b.r?.religious_term_count ?? 999));
-        ul.innerHTML = rows.map(({ id, r }) => `<li>${esc(r ? citeText({ id, page: r.page, year: r.year }) : `${volumeOf(id)}（索引に該当なし）`)}</li>`).join('')
+        ul.innerHTML = rows.map(({ r }) => `<li>${esc(r ? citeText({ date: (r.date || '').slice(0, 6), year: r.year }) : '（年月不明）')}</li>`).join('')
           + '<li class="muted">語句の一致から拾った候補で、内容の確認はまだです。</li>';
       } catch {
-        ul.innerHTML = '<li class="muted">全集索引を読み込めませんでした。</li>';
+        ul.innerHTML = '<li class="muted">参考の索引を読み込めませんでした。</li>';
       }
     });
   });
@@ -260,7 +262,7 @@ function kenkaiItemHTML(e, { open = true, link = false } = {}) {
     ${link ? `<button type="button" class="ghost small-btn" data-kenkai-go="${esc(e.id)}">この症状で探査する箇所を見る →</button>` : ''}
   </details>`;
 }
-// 見解の無い言葉は、その言葉が出てくる全集の項（巻・頁・年）を参考に示す
+// 見解の無い言葉は、その言葉が出てくる岡田先生の論述（年）を参考に示す
 function termRefs(words) {
   const terms = db.raw.zenshu_terms.terms;
   const seen = new Set();
@@ -277,7 +279,7 @@ function termRefs(words) {
 function termRefsHTML(words) {
   const refs = termRefs(words);
   if (!refs.length) return '';
-  return `<div class="k-item"><div class="small">全集でこの言葉が出てくる項（参考・内容は未確認）：</div>
+  return `<div class="k-item"><div class="small">岡田先生の論述でこの言葉が出てくるもの（参考・内容は未確認）：</div>
     <ul class="small">${refs.map((r) => `<li>「${esc(r.w)}」${esc(citeText(r))}</li>`).join('')}</ul></div>`;
 }
 function wireKenkaiLinks(root) {
@@ -342,7 +344,7 @@ function renderResult(r) {
       ${noticeHTML(r.kenkai.some((e) => e.disease))}
       ${r.kenkai.map((e) => kenkaiItemHTML(e)).join('')}
       ${noView.map((c) => `<div class="k-item"><div class="k-title">${esc(c.label)}</div>
-        <p class="small muted">この症状について、全集の中にまとまった見解は見当たりませんでした。下の毒素の流れと各論を参考にしてください。</p>
+        <p class="small muted">この症状について、岡田先生のまとまった見解は見当たりませんでした。下の毒素の流れと各論を参考にしてください。</p>
         ${termRefsHTML(c.words)}</div>`).join('')}
     </div>`);
   }
@@ -373,7 +375,7 @@ function renderResult(r) {
           <div class="roles">${p.roles.map((x) => ROLE_LABEL[x]).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map((x) => `<span class="role role-${x}">${x}</span>`).join('')}</div></div>
       </li>`).join('')}
     </ul>
-    <p class="small muted">番号は探査の順序（岡田式浄化療法の実際 p131）。20〜25は骨盤まわりの自己探査（22 鼠蹊部は全集、23〜25は2級テキスト実践編 p74-76 による追加）。</p>
+    <p class="small muted">番号は探査の順序（岡田式浄化療法の実際 p131）。20〜25は骨盤まわりの自己探査（22 鼠蹊部は岡田先生の論述、23〜25は2級テキスト実践編 p74-76 による追加）。</p>
     ${cautions.map((g) => `<div class="caution">${esc(g.name)}：${esc(g.caution)}</div>`).join('')}
     <button type="button" class="primary wide big" id="to-session">② 探査へ進む →</button>
   </div>`);
@@ -978,7 +980,7 @@ function renderSessionInput() {
     <div class="card">
       <h2>施術にかける時間</h2>
       <div class="time-chips">${[15, 20, 30, 45, 60].map((m) => `<button type="button" class="chip time-chip" data-m="${m}" aria-pressed="${settings.minutes === m}">${m}分</button>`).join('')}</div>
-      <p class="small muted">一回の施術は普通十分から三十分くらい（全集 著述篇一巻p182）。</p>
+      <p class="small muted">一回の施術は普通十分から三十分くらい（岡田先生 昭和10年）。</p>
       <button type="button" class="primary wide big" id="make-plan">③ 施術の順番と時間を出す →</button>
       <p id="plan-msg" class="small warn-text" hidden></p>
     </div>
@@ -1018,7 +1020,7 @@ function criteriaCard() {
       <li><b>重要施術部位</b>：頭・肩・腎臓部は、探査で目立った所見が無くても必ず少しでも施術に入れる（所見のある箇所があればそこを、無ければ短い時間で）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
-      <li><b>各論</b>：本日の症状について全集で説かれた急所を重く。</li>
+      <li><b>各論</b>：本日の症状について岡田先生が説かれた急所を重く。</li>
       <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、所見のある箇所は最低3分、所見の無い重要施術部位は2〜3分確保したうえで、優先度に比例して配る。所見から選ぶ箇所は時間8分あたり1か所（2〜5か所）。施術中は5分ごとに、熱・固結の変化を確かめる声かけをする。</li>
       <li><b>順序</b>：上から下が基本（まず頭を清め、首・肩、背、腎臓部、腰へ）。テキストの探査順にも切り替えられる。</li>
     </ol>
@@ -1787,7 +1789,7 @@ function renderKenkaiTab() {
       body = hits.map((e) => kenkaiItemHTML(e, { link: true })).join('');
     } else if (!blocked) {
       const words = [...new Set([q, ...r.categories.flatMap((c) => c.words)])];
-      body = `<p>「${esc(q)}」について、全集の中にまとまった見解は見当たりませんでした。</p>
+      body = `<p>「${esc(q)}」について、岡田先生のまとまった見解は見当たりませんでした。</p>
         ${r.categories.length ? `<p class="small">症状の流れでは「${r.categories.map((c) => esc(c.label)).join('」「')}」に当たります。<button type="button" class="ghost small-btn" id="kk-go-today">探査する箇所を見る →</button></p>` : '<p class="small">言い方を変えて（例：「頭が重い」「足がだるい」）調べてみてください。</p>'}
         ${termRefsHTML(words)}`;
     }
@@ -1836,7 +1838,7 @@ function renderLearnTab() {
   renderGuide();
 }
 
-// ---- 学ぶ：全集の知見（言葉で絞り込める） ----
+// ---- 学ぶ：岡田先生の知見（言葉で絞り込める） ----
 function renderKnowledge(q = '') {
   const k = db.knowledge;
   const nq = normalize(q.trim());
@@ -1846,8 +1848,8 @@ function renderKnowledge(q = '') {
   const ks = k.kakuron.filter(hit);
   $('#learn-knowledge').innerHTML = `
     <div class="card">
-      <h2>全集から読み取った施術の知見</h2>
-      <p class="small muted">岡田茂吉全集の中身を、3級テキストの言葉で書き直しています。出典は巻・頁・年で示します。</p>
+      <h2>岡田先生の論述から読み取った施術の知見</h2>
+      <p class="small muted">岡田先生の論述の中身を、3級テキストの言葉で書き直しています。出典は年月で示します。</p>
       <form class="kk-form" id="kn-form" role="search"><input id="kn-q" type="search" value="${esc(q)}" placeholder="例：熱、肩、力を抜く" aria-label="知見を言葉で探す"><button type="submit" class="primary">探す</button></form>
     </div>
     ${els.map((el) => {
@@ -1996,7 +1998,7 @@ function renderHome() {
       <button type="button" class="mini-tile" data-go="records"><b>記録</b><span>${n ? `${n}件` : 'まだありません'}</span></button>
       <button type="button" class="mini-tile" data-go="learn"><b>学ぶ</b><span>知見・心得・使い方</span></button>
     </div>
-    ${tip ? `<div class="card tip-card"><div class="tip-head">今日のひとこと<span class="small muted">（全集・テキストの知見から）</span></div><div class="k-title">${esc(tip.title)}</div><p>${esc(tip.summary)}</p>${citesHTML(tip)}</div>` : ''}`;
+    ${tip ? `<div class="card tip-card"><div class="tip-head">今日のひとこと<span class="small muted">（岡田先生の論述・テキストから）</span></div><div class="k-title">${esc(tip.title)}</div><p>${esc(tip.summary)}</p>${citesHTML(tip)}</div>` : ''}`;
   const root = $('#tab-home');
   $$('[data-go]', root).forEach((b) => b.addEventListener('click', () => showTab(b.dataset.go)));
   $$('[data-size]', root).forEach((b) => b.addEventListener('click', () => { setTextSize(b.dataset.size); renderHome(); }));
