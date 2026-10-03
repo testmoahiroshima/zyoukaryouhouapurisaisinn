@@ -87,6 +87,8 @@ export class Painter {
     this.gw = width * SCALE;
     this.gh = height * SCALE;
     this.grids = Object.fromEntries(LAYERS.map((l) => [l.id, new Uint8Array(this.gw * this.gh)]));
+    // 格子ごとに、いちばん上に塗った層（0＝なし、1〜＝LAYERS の順番＋1）
+    this.top = new Uint8Array(this.gw * this.gh);
     this.layer = 'heat';
     this.tool = 'paint';
     this.brush = 'mid';
@@ -98,6 +100,20 @@ export class Painter {
 
   hasPaint() {
     return LAYERS.some((l) => this.grids[l.id].some((v) => v > 0));
+  }
+
+  // 別の図（施術前など）の塗りを、そのまま写す
+  copyFrom(src) {
+    for (const l of LAYERS) this.grids[l.id].set(src.grids[l.id]);
+    this.top.set(src.top);
+    this.history = [];
+    if (this.ctx) this.draw();
+  }
+
+  // 施術前の図を、いま塗っている図の代わりに見せる（null で戻す）
+  setPeek(other) {
+    this.peek = other ? { grids: other.grids, top: other.top } : null;
+    if (this.ctx) this.draw();
   }
 
   // ---- 表示 ----
@@ -153,34 +169,48 @@ export class Painter {
     const octx = this.off.getContext('2d');
     const img = octx.createImageData(gw, gh);
     const d = img.data;
+    // 一つの格子に複数の層がある時は、上に塗った層の色でむらなく塗り、下にある層はその層の縁を濃い色の線で示す
+    const src = this.peek || this;
+    const G = src.grids;
+    const TOP = src.top;
+    const lay = LAYERS.map((l, n) => ({ l, n, g: G[l.id] }));
+    const BAND = 2;
+    const edgeOf = (g, gx, gy) => {
+      for (let k = 1; k <= BAND; k++) {
+        if (gx - k < 0 || !g[gy * this.gw + gx - k]) return true;
+        if (gx + k >= this.gw || !g[gy * this.gw + gx + k]) return true;
+        if (gy - k < 0 || !g[(gy - k) * this.gw + gx]) return true;
+        if (gy + k >= this.gh || !g[(gy + k) * this.gw + gx]) return true;
+      }
+      return false;
+    };
     for (let y = 0; y < gh; y++) {
       const row = (gy0 + y) * this.gw;
       for (let x = 0; x < gw; x++) {
         const gi = row + gx0 + x;
-        // 一つの格子に複数の層がある時は、斜めの縞で塗り分けて、どれも見えるようにする
+        let fill = null;
         let present = 0;
-        for (const l of LAYERS) if (this.grids[l.id][gi]) present++;
-        let r = 0, g = 0, b = 0, a = 0;
-        if (present) {
-          let pick = present > 1 ? Math.floor((gx0 + x + gy0 + y) / 5) % present : 0;
-          for (const l of LAYERS) {
-            const v = this.grids[l.id][gi];
-            if (!v) continue;
-            if (pick-- > 0) continue;
-            const lv = v / 10;
-            const al = Math.min(0.92, 0.3 + (lv / LEVELS) * 0.62);
-            [r, g, b] = levelColor(l, lv).map((c) => c * al);
-            a = al;
-            break;
-          }
+        for (const it of lay) {
+          if (!it.g[gi]) continue;
+          present++;
+          if (TOP[gi] === it.n + 1) { fill = it; break; }
+          if (!fill || it.g[gi] > fill.g[gi]) fill = it;
         }
-        if (a > 0) {
-          const o = (y * gw + x) * 4;
-          d[o] = r / a;
-          d[o + 1] = g / a;
-          d[o + 2] = b / a;
-          d[o + 3] = a * 255;
+        if (!present) continue;
+        let c;
+        let al;
+        const under = lay.find((it) => it !== fill && it.g[gi] && edgeOf(it.g, gx0 + x, gy0 + y));
+        if (under) { c = under.l.rgb; al = 0.9; }
+        else {
+          const lv = fill.g[gi] / 10;
+          al = Math.min(0.92, 0.3 + (lv / LEVELS) * 0.62);
+          c = levelColor(fill.l, lv);
         }
+        const o = (y * gw + x) * 4;
+        d[o] = c[0];
+        d[o + 1] = c[1];
+        d[o + 2] = c[2];
+        d[o + 3] = al * 255;
       }
     }
     octx.putImageData(img, 0, 0);
@@ -228,6 +258,7 @@ export class Painter {
     };
     c.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
+      if (this.peek) return;
       document.body.classList.add('no-select');
       try { window.getSelection()?.removeAllRanges(); } catch { /* 何もしない */ }
       c.setPointerCapture(ev.pointerId);
@@ -252,7 +283,7 @@ export class Painter {
     const end = () => {
       document.body.classList.remove('no-select');
       if (!stroke) return;
-      if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])) });
+      if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])), tops: new Map([...stroke].map(([i, r]) => [i, r.top])) });
       if (this.history.length > 40) this.history.shift();
       stroke = null;
       this.onChange?.();
@@ -271,6 +302,8 @@ export class Painter {
   // 一筆の中では、その格子に一番強くかかった筆の強さだけで変える（同じ所を何度なぞっても一筆分しか濃くならない）
   stamp(ix, iy, stroke) {
     const grid = this.grids[this.layer];
+    const n = LAYERS.findIndex((l) => l.id === this.layer) + 1;
+    const lift = this.tool === 'paint' || this.tool === 'deepen';
     const R = this.radius() * SCALE;
     const cx = ix * SCALE;
     const cy = iy * SCALE;
@@ -286,10 +319,13 @@ export class Painter {
         const f = t * t * (3 - 2 * t);
         const i = y * this.gw + x;
         let rec = stroke.get(i);
-        if (!rec) { rec = { old: grid[i], f: 0 }; stroke.set(i, rec); }
+        if (!rec) { rec = { old: grid[i], top: this.top[i], f: 0 }; stroke.set(i, rec); }
         if (f <= rec.f) continue;
         rec.f = f;
         grid[i] = Math.round(applyTool(this.tool, rec.old / 10, f) * 10);
+        // 塗る・濃くすると、その層が上になる。消えたら上ではなくなる
+        if (grid[i] && lift) this.top[i] = n;
+        else if (!grid[i] && this.top[i] === n) this.top[i] = 0;
       }
     }
   }
@@ -299,6 +335,7 @@ export class Painter {
     if (!h) return false;
     const grid = this.grids[h.layer];
     for (const [i, old] of h.cells) grid[i] = old;
+    if (h.tops) for (const [i, t] of h.tops) this.top[i] = t;
     this.draw();
     this.onChange?.();
     return true;
@@ -309,8 +346,10 @@ export class Painter {
       if (layerId && l.id !== layerId) continue;
       const grid = this.grids[l.id];
       const cells = new Map();
-      for (let i = 0; i < grid.length; i++) if (grid[i]) { cells.set(i, grid[i]); grid[i] = 0; }
-      if (cells.size) this.history.push({ layer: l.id, cells });
+      const tops = new Map();
+      const n = LAYERS.indexOf(l) + 1;
+      for (let i = 0; i < grid.length; i++) if (grid[i]) { cells.set(i, grid[i]); grid[i] = 0; if (this.top[i] === n) { tops.set(i, n); this.top[i] = 0; } }
+      if (cells.size) this.history.push({ layer: l.id, cells, tops });
     }
     this.draw();
     this.onChange?.();

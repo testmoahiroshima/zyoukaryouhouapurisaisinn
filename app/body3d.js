@@ -66,6 +66,8 @@ export class Body3D {
     this.points = points;
     this.nv = mesh.positions.length / 3;
     this.values = Object.fromEntries(LAYERS.map((l) => [l.id, new Float32Array(this.nv)]));
+    // 頂点ごとに、いちばん上に塗った層（0＝なし、1〜＝LAYERS の順番＋1）。重なった所は上に塗った色で見せる
+    this.top = new Uint8Array(this.nv);
     this.layer = 'heat';
     this.tool = 'paint';
     this.brush = 'mid';
@@ -117,7 +119,18 @@ export class Body3D {
       this.owner[i] = best;
       this.ownerDist[i] = Math.sqrt(bd);
     }
-    this.mesh.index3 = { cell: this.cell, hash: this.hash, targets: this.targets, owner: this.owner, ownerDist: this.ownerDist };
+    // となり合う頂点（塗った所の縁を描くため）
+    const I = this.mesh.index;
+    const sets = Array.from({ length: this.nv }, () => new Set());
+    for (let f = 0; f < I.length; f += 3) {
+      const [a, b, c] = [I[f], I[f + 1], I[f + 2]];
+      sets[a].add(b); sets[a].add(c); sets[b].add(a); sets[b].add(c); sets[c].add(a); sets[c].add(b);
+    }
+    this.adjStart = new Uint32Array(this.nv + 1);
+    for (let i = 0; i < this.nv; i++) this.adjStart[i + 1] = this.adjStart[i] + sets[i].size;
+    this.adj = new Uint32Array(this.adjStart[this.nv]);
+    for (let i = 0; i < this.nv; i++) this.adj.set([...sets[i]], this.adjStart[i]);
+    this.mesh.index3 = { cell: this.cell, hash: this.hash, targets: this.targets, owner: this.owner, ownerDist: this.ownerDist, adj: this.adj, adjStart: this.adjStart };
   }
 
   near(x, y, z, r) {
@@ -356,22 +369,49 @@ export class Body3D {
   setShow(s) { this.show = s; this.updateColors(); }
 
   // 肌の色に、塗った層の色を濃さ（20段階）に応じてのせる。
-  // 一つの所に複数の層がある時は、斜めの縞で塗り分けて、どれも見えるようにする（色を混ぜると紫が圧痛と紛れるため）
+  // 一つの所に複数の層がある時は、上に塗った層の色でむらなく塗り、下にある層は、その層の縁を濃い色の線で示す
+  // （縞や混ぜた色にすると、まだらに見えたり、紫が圧痛と紛れたりするため）
   updateColors() {
     if (!this.colors) return;
     const skin = [238, 226, 212];
     const C = this.colors;
-    const P = this.mesh.positions;
-    const shown = LAYERS.filter((l) => this.show === 'all' || this.show === l.id);
+    const src = this.peek || this;
+    const V = src.values;
+    const TOP = src.top;
+    const shown = LAYERS.map((l, n) => ({ l, n })).filter(({ l }) => this.show === 'all' || this.show === l.id);
+    const on = (n, i) => V[LAYERS[n].id][i] >= 0.5;
+    // 下にある層の縁らしさ（となりの頂点のうち、その層がない割合。0〜1）
+    const edgeOf = (n, i) => {
+      let off = 0;
+      const a0 = this.adjStart[i], a1 = this.adjStart[i + 1];
+      for (let a = a0; a < a1; a++) if (!on(n, this.adj[a])) off++;
+      return a1 > a0 ? off / (a1 - a0) : 0;
+    };
     for (let i = 0; i < this.nv; i++) {
       let col = skin;
-      const present = shown.filter((l) => this.values[l.id][i] >= 0.5);
+      const present = shown.filter(({ n }) => on(n, i));
       if (present.length) {
-        const k = present.length > 1 ? Math.abs(Math.floor((P[i * 3] * 0.6 + P[i * 3 + 1] + P[i * 3 + 2] * 0.4) / 0.014)) % present.length : 0;
-        const l = present[k];
-        const lv = this.values[l.id][i];
-        const c = levelColor(l, lv);
-        const w = Math.min(0.95, 0.4 + (lv / LEVELS) * 0.55);
+        // 上に塗った層。なければ（または見せていなければ）濃い方
+        let fill = present.find(({ n }) => TOP[i] === n + 1);
+        if (!fill) fill = present.reduce((a, b) => (V[b.l.id][i] > V[a.l.id][i] ? b : a));
+        let l = fill.l;
+        let lv = V[l.id][i];
+        let w = Math.min(0.95, 0.4 + (lv / LEVELS) * 0.55);
+        let c = levelColor(l, lv);
+        if (present.length > 1) {
+          // 縁の所だけ、下の層の色の線をなめらかに重ねる
+          let best = 0, uc = null;
+          for (const x of present) {
+            if (x === fill) continue;
+            const e = edgeOf(x.n, i);
+            if (e > best) { best = e; uc = x.l.rgb; }
+          }
+          if (uc) {
+            const k = Math.min(1, best * 2.5);
+            c = c.map((v, j) => lerp(v, uc[j], k));
+            w = lerp(w, 0.9, k);
+          }
+        }
         col = skin.map((v, j) => lerp(v, c[j], w));
       }
       C[i * 3] = (col[0] / 255) ** 2.2;
@@ -382,8 +422,23 @@ export class Body3D {
     this.render();
   }
 
+  // 施術前の図を、いま塗っている図の代わりに見せる（other＝施術前の Body3D、null で戻す）
+  setPeek(other) {
+    this.peek = other ? { values: other.values, top: other.top } : null;
+    this.updateColors();
+  }
+
+  // 別の図（施術前など）の塗りを、そのまま写す
+  copyFrom(src) {
+    for (const l of LAYERS) this.values[l.id].set(src.values[l.id]);
+    this.top.set(src.top);
+    this.history = [];
+    this.updateColors();
+  }
+
   // ---- 指の操作 ----
-  // 1本指：塗る（塗るモード）／見るモードでは、縦になぞると体に沿って上下に動き、横になぞると回る。
+  // 1本指：塗る（塗るモード。体の外から触れた時は回す）／見るモードでは、なぞった向きに体が回る（上下左右、立体的に）。
+  // 下へなぞると上から（頭頂部が）見え、上へなぞると下から見える。体に沿った上下の移動は ▲▼ ボタンで。
   // 軽く触れると番号を選ぶ（見るモード）・場所を示す（指すモード）。
   // 2本指：広げる・つまむで拡大・縮小、そのまま動かすと体の位置を動かす、ひねると回す。2回続けて触れると、その所へ寄る。
   // マウス：ホイールで拡大・縮小、右ボタンで位置を動かす、Shiftを押しながら動かすと回す。
@@ -441,6 +496,12 @@ export class Body3D {
     this.animateTo({ target: { x: o.target.x, y: Math.max(0, Math.min(1.85, o.target.y + dir * span * 0.25)), z: o.target.z } }, 300);
   }
 
+  // ボタンで上から見る・下から見る（dir：1＝上から、-1＝下から）
+  tiltBy(dir) {
+    const o = this.orbit;
+    this.animateTo({ phi: Math.max(0.12, Math.min(Math.PI - 0.12, o.phi - dir * (Math.PI / 7))) }, 300);
+  }
+
   bind(canvas) {
     const ptrs = new Map();
     let stroke = null;
@@ -465,14 +526,14 @@ export class Body3D {
     const cancelStroke = () => {
       if (!stroke) return;
       const vals = this.values[this.layer];
-      for (const [i, rec] of stroke) vals[i] = rec.old;
+      for (const [i, rec] of stroke) { vals[i] = rec.old; this.top[i] = rec.top; }
       stroke = null;
       last = null;
       this.updateColors();
     };
     const finishStroke = () => {
       if (!stroke) return;
-      if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])) });
+      if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])), tops: new Map([...stroke].map(([i, r]) => [i, r.top])) });
       if (this.history.length > 40) this.history.shift();
       stroke = null;
       last = null;
@@ -504,10 +565,12 @@ export class Body3D {
       if (ptrs.size > 2) return;
       const mouseMove = ev.pointerType === 'mouse' && ev.button === 2;
       const mouseRotate = ev.pointerType === 'mouse' && ev.shiftKey;
-      if (this.mode === 'paint' && !mouseMove && !mouseRotate) {
+      // 塗るモードでも、体の外から触れた時と、施術前の図を見ている時は回す
+      const hit = this.mode === 'paint' && !mouseMove && !mouseRotate && !this.peek ? this.hitAt(ev.clientX, ev.clientY) : null;
+      if (hit) {
         stroke = new Map();
         last = null;
-        apply(this.hitAt(ev.clientX, ev.clientY)?.point);
+        apply(hit.point);
       } else {
         drag = { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now(), pan: mouseMove };
       }
@@ -533,15 +596,12 @@ export class Body3D {
         const dy = ev.clientY - drag.y;
         if (drag.pan) this.panBy(dx, dy);
         else {
-          // 1本指：なぞり始めの向きで決める。縦になぞると体に沿って上下に動き、横になぞると体が回る
-          if (!drag.axis) {
-            const tx = ev.clientX - drag.sx;
-            const ty = ev.clientY - drag.sy;
-            if (Math.hypot(tx, ty) < 8) return;
-            drag.axis = Math.abs(ty) > Math.abs(tx) * 0.8 ? 'v' : 'h';
+          // 1本指：なぞった向きに回す（横＝左右に回る、縦＝上から・下から見る）。少し動くまでは回さない（軽く触れて選ぶため）
+          if (!drag.moving) {
+            if (Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy) < 8) return;
+            drag.moving = true;
           }
-          if (drag.axis === 'v') this.moveVertical(dy);
-          else this.rotateBy(dx * SPEED, 0);
+          this.rotateBy(dx * SPEED, dy * SPEED);
         }
         drag.x = ev.clientX;
         drag.y = ev.clientY;
@@ -802,14 +862,19 @@ export class Body3D {
     const vals = this.values[layerId];
     const lv = Math.max(0, Math.min(LEVELS, level5 * (LEVELS / 5)));
     const cells = new Map();
+    const tops = new Map();
+    const n = LAYERS.findIndex((l) => l.id === layerId) + 1;
     for (let i = 0; i < this.nv; i++) {
       if (this.owner[i] !== k || this.ownerDist[i] > radius) continue;
       cells.set(i, vals[i]);
+      tops.set(i, this.top[i]);
       const edge = this.ownerDist[i] / radius;
       vals[i] = edge > 0.75 ? lv * (1 - (edge - 0.75) * 2.4) : lv;
       if (vals[i] < 0.5 && lv > 0) vals[i] = Math.max(vals[i], 0);
+      if (vals[i] >= 0.5 && lv > 0) this.top[i] = n;
+      else if (this.top[i] === n) this.top[i] = 0;
     }
-    if (cells.size) this.history.push({ layer: layerId, cells });
+    if (cells.size) this.history.push({ layer: layerId, cells, tops });
     this.updateColors();
     this.onChange?.();
   }
@@ -824,14 +889,18 @@ export class Body3D {
   // 一筆の中では、頂点ごとに一番強くかかった筆の強さで、元の濃さから変える
   stamp(p, r, stroke) {
     const vals = this.values[this.layer];
+    const n = LAYERS.findIndex((l) => l.id === this.layer) + 1;
     for (const [i, d] of this.near(p.x, p.y, p.z, r)) {
       const t = Math.min(1, (1 - d / r) * 2);
       const f = t * t * (3 - 2 * t);
       let rec = stroke.get(i);
-      if (!rec) { rec = { old: vals[i], f: 0 }; stroke.set(i, rec); }
+      if (!rec) { rec = { old: vals[i], top: this.top[i], f: 0 }; stroke.set(i, rec); }
       if (f <= rec.f) continue;
       rec.f = f;
       vals[i] = applyTool(this.tool, rec.old, f);
+      // 塗る・濃くすると、その層が上になる。消えたら上ではなくなる
+      if (vals[i] >= 0.5 && (this.tool === 'paint' || this.tool === 'deepen')) this.top[i] = n;
+      else if (vals[i] < 0.5 && this.top[i] === n) this.top[i] = 0;
     }
   }
 
@@ -840,6 +909,7 @@ export class Body3D {
     if (!h) return false;
     const vals = this.values[h.layer];
     for (const [i, old] of h.cells) vals[i] = old;
+    if (h.tops) for (const [i, t] of h.tops) this.top[i] = t;
     this.updateColors();
     this.onChange?.();
     return true;
@@ -847,6 +917,7 @@ export class Body3D {
 
   clear() {
     for (const l of LAYERS) this.values[l.id].fill(0);
+    this.top.fill(0);
     this.history = [];
     this.updateColors();
     this.onChange?.();

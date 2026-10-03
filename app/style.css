@@ -817,3 +817,18 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 .b3-paintbar .pb-layer[aria-pressed="true"] i { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c); }
 .b3-paintbar .pb-tool b { font-size: 1.05rem; line-height: 1.2; }
 .b3-paintbar .pb-tool[aria-pressed="true"] { background: #3f6b4f; color: #fff; }
+
+/* 1本指でなぞった時の動き（塗る・回す）。図のすぐ上に大きく */
+.finger-switch { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.finger-switch > span { flex: 0 0 auto; }
+.finger-switch button { flex: 1 1 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 48px; padding: 6px 10px; border: 2px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.finger-switch button span { font-size: 1.2rem; }
+.finger-switch button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+/* 上から見る・下から見る */
+.b3-zoom .tilt-b { font-size: .68rem; line-height: 1.1; font-weight: 700; }
+/* 施術前の図と見比べる */
+.peek-b { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; min-height: 48px; margin: 6px 0; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); color: var(--text); font: inherit; font-weight: 700; cursor: pointer; }
+.peek-b[aria-pressed="true"] { border-style: solid; border-color: #b0721f; background: #fdf3e3; color: #8a5510; }
+.peek-banner { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); margin: 0; padding: 4px 12px; border-radius: 999px; background: rgba(138, 85, 16, .9); color: #fff; font-size: .8rem; white-space: nowrap; pointer-events: none; z-index: 2; }
+/* 拡大・回転のボタンは右下に2段で（左の塗る道具と重ならないように） */
+.b3-zoom { max-width: 204px; gap: 6px; }
