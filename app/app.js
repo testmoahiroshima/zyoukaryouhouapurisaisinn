@@ -361,7 +361,7 @@ function renderResult(r) {
       ${allFlows.length > 1 ? '<button type="button" class="chip flow-chip" data-i="all" aria-pressed="false">すべて</button>' : ''}
     </div>` : ''}
     <div class="b3-stage guide-stage"><div class="b3-wrap" id="result-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rs')}</div>
-    <p class="small muted">緑の丸の番号は探査の順番、線と矢印は毒素の流れです。1本指で縦になぞると上下に動き、横になぞると回ります。2本指で広げると大きくなります。</p>
+    <p class="small muted">緑の丸の番号は探査の順番、線と矢印は毒素の流れです。1本指でなぞると、なぞった向きに回ります（下へなぞると上から見えます）。上下の移動は ▲▼、大きくするのは ＋ で。</p>
     <details class="flat-chart"><summary>平面図で見る</summary><div id="result-chart">${chartSVG({ highlight, flows: allFlows.slice(0, 1).map((x) => x.fl) })}</div></details>
     <div class="chart-legend">
       <span><i style="background:var(--point)"></i>見つめる箇所</span>
@@ -500,7 +500,7 @@ function renderTodayForm() {
             </div>
             ${zoomHTML('ask')}
           </div>
-          <p class="small muted">つらい所に、指で軽く触れてください。触れた所に印がつき、下に場所の名前が出ます。1本指で縦になぞると上下に動き、横になぞると回ります。2本指で広げると大きくなります。</p>
+          <p class="small muted">つらい所に、指で軽く触れてください。触れた所に印がつき、下に場所の名前が出ます。1本指でなぞると、なぞった向きに回ります（下へなぞると上から見えます）。上下の移動は ▲▼、大きくするのは ＋ で。</p>
         </div>
         <div id="chosen-places" class="chosen" aria-live="polite"></div>
       </div>
@@ -749,7 +749,7 @@ function getPad(prefix) {
     const { width, height, image } = db.raw.points.chart;
     const img = new Image();
     img.src = image;
-    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, how: settings.paintHow || 'select', region: null };
+    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, how: settings.paintHow || 'select', finger: 'paint', region: null };
   }
   return session.pads[prefix];
 }
@@ -787,7 +787,7 @@ function shadeBars(f) {
 // 塗りの道具と人体図（3D／平面図）。塗りが変わるたびに onChange を呼ぶ
 function painterHTML(prefix) {
   const P = `data-${prefix}`;
-  const views = ['back', 'front', 'upperback', 'head', 'lowerback', 'abdomen'];
+  const views = ['back', 'front', 'upperback', 'head', 'top', 'lowerback', 'abdomen'];
   const SIDE = { L: '左', R: '右' };
   const groups = db.raw.points.regions.map((g) => `<div class="pl-group"><div class="pl-name">${esc(g.name)}</div>${g.points.map((p) => {
     const two = (p.p3 || []).length > 1;
@@ -806,7 +806,14 @@ function painterHTML(prefix) {
         <button type="button" ${P}-how="paint"><span aria-hidden="true">✎</span>なぞって塗る<small>こまかく</small></button>
       </div>
       <div class="region-chips" role="group" aria-label="向き">${views.map((id) => `<button type="button" class="chip region-chip" ${P}-view="${id}">${esc(VIEWS3.find((v) => v.id === id).name)}</button>`).join('')}</div>
+      <div class="finger-switch" role="group" aria-label="1本指でなぞった時" ${P}-fingerbox hidden>
+        <span class="small">1本指でなぞると</span>
+        <button type="button" ${P}-finger="paint"><span aria-hidden="true">✎</span>塗る</button>
+        <button type="button" ${P}-finger="turn"><span aria-hidden="true">✋</span>回す</button>
+      </div>
+      ${prefix === 'pa' ? `<button type="button" class="peek-b" ${P}-peek="1" aria-pressed="false"><span aria-hidden="true">👁</span>施術前の図を見る</button>` : ''}
       <div class="b3-stage">
+        <p class="peek-banner" ${P}-peekbanner hidden>施術前の図</p>
         <div class="b3-wrap" id="${prefix}-3d"><p class="small muted b3-loading">3D人体図を読み込んでいます…</p></div>
         <div class="b3-float b3-edit" role="group" aria-label="入れた結果の操作">
           <button type="button" ${P}-undo="1" aria-label="最後に入れたものを戻す"><span aria-hidden="true">↶</span>戻す</button>
@@ -825,9 +832,9 @@ function painterHTML(prefix) {
         </div>
         ${zoomHTML(prefix)}
       </div>
-      <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指で<b>縦になぞると上下に動き</b>、<b>横になぞると回ります</b>。</p>
-      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。図の左の「熱・固結・圧痛」で色を、「塗る・濃く・薄く」で道具を変えられます。上下に動かす時は2本指で、または ▲▼ ボタンで。</p>
-      <p class="gesture-hint small muted">2本指：広げる・つまむ＝大きさ／そのまま動かす＝位置／ひねる＝向き。2回続けて触れると、その所へ寄ります。</p>
+      <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指でなぞると、<b>なぞった向きに体が回ります</b>（下へなぞると上から見えて、頭頂部が見えます）。体に沿った上下の移動は <b>▲▼</b>、大きくするのは <b>＋</b>。</p>
+      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。図の左の「熱・固結・圧痛」で色を、「塗る・濃く・薄く」で道具を変えられます。<b>回したい時は「✋回す」</b>を押すか、体の外から指でなぞってください。頭頂部は「頭頂」か「上から」で。</p>
+      <p class="gesture-hint small muted">色が重なった所は、あとから塗った色で塗り、下の色はふちの線で示します。2本指でも動かせます（広げる・つまむ＝大きさ／動かす＝位置）。2回続けて触れると、その所へ寄ります。</p>
       <div class="lv-panel" id="${prefix}-level" hidden></div>
       <details class="pt-list"><summary>箇所の一覧から選ぶ</summary>${groups}</details>
     </div>
@@ -880,6 +887,8 @@ function zoomHTML(prefix) {
     <button type="button" ${P}-zoom="out" aria-label="小さくする">－</button>
     <button type="button" ${P}-rot="l" aria-label="左に回す">⟲</button>
     <button type="button" ${P}-rot="r" aria-label="右に回す">⟳</button>
+    <button type="button" class="tilt-b" ${P}-tilt="1" aria-label="上から見る">上<br>から</button>
+    <button type="button" class="tilt-b" ${P}-tilt="-1" aria-label="下から見る">下<br>から</button>
     <button type="button" ${P}-home="1" aria-label="元の向きに戻す">⌂</button>
   </div>`;
 }
@@ -889,6 +898,7 @@ function wireZoom(root, prefix, get) {
   q('rot').forEach((b) => b.addEventListener('click', () => get()?.rotateBy(b.getAttribute(`data-${prefix}-rot`) === 'l' ? -Math.PI / 6 : Math.PI / 6)));
   q('home').forEach((b) => b.addEventListener('click', () => { const x = get(); x?.setView(x.view); }));
   q('move').forEach((b) => b.addEventListener('click', () => get()?.stepVertical(Number(b.getAttribute(`data-${prefix}-move`)))));
+  q('tilt').forEach((b) => b.addEventListener('click', () => get()?.tiltBy(Number(b.getAttribute(`data-${prefix}-tilt`)))));
 }
 
 function wirePainter(root, prefix, pad, onChange) {
@@ -909,6 +919,11 @@ function wirePainter(root, prefix, pad, onChange) {
     press('mode', pad.b3?.mode);
     press('show', pad.b3?.show || 'all');
     press('how', pad.how);
+    press('finger', pad.finger);
+    q('fingerbox').forEach((b) => { b.hidden = !(pad.dim === '3d' && pad.how === 'paint'); });
+    q('peek').forEach((b) => b.setAttribute('aria-pressed', String(!!pad.peeking)));
+    q('peekbanner').forEach((b) => { b.hidden = !pad.peeking; });
+    pad.b3?.setMode(modeOf());
     q('hint').forEach((h) => { h.hidden = val(h, 'hint') !== pad.how; });
     const tools = q('tools')[0];
     if (tools) tools.hidden = pad.dim === '3d' && pad.how === 'select';
@@ -918,6 +933,8 @@ function wirePainter(root, prefix, pad, onChange) {
     const rgb = LAYERS.find((l) => l.id === pad.layer).rgb.join(',');
     root.style.setProperty(`--${prefix}-c`, `rgb(${rgb})`);
   };
+  // 1本指の動き：番号を選ぶ時は回す。塗る時は「塗る」「回す」を切り替える（施術前の図を見ている間は回すだけ）
+  const modeOf = () => (pad.how === 'paint' && pad.finger !== 'turn' && !pad.peeking ? 'paint' : 'rotate');
   const markers = db.pointList.map((p) => ({ no: p.no, xy: p.chart || [] }));
   const showRegion = (id) => { pad.region = id; pad.flat.mount($(`#${prefix}-canvas`, root), id, markers); mark(); };
   const box = (d) => q('box').forEach((b) => { b.hidden = val(b, 'box') !== d; });
@@ -941,12 +958,16 @@ function wirePainter(root, prefix, pad, onChange) {
     try {
       if (!pad.b3) {
         pad.b3 = new Body3D(await loadMesh(), db.pointList);
-        pad.b3.view = startView();
+        pad.b3.view = pad.seed?.view || startView();
+        // 施術後の図は、施術前の図をそのまま写して始める
+        if (pad.seed) pad.b3.copyFrom(pad.seed);
+        pad.seed = null;
       }
       if (!wrap.isConnected || pad.dim !== '3d') return;
       pad.b3.onChange = () => { onChange(); refreshPanel(); };
-      pad.b3.onSelectTarget = (k) => openPanel(k, false);
-      pad.b3.setMode(pad.how === 'paint' ? 'paint' : 'rotate');
+      pad.b3.onSelectTarget = (k) => { if (pad.how !== 'paint') openPanel(k, false); };
+      pad.b3.setMode(modeOf());
+      if (pad.peeking) pad.b3.setPeek(pad.before?.b3 || null);
       if (!pad.b3.mount(wrap)) throw new Error('webgl');
     } catch {
       wrap.innerHTML = '<p class="small warn-text">この端末では3D人体図を表示できません。平面図で入力してください。</p>';
@@ -987,7 +1008,6 @@ function wirePainter(root, prefix, pad, onChange) {
     pad.how = val(b, 'how');
     settings.paintHow = pad.how;
     saveSettings();
-    pad.b3?.setMode(pad.how === 'paint' ? 'paint' : 'rotate');
     if (pad.how === 'paint') { panel.hidden = true; panelK = -1; pad.b3?.setGuide({ items: [], focus: false }); }
     mark();
   }));
@@ -1002,6 +1022,13 @@ function wirePainter(root, prefix, pad, onChange) {
   q('show').forEach((b) => b.addEventListener('click', () => { pad.b3?.setShow(val(b, 'show')); mark(); }));
   q('organs').forEach((b) => b.addEventListener('click', () => { pad.b3?.setOrgans(!pad.b3.showOrgans); mark(); }));
   q('nums').forEach((b) => b.addEventListener('click', () => { pad.b3?.setNumbers(!pad.b3.showNumbers); mark(); }));
+  q('finger').forEach((b) => b.addEventListener('click', () => { pad.finger = val(b, 'finger'); mark(); }));
+  q('peek').forEach((b) => b.addEventListener('click', () => {
+    pad.peeking = !pad.peeking;
+    pad.b3?.setPeek(pad.peeking ? pad.before?.b3 || null : null);
+    pad.flat.setPeek(pad.peeking ? pad.before?.flat || null : null);
+    mark();
+  }));
   q('layer').forEach((b) => b.addEventListener('click', () => { pad.layer = val(b, 'layer'); mark(); }));
   q('tool').forEach((b) => b.addEventListener('click', () => { pad.tool = val(b, 'tool'); mark(); }));
   q('brush').forEach((b) => b.addEventListener('click', () => { pad.brush = val(b, 'brush'); mark(); }));
@@ -1439,15 +1466,35 @@ function compareHTML(items) {
   }).join('')}</ul>`;
 }
 
+// 施術後の図を、施術前の図の写しで始める（塗った時はそのまま、まだ図が無い時は何もしない）
+function seedAfterPad(pad) {
+  const before = session.pads.pb;
+  if (!before) return;
+  pad.before = before;
+  pad.flat.copyFrom(before.flat);
+  pad.seed = before.b3 || null;
+  pad.region = before.region;
+  pad.dim = before.dim;
+  pad.how = 'paint';
+  pad.finger = 'paint';
+  pad.tool = 'lighten';
+  pad.layer = 'heat';
+  session.after = JSON.parse(JSON.stringify(session.findings || {}));
+}
+
 function renderDone() {
   const items = session.plan.items;
+  const fresh = !session.pads.pa;
   const pad = getPad('pa');
+  if (fresh) seedAfterPad(pad);
   $('#tab-session').innerHTML = `
     ${stepBar(4)}
     <div class="card">
       <h2>④ お疲れさまでした</h2>
-      <p>施術した箇所をもう一度探査して、今の熱・固結・圧痛を塗ってみましょう。熱が冷めたか、固結がゆるんだかを確かめます。</p>
+      <p>施術した箇所をもう一度探査しましょう。<b>施術前に塗った図をそのまま持ってきています。</b>熱が冷めた所・固結がゆるんだ所は<b>「薄く」</b>、強くなった所は<b>「濃く」</b>でなぞって、変化を見つめます。</p>
+      ${session.pads.pb ? '' : '<p class="small muted">施術前の図がないため、白い図から始めます。</p>'}
       ${painterHTML('pa')}
+      ${session.pads.pb ? '<button type="button" class="ghost small-btn" id="pa-reset">施術前の図からやり直す</button>' : ''}
     </div>
     <div class="card">
       <h2>施術の前と後</h2>
@@ -1472,9 +1519,17 @@ function renderDone() {
     </div>`;
   const root = $('#tab-session');
   wireStepBar(root);
-  wirePainter(root, 'pa', pad, () => {
+  const afterChange = () => {
     session.after = padSample(pad);
     $('#compare').innerHTML = compareHTML(items);
+  };
+  wirePainter(root, 'pa', pad, afterChange);
+  $('#pa-reset', root)?.addEventListener('click', () => {
+    if (!confirm('施術後に塗り直した所を消して、施術前の図に戻しますか？')) return;
+    pad.flat.copyFrom(session.pads.pb.flat);
+    if (pad.b3 && session.pads.pb.b3) pad.b3.copyFrom(session.pads.pb.b3);
+    else if (pad.b3) pad.b3.clear();
+    afterChange();
   });
   wireRecordInputs(root);
   $$('[data-change]', root).forEach((cb) => cb.addEventListener('change', () => {
@@ -2024,11 +2079,11 @@ function renderGuide() {
     <div class="card">
       <h2>からだの図の動かし方</h2>
       <ul class="tips">
-        <li>1本指で縦になぞる：体に沿って上下に動く（頭の方・足の方）</li>
-        <li>1本指で横になぞる：回る</li>
-        <li>2本指で広げる・つまむ：大きく・小さく</li>
-        <li>「なぞって塗る」の時は1本指で塗るので、2本指で動かします</li>
-        <li>右下の ▲ ▼（上下）＋ －（大きさ）⟲ ⟳（回す）⌂（元の向き）ボタンでも動かせます</li>
+        <li>1本指でなぞる：なぞった向きに体が回る（横＝左右、下へなぞる＝上から見えて頭頂部が見える、上へなぞる＝下から見える）</li>
+        <li>「なぞって塗る」の時は、図の上の「✋回す」を押すと1本指で回せます（体の外から指でなぞっても回ります）。塗る時は「✎塗る」に戻します</li>
+        <li>右端の ▲ ▼：体に沿って上下（頭の方・足の方）に動く</li>
+        <li>右下の ＋ －（大きさ）⟲ ⟳（回す）上から・下から（見る高さ）⌂（元の向き）ボタンでも動かせます。向きの「頭頂」を押すと、頭のてっぺんが見えます</li>
+        <li>2本指で広げる・つまむ：大きく・小さく（使わなくても、ボタンだけで動かせます）</li>
       </ul>
     </div>
     <div class="card">
