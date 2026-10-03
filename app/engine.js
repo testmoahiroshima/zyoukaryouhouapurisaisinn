@@ -384,6 +384,11 @@ const REQUIRED = [
   { region: 'kidney', name: '腎臓部', def: 'haimen_jinzo' },
 ];
 
+// 鼠蹊部・恥骨部（腰部・骨盤周辺の自己探査）は、張り・痛み・熱があれば、時間が短くても必ず施術に入れる。
+// 排泄の出口であり（腸骨内側〜鼠蹊部の凝りは恥骨へ続く）、所見の強い箇所に押し出されて外れやすいため
+export const PELVIC_MUST = ['sokeibu', 'chikotsu'];
+const PELVIC_MIN = 1; // 熱・固結・圧痛のどれかがこの値（0〜5）以上なら入れる
+
 // 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加え、重なる所（急所）をさらに重くする
 export function findingScore(f) {
   if (!f) return 0;
@@ -585,8 +590,20 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       required.push(o);
     }
   }
-  // 3) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
-  const realReq = required.filter((c) => !c.stub).length;
+  // 頭・肩・腎臓部（重要施術部位）。所見の有無にかかわらず印をつける
+  for (const c of required.slice(0, REQUIRED.length)) c.key = true;
+  // 3) 鼠蹊部・恥骨部（自己探査）に張り・痛み・熱があれば、幾分かでも必ず入れる
+  for (const id of PELVIC_MUST) {
+    const c = cands.find((x) => x.id === id);
+    if (!c || required.includes(c)) continue;
+    const f = c.finding;
+    if (Math.max(f.heat, f.kouketsu, f.atsutsuu) < PELVIC_MIN) continue;
+    c.must = true;
+    c.reasons.push({ text: `${id === 'sokeibu' ? '鼠蹊部' : '恥骨部'}（自己探査）に張り・痛み・熱がある：排泄の出口なので、短くても必ず施術に入れる（場所が場所だけに、本人と相談して行う）`, ref: 'kotsuban_naibu' });
+    required.push(c);
+  }
+  // 4) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
+  const realReq = required.filter((c) => !c.stub && !c.must).length;
   const extras = cands.filter((c) => !required.includes(c)).slice(0, Math.max(0, maxN - realReq));
 
   const probe = Math.max(3, Math.round(total * 0.15));
@@ -596,11 +613,13 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   // 頭の所見なしの最低時間：60分で3分ほど、短い時は1分
   const headMin = Math.max(1, Math.min(3, Math.round(avail / 15)));
   let realMin = 3;
-  const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : realMin);
+  let mustMin = 3; // 鼠蹊部・恥骨部（必ず入れる自己探査の所）。時間が足りない時は1分まで縮める
+  const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : c.must ? mustMin : realMin);
   const need = () => [...required, ...extras].reduce((s, c) => s + minOf(c), 0);
   // 時間が足りない時は、優先度の低い箇所から外し（重要施術部位は外さない）、それでも足りなければ最低時間を2分に
   while (extras.length && need() > avail) extras.pop();
-  if (need() > avail) realMin = 2;
+  if (need() > avail) { realMin = 2; mustMin = 2; }
+  if (need() > avail) mustMin = 1;
   const chosen = [...required, ...extras];
   for (const c of required) {
     if (!c.stub && !cands.slice(0, maxN).includes(c)) {
@@ -675,7 +694,7 @@ function planNotes(ex, items) {
   } else if (ex.level === 'some') {
     notes.push({ kind: 'info', title: '排泄経路も見ておきましょう', text: ex.painted ? '骨盤まわりにやや固結があります。施術の後に、お腹の張りや吐き気が出ないか見ておき、出る時は腸骨の内側・鼠蹊部・みぞおちの辺りを施術します。' : '排泄の不調の訴えがあります。腸骨の内側・鼠蹊部・腰（自己探査）も確かめてもらいましょう。', ref: 'kotsuban_naibu' });
   } else if (!ex.painted) {
-    notes.push({ kind: 'info', title: '排泄経路は整っていますか？', text: '腸骨の内側・鼠蹊部・仙腸関節付近（自己探査）が塗られていません。腰・脚・お腹・婦人科の訴えがある時は、ここも確かめてもらうと、施術の順序をより合わせられます。', ref: 'haisetsu_keiro' });
+    notes.push({ kind: 'info', title: '排泄経路は整っていますか？', text: '腸骨の内側・鼠蹊部・仙腸関節付近・恥骨部（自己探査）が塗られていません。腰・脚・お腹・婦人科の訴えがある時は、ここも確かめてもらうと、施術の順序をより合わせられます。', ref: 'haisetsu_keiro' });
   }
   if (ex.nausea) notes.push({ kind: 'warn', title: '突き上げに気をつける', text: '吐き気・胸のむかつきの訴えがあります。下の出口が詰まっていると、溶けた毒素が上へ突き上げてきます。みぞおちの辺りや背中、腸骨の内側・鼠蹊部を施術します。', ref: 'tsukiage' });
   if (ex.side) notes.push({ kind: 'info', title: `${SIDE_NAME[ex.side]}の骨盤まわりが強い`, text: `${SIDE_NAME[ex.side]}の腎臓部〜腸骨の内側の固結の柱を重点にし、${SIDE_NAME[ex.side]}から先に施術します（よく施術すべき方から先に）。`, ref: 'jinzo_yoko' });
