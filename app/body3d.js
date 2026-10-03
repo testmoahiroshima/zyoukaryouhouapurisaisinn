@@ -377,7 +377,8 @@ export class Body3D {
   }
 
   // ---- 指の操作 ----
-  // 1本指：塗る（塗るモード）／回す（見るモード）。軽く触れると番号を選ぶ（見るモード）・場所を示す（指すモード）。
+  // 1本指：塗る（塗るモード）／見るモードでは、縦になぞると体に沿って上下に動き、横になぞると回る。
+  // 軽く触れると番号を選ぶ（見るモード）・場所を示す（指すモード）。
   // 2本指：広げる・つまむで拡大・縮小、そのまま動かすと体の位置を動かす、ひねると回す。2回続けて触れると、その所へ寄る。
   // マウス：ホイールで拡大・縮小、右ボタンで位置を動かす、Shiftを押しながら動かすと回す。
   hitAt(clientX, clientY) {
@@ -416,6 +417,22 @@ export class Body3D {
     const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1);
     o.target.addScaledVector(right, -dx * scale).addScaledVector(up, dy * scale);
     this.applyCamera();
+  }
+
+  // 体に沿って上下に動かす（頭の方へ・足の方へ）。dy は画面の上での指の動き（下へなぞると頭の方が見える）
+  moveVertical(dy) {
+    const o = this.orbit;
+    const h = this.renderer?.domElement.clientHeight || 400;
+    const scale = (2 * o.r * Math.tan((this.camera.fov * Math.PI) / 360)) / h;
+    o.target.y += dy * scale;
+    this.applyCamera();
+  }
+
+  // ボタンで上下に動かす（見えている高さの約4分の1ずつ）
+  stepVertical(dir) {
+    const o = this.orbit;
+    const span = 2 * o.r * Math.tan((this.camera.fov * Math.PI) / 360);
+    this.animateTo({ target: { x: o.target.x, y: Math.max(0, Math.min(1.85, o.target.y + dir * span * 0.25)), z: o.target.z } }, 300);
   }
 
   bind(canvas) {
@@ -507,7 +524,18 @@ export class Body3D {
       if (drag) {
         const dx = ev.clientX - drag.x;
         const dy = ev.clientY - drag.y;
-        if (drag.pan) this.panBy(dx, dy); else this.rotateBy(dx * SPEED, dy * SPEED);
+        if (drag.pan) this.panBy(dx, dy);
+        else {
+          // 1本指：なぞり始めの向きで決める。縦になぞると体に沿って上下に動き、横になぞると体が回る
+          if (!drag.axis) {
+            const tx = ev.clientX - drag.sx;
+            const ty = ev.clientY - drag.sy;
+            if (Math.hypot(tx, ty) < 8) return;
+            drag.axis = Math.abs(ty) > Math.abs(tx) * 0.8 ? 'v' : 'h';
+          }
+          if (drag.axis === 'v') this.moveVertical(dy);
+          else this.rotateBy(dx * SPEED, 0);
+        }
         drag.x = ev.clientX;
         drag.y = ev.clientY;
       }
