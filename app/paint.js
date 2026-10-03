@@ -49,9 +49,11 @@ export function summarizeLevels(perTarget) {
       if (f[l.id] < 0.3) f[l.id] = 0;
     }
     if (!LAYERS.some((l) => f[l.id] > 0)) continue;
-    // 左右の両方を塗った時は、濃い方をその箇所の値とする
+    // 左右の両方を塗った時は、濃い方をその箇所の値とし、左右それぞれの値も sides に残す（L＝体の左）
     const cur = out[a.id];
-    out[a.id] = cur ? Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(cur[l.id], f[l.id])])) : f;
+    const merged = cur ? Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(cur[l.id], f[l.id])])) : { ...f };
+    if (a.side) merged.sides = { ...(cur?.sides || {}), [a.side]: f };
+    out[a.id] = merged;
   }
   return out;
 }
@@ -316,7 +318,16 @@ export class Painter {
   sample(points, rad = 8) {
     const R = rad * SCALE;
     const all = [];
-    for (const p of points) for (const [px, py] of p.chart || []) all.push({ id: p.id, x: px * SCALE, y: py * SCALE });
+    // 平面図の左右：前面図（x<222）は左に描かれた方が体の右、背面図は左に描かれた方が体の左
+    for (const p of points) {
+      const cs = p.chart || [];
+      const cx = cs.reduce((t, c) => t + c[0], 0) / (cs.length || 1);
+      for (const [px, py] of cs) {
+        let side = null;
+        if (cs.length > 1) side = px < 222 ? (px < cx ? 'R' : 'L') : (px < cx ? 'L' : 'R');
+        all.push({ id: p.id, x: px * SCALE, y: py * SCALE, side });
+      }
+    }
     const per = new Map();
     for (const c of all) {
       for (let y = Math.max(0, Math.floor(c.y - R)); y <= Math.min(this.gh - 1, Math.ceil(c.y + R)); y++) {
@@ -325,7 +336,7 @@ export class Painter {
           if (d > R) continue;
           if (all.some((o) => o !== c && Math.hypot(x - o.x, y - o.y) < d)) continue;
           let a = per.get(c);
-          if (!a) per.set(c, (a = { id: c.id, n: 0, min: 6, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
+          if (!a) per.set(c, (a = { id: c.id, side: c.side, n: 0, min: 6, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
           a.n++;
           const i = y * this.gw + x;
           for (const l of LAYERS) {

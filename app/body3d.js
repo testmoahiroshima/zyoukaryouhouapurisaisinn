@@ -94,7 +94,9 @@ export class Body3D {
           const d = (P[i * 3] - t[0]) ** 2 + (P[i * 3 + 1] - t[1]) ** 2 + (P[i * 3 + 2] - t[2]) ** 2;
           if (d < bd) { bd = d; best = i; }
         }
-        this.targets.push({ id: p.id, no: p.no, v: best, x: P[best * 3], y: P[best * 3 + 1], z: P[best * 3 + 2] });
+        const x = P[best * 3];
+        const side = (p.p3 || []).length > 1 ? (x > 0 ? 'L' : 'R') : null;
+        this.targets.push({ id: p.id, no: p.no, side, v: best, x, y: P[best * 3 + 1], z: P[best * 3 + 2] });
       }
     }
     this.owner = new Int16Array(this.nv).fill(-1);
@@ -190,6 +192,7 @@ export class Body3D {
     // 探査箇所の番号
     this.markers = new THREE.Group();
     for (const t of this.targets) {
+      if (this.onlyIds && !this.onlyIds.has(t.id)) continue;
       const s = this.label(String(t.no), '#2c3a32', 0.019, true);
       const n = new THREE.Vector3(...this.vertexNormal(t.v));
       s.position.set(t.x + n.x * 0.012, t.y + n.y * 0.012, t.z + n.z * 0.012);
@@ -211,9 +214,22 @@ export class Body3D {
     this.updateColors();
     this.bind(canvas);
     this.resize();
+    if (this.guide) this.setGuide({ ...this.guide, focus: fresh && this.guide.focus });
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
     return true;
+  }
+
+  // すでに描いている図を、別の入れ物へ移す（描き直さない）
+  attach(container) {
+    if (this.renderer && this.renderer.domElement) {
+      this.container = container;
+      container.innerHTML = '';
+      container.appendChild(this.renderer.domElement);
+      this.resize();
+      return true;
+    }
+    return this.mount(container);
   }
 
   vertexNormal(i) {
@@ -221,7 +237,7 @@ export class Body3D {
     return [n[i * 3], n[i * 3 + 1], n[i * 3 + 2]];
   }
 
-  label(text, color, size, round = false) {
+  label(text, color, size, round = false, bg = null) {
     const c = document.createElement('canvas');
     const W = 128;
     c.width = W;
@@ -230,7 +246,15 @@ export class Body3D {
     x.font = `700 ${round ? 64 : 44}px sans-serif`;
     x.textAlign = 'center';
     x.textBaseline = 'middle';
-    if (round) {
+    if (round && bg) {
+      x.fillStyle = bg;
+      x.beginPath();
+      x.arc(W / 2, W / 2, W / 2 - 4, 0, Math.PI * 2);
+      x.fill();
+      x.lineWidth = 6;
+      x.strokeStyle = 'rgba(255,255,255,.95)';
+      x.stroke();
+    } else if (round) {
       x.fillStyle = 'rgba(255,255,255,.3)';
       x.beginPath();
       x.arc(W / 2, W / 2, W / 2 - 6, 0, Math.PI * 2);
@@ -258,7 +282,7 @@ export class Body3D {
   resize() {
     if (!this.renderer) return;
     const w = this.container.clientWidth || 340;
-    const h = Math.round(Math.min(window.innerHeight * 0.62, w * 1.25));
+    const h = Math.round(Math.min(window.innerHeight * (this.maxH || 0.62), w * (this.ratio || 1.25)));
     this.renderer.setSize(w, h, false);
     this.renderer.domElement.style.width = '100%';
     this.renderer.domElement.style.height = `${h}px`;
@@ -315,7 +339,7 @@ export class Body3D {
     this.applyCamera();
   }
 
-  // mode：'paint'（1本指で塗る）、'rotate'（1本指で回す）、'pick'（1本指で回す・軽く触れると場所を示す）
+  // mode：'paint'（1本指で塗る）、'rotate'（1本指で回す・軽く触れると番号を選ぶ）、'pick'（1本指で回す・軽く触れると場所を示す）
   setMode(m) {
     this.mode = m;
     if (this.renderer) this.renderer.domElement.style.cursor = m === 'paint' ? 'crosshair' : 'grab';
@@ -353,8 +377,9 @@ export class Body3D {
   }
 
   // ---- 指の操作 ----
-  // 1本指：塗る（塗るモード）／回す（見るモード）。2本指：開く・つまむで拡大・縮小、なぞると回す。
-  // マウス：ホイールで拡大・縮小、右ボタン（またはShift）を押しながら動かすと回す。
+  // 1本指：塗る（塗るモード）／回す（見るモード）。軽く触れると番号を選ぶ（見るモード）・場所を示す（指すモード）。
+  // 2本指：広げる・つまむで拡大・縮小、そのまま動かすと体の位置を動かす、ひねると回す。2回続けて触れると、その所へ寄る。
+  // マウス：ホイールで拡大・縮小、右ボタンで位置を動かす、Shiftを押しながら動かすと回す。
   hitAt(clientX, clientY) {
     const r = this.renderer.domElement.getBoundingClientRect();
     const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
@@ -362,13 +387,45 @@ export class Body3D {
     return this.raycaster.intersectObject(this.body, false)[0] || null;
   }
 
+  // 画面上の点に一番近い、見えている探査箇所（指の太さを考えて少し広めに）
+  targetAt(clientX, clientY, within = 30) {
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const cam = this.camera.position;
+    let best = -1, bd = within;
+    const v = new THREE.Vector3();
+    this.targets.forEach((t, k) => {
+      if (this.onlyIds && !this.onlyIds.has(t.id)) return;
+      const n = this.vertexNormal(t.v);
+      const toCam = [cam.x - t.x, cam.y - t.y, cam.z - t.z];
+      if (n[0] * toCam[0] + n[1] * toCam[1] + n[2] * toCam[2] < 0) return; // 裏側は選ばない
+      v.set(t.x, t.y, t.z).project(this.camera);
+      const sx = rect.left + ((v.x + 1) / 2) * rect.width;
+      const sy = rect.top + ((1 - v.y) / 2) * rect.height;
+      const d = Math.hypot(sx - clientX, sy - clientY);
+      if (d < bd) { bd = d; best = k; }
+    });
+    return best;
+  }
+
+  // 画面の上で、体の位置を動かす
+  panBy(dx, dy) {
+    const o = this.orbit;
+    const h = this.renderer.domElement.clientHeight || 400;
+    const scale = (2 * o.r * Math.tan((this.camera.fov * Math.PI) / 360)) / h;
+    const right = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1);
+    o.target.addScaledVector(right, -dx * scale).addScaledVector(up, dy * scale);
+    this.applyCamera();
+  }
+
   bind(canvas) {
     const ptrs = new Map();
     let stroke = null;
     let last = null;
     let raf = 0;
-    let drag = null; // 1本指で回す
+    let drag = null; // 1本指
     let pinch = null; // 2本指
+    let lastTap = null;
     const SPEED = 0.008;
     const apply = (p) => {
       if (!p) return;
@@ -381,7 +438,7 @@ export class Body3D {
       last = p.clone();
       if (!raf) raf = requestAnimationFrame(() => { raf = 0; this.updateColors(); });
     };
-    // 2本目の指が来たら、1本目で塗り始めた分は取り消す（拡大・回転のつもりの指で塗らない）
+    // 2本目の指が来たら、1本目で塗り始めた分は取り消す（拡大・移動のつもりの指で塗らない）
     const cancelStroke = () => {
       if (!stroke) return;
       const vals = this.values[this.layer];
@@ -400,13 +457,20 @@ export class Body3D {
     };
     const two = () => {
       const [a, b] = [...ptrs.values()];
-      return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      return { d: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, ang: Math.atan2(b.y - a.y, b.x - a.x) };
+    };
+    // 2回続けて触れたら、その所へ寄る（寄っている時は元の大きさへ）
+    const doubleTap = (x, y) => {
+      const h = this.hitAt(x, y);
+      if (this.orbit.r < 0.7) this.animateTo({ r: 1.4 });
+      else if (h) this.animateTo({ target: h.point, r: Math.max(0.45, this.orbit.r / 2.2) });
     };
     canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
     canvas.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       try { canvas.setPointerCapture(ev.pointerId); } catch { /* 取れない時もそのまま続ける */ }
       ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      this.stopAnim();
       if (ptrs.size === 2) {
         cancelStroke();
         drag = null;
@@ -414,13 +478,14 @@ export class Body3D {
         return;
       }
       if (ptrs.size > 2) return;
-      const rotateBtn = ev.pointerType === 'mouse' && (ev.button === 2 || ev.shiftKey);
-      if (this.mode === 'paint' && !rotateBtn) {
+      const mouseMove = ev.pointerType === 'mouse' && ev.button === 2;
+      const mouseRotate = ev.pointerType === 'mouse' && ev.shiftKey;
+      if (this.mode === 'paint' && !mouseMove && !mouseRotate) {
         stroke = new Map();
         last = null;
         apply(this.hitAt(ev.clientX, ev.clientY)?.point);
       } else {
-        drag = { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now() };
+        drag = { x: ev.clientX, y: ev.clientY, sx: ev.clientX, sy: ev.clientY, t: performance.now(), pan: mouseMove };
       }
     });
     canvas.addEventListener('pointermove', (ev) => {
@@ -429,14 +494,20 @@ export class Body3D {
       ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       if (pinch && ptrs.size >= 2) {
         const now = two();
-        if (now.d > 0 && pinch.d > 0) this.zoomBy(now.d / pinch.d, this.hitAt(now.x, now.y)?.point || null);
-        this.rotateBy((now.x - pinch.x) * SPEED, (now.y - pinch.y) * SPEED);
+        if (now.d > 0 && pinch.d > 0 && Math.abs(now.d - pinch.d) > 0.5) this.zoomBy(now.d / pinch.d);
+        this.panBy(now.x - pinch.x, now.y - pinch.y);
+        // 2本指をひねると、体を回す
+        let da = now.ang - pinch.ang;
+        da = Math.atan2(Math.sin(da), Math.cos(da));
+        if (Math.abs(da) > 0.004) this.rotateBy(-da * 1.4);
         pinch = now;
         return;
       }
       if (stroke) { apply(this.hitAt(ev.clientX, ev.clientY)?.point); return; }
       if (drag) {
-        this.rotateBy((ev.clientX - drag.x) * SPEED, (ev.clientY - drag.y) * SPEED);
+        const dx = ev.clientX - drag.x;
+        const dy = ev.clientY - drag.y;
+        if (drag.pan) this.panBy(dx, dy); else this.rotateBy(dx * SPEED, dy * SPEED);
         drag.x = ev.clientX;
         drag.y = ev.clientY;
       }
@@ -445,15 +516,28 @@ export class Body3D {
       if (!ptrs.has(ev.pointerId)) return;
       ptrs.delete(ev.pointerId);
       if (pinch) { if (ptrs.size < 2) pinch = null; return; }
-      if (stroke) { finishStroke(); return; }
+      const tap = ev.type === 'pointerup';
+      if (stroke) { finishStroke(); }
       if (drag) {
-        // 軽く触れただけ（ほとんど動かさない）なら、その場所を示す
         const moved = Math.hypot(ev.clientX - drag.sx, ev.clientY - drag.sy);
-        if (this.mode === 'pick' && moved < 10 && ev.type === 'pointerup') {
-          const h = this.hitAt(ev.clientX, ev.clientY);
-          if (h) this.onPick?.(h.point.clone());
-        }
+        const quick = performance.now() - drag.t < 450;
         drag = null;
+        if (moved < 10 && quick && tap) {
+          const now = performance.now();
+          if (lastTap && now - lastTap.t < 330 && Math.hypot(ev.clientX - lastTap.x, ev.clientY - lastTap.y) < 30) {
+            lastTap = null;
+            doubleTap(ev.clientX, ev.clientY);
+            return;
+          }
+          lastTap = { t: now, x: ev.clientX, y: ev.clientY };
+          if (this.mode === 'pick') {
+            const h = this.hitAt(ev.clientX, ev.clientY);
+            if (h) this.onPick?.(h.point.clone());
+          } else if (this.onSelectTarget) {
+            const k = this.targetAt(ev.clientX, ev.clientY);
+            if (k >= 0) this.onSelectTarget(k);
+          }
+        }
       }
     };
     canvas.addEventListener('pointerup', up);
@@ -462,6 +546,58 @@ export class Body3D {
       ev.preventDefault();
       this.zoomBy(Math.exp(-ev.deltaY * 0.0015), this.hitAt(ev.clientX, ev.clientY)?.point || null);
     }, { passive: false });
+  }
+
+  // ---- なめらかに向きを変える ----
+  stopAnim() { if (this._anim) cancelAnimationFrame(this._anim); this._anim = 0; }
+  animateTo({ target = null, r = null, theta = null, phi = null }, ms = 450) {
+    if (!this.camera) return;
+    this.stopAnim();
+    const o = this.orbit;
+    const from = { t: o.target.clone(), r: o.r, theta: o.theta, phi: o.phi };
+    let dTheta = theta === null ? 0 : theta - from.theta;
+    dTheta = Math.atan2(Math.sin(dTheta), Math.cos(dTheta));
+    const to = { t: target ? new THREE.Vector3(target.x, target.y, target.z) : from.t, r: r ?? from.r, theta: from.theta + dTheta, phi: phi ?? from.phi };
+    const t0 = performance.now();
+    const step = (now) => {
+      const k = Math.min(1, (now - t0) / ms);
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+      o.target.lerpVectors(from.t, to.t, e);
+      o.r = lerp(from.r, to.r, e);
+      o.theta = lerp(from.theta, to.theta, e);
+      o.phi = lerp(from.phi, to.phi, e);
+      this.applyCamera();
+      this._anim = k < 1 ? requestAnimationFrame(step) : 0;
+    };
+    this._anim = requestAnimationFrame(step);
+  }
+
+  // 探査箇所の番号（target の添字）から、その場所と面の向き
+  targetIndexes(id, side = null) {
+    const out = [];
+    this.targets.forEach((t, k) => { if (t.id === id && (!side || !t.side || t.side === side)) out.push(k); });
+    return out;
+  }
+
+  // 箇所へ寄る（面の正面から見る）。r は寄る距離
+  focusTargets(ks, r = 0.75) {
+    if (!ks.length || !this.camera) return;
+    const c = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    for (const k of ks) {
+      const t = this.targets[k];
+      c.add(new THREE.Vector3(t.x, t.y, t.z));
+      n.add(new THREE.Vector3(...this.vertexNormal(t.v)));
+    }
+    c.divideScalar(ks.length);
+    if (n.lengthSq() < 1e-6) n.set(0, 0, 1);
+    n.normalize();
+    // 真上・真下から見ないように、少し水平に寄せる
+    const ny = Math.max(-0.6, Math.min(0.75, n.y));
+    const theta = Math.atan2(n.x, n.z);
+    const phi = Math.acos(ny);
+    const spread = ks.length > 1 ? Math.hypot(this.targets[ks[0]].x - this.targets[ks[ks.length - 1]].x, this.targets[ks[0]].y - this.targets[ks[ks.length - 1]].y) : 0;
+    this.animateTo({ target: c, r: Math.max(r, spread * 2.6 + 0.35), theta, phi });
   }
 
   // 示した場所の印
@@ -479,6 +615,155 @@ export class Body3D {
   clearPins() {
     this.pins?.clear();
     this.render();
+  }
+
+  // ---- 施術箇所を図で示す ----
+  // items: [{ id, side, no, order, current, emphasis }]、flows: [{ ids: [[id, side], ...], color }]
+  setGuide({ items = [], flows = [], focus = true } = {}) {
+    this.guide = { items, flows, focus };
+    if (!this.scene) return;
+    if (this.guideGroup) { this.scene.remove(this.guideGroup); this.guideGroup.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); }); }
+    const G = (this.guideGroup = new THREE.Group());
+    this.pulse = [];
+    const up = new THREE.Vector3(0, 1, 0);
+    const posOf = (k, lift = 0) => {
+      const t = this.targets[k];
+      const n = new THREE.Vector3(...this.vertexNormal(t.v));
+      return { p: new THREE.Vector3(t.x, t.y, t.z).addScaledVector(n, lift), n };
+    };
+    for (const it of items) {
+      const ks = this.targetIndexes(it.id, it.side);
+      ks.forEach((k) => {
+        const { p, n } = posOf(k, 0.006);
+        const strong = it.current || it.emphasis;
+        const color = it.current ? 0xe0661f : it.done ? 0x9aa59e : 0x2f8a5a;
+        const ringR = it.current ? 0.03 : strong ? 0.024 : 0.018;
+        // 今施術する所だけは体を透かして見せ、ほかは体の陰になれば隠れる（裏側の印と紛れないように）
+        const see = !!it.current;
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(ringR, it.current ? 0.006 : 0.004, 10, 40), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: it.done ? 0.5 : 0.95, depthTest: !see }));
+        ring.position.copy(p);
+        ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+        ring.renderOrder = 9;
+        G.add(ring);
+        const disc = new THREE.Mesh(new THREE.CircleGeometry(ringR, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: it.current ? 0.28 : 0.16, depthTest: !see, depthWrite: false }));
+        disc.position.copy(p);
+        disc.quaternion.copy(ring.quaternion);
+        disc.renderOrder = 8;
+        G.add(disc);
+        if (it.current) this.pulse.push(ring, disc);
+        if (it.order) {
+          const s = this.label(String(it.order), it.current ? '#ffffff' : '#ffffff', it.current ? 0.03 : 0.022, true, it.current ? '#e0661f' : it.done ? '#9aa59e' : '#2f8a5a');
+          s.position.copy(p).addScaledVector(n, 0.03).addScaledVector(up, 0.028);
+          s.renderOrder = 11;
+          s.material.depthTest = !see;
+          G.add(s);
+        }
+        // 今施術する所には、体の外から指す矢印
+        if (it.current) {
+          const len = 0.1;
+          // 正面から見ても分かるように、斜め上から指す
+          const out = n.clone().multiplyScalar(0.6).addScaledVector(up, 0.8).normalize();
+          const dir = out.clone().negate();
+          const arrow = new THREE.Group();
+          const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, len, 12), new THREE.MeshBasicMaterial({ color: 0xe0661f, depthTest: false }));
+          shaft.position.y = len / 2 + 0.03;
+          const head = new THREE.Mesh(new THREE.ConeGeometry(0.016, 0.03, 16), new THREE.MeshBasicMaterial({ color: 0xe0661f, depthTest: false }));
+          head.position.y = 0.015;
+          head.rotation.x = Math.PI;
+          arrow.add(shaft, head);
+          arrow.position.copy(p).addScaledVector(out, 0.012);
+          arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+          arrow.traverse((o) => { o.renderOrder = 12; });
+          G.add(arrow);
+          this.arrow = { group: arrow, base: arrow.position.clone(), n: out };
+        }
+      });
+    }
+    // 毒素の流れ（矢印つきの線）
+    for (const fl of flows) {
+      const pts = [];
+      for (const [id, side] of fl.ids) {
+        const ks = this.targetIndexes(id, side);
+        if (!ks.length) continue;
+        const c = new THREE.Vector3();
+        const n = new THREE.Vector3();
+        for (const k of ks) { const q = posOf(k); c.add(q.p); n.add(q.n); }
+        c.divideScalar(ks.length);
+        n.normalize();
+        pts.push(c.addScaledVector(n, 0.03));
+      }
+      if (pts.length < 2) continue;
+      const curve = new THREE.CatmullRomCurve3(pts, false, 'centripetal');
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, pts.length * 16, 0.0045, 8, false), new THREE.MeshBasicMaterial({ color: fl.color || 0x2f5d8a, transparent: true, opacity: 0.85 }));
+      tube.renderOrder = 10;
+      G.add(tube);
+      for (let i = 1; i < pts.length; i++) {
+        const tt = (i - 0.15) / (pts.length - 1);
+        const at = curve.getPointAt(Math.min(0.999, tt));
+        const tan = curve.getTangentAt(Math.min(0.999, tt));
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.026, 14), new THREE.MeshBasicMaterial({ color: fl.color || 0x2f5d8a }));
+        cone.position.copy(at);
+        cone.quaternion.setFromUnitVectors(up, tan);
+        cone.renderOrder = 10;
+        G.add(cone);
+      }
+    }
+    this.scene.add(G);
+    this.startPulse();
+    if (focus) {
+      const cur = items.find((x) => x.current);
+      if (cur) this.focusTargets(this.targetIndexes(cur.id, cur.side), 0.8);
+    }
+    this.render();
+  }
+
+  startPulse() {
+    if (this._pulse) cancelAnimationFrame(this._pulse);
+    this._pulse = 0;
+    if (!this.pulse?.length && !this.arrow) return;
+    // 電池を使いすぎないよう、動かすのは最初の数秒だけ（その後は止まった絵）
+    const until = performance.now() + 6000;
+    const loop = (now) => {
+      if (!this.renderer) return;
+      if (now > until) {
+        for (const m of this.pulse) m.scale.setScalar(1);
+        if (this.arrow) this.arrow.group.position.copy(this.arrow.base);
+        this.render();
+        this._pulse = 0;
+        return;
+      }
+      const k = 1 + 0.18 * Math.sin(now / 260);
+      for (const m of this.pulse) m.scale.setScalar(k);
+      if (this.arrow) this.arrow.group.position.copy(this.arrow.base).addScaledVector(this.arrow.n, 0.012 * (1 + Math.sin(now / 200)));
+      this.render();
+      this._pulse = requestAnimationFrame(loop);
+    };
+    this._pulse = requestAnimationFrame(loop);
+  }
+
+  // ---- 番号を選んで、濃さを段階で入れる（指でなぞるのが難しい時） ----
+  // その箇所の周り（一番近い探査箇所がその箇所の所だけ）を、選んだ段階（0〜5 → 0〜20）にそろえる
+  setTargetLevel(k, layerId, level5, radius = 0.03) {
+    const vals = this.values[layerId];
+    const lv = Math.max(0, Math.min(LEVELS, level5 * (LEVELS / 5)));
+    const cells = new Map();
+    for (let i = 0; i < this.nv; i++) {
+      if (this.owner[i] !== k || this.ownerDist[i] > radius) continue;
+      cells.set(i, vals[i]);
+      const edge = this.ownerDist[i] / radius;
+      vals[i] = edge > 0.75 ? lv * (1 - (edge - 0.75) * 2.4) : lv;
+      if (vals[i] < 0.5 && lv > 0) vals[i] = Math.max(vals[i], 0);
+    }
+    if (cells.size) this.history.push({ layer: layerId, cells });
+    this.updateColors();
+    this.onChange?.();
+  }
+
+  targetLevels(k) {
+    const t = this.targets[k];
+    const f = this.sample()[t.id];
+    const v = t.side && f?.sides ? f.sides[t.side] : f;
+    return Object.fromEntries(LAYERS.map((l) => [l.id, Math.round(v?.[l.id] || 0)]));
   }
 
   // 一筆の中では、頂点ごとに一番強くかかった筆の強さで、元の濃さから変える
@@ -520,7 +805,7 @@ export class Body3D {
       const k = this.owner[i];
       if (k < 0 || this.ownerDist[i] > R) continue;
       let a = per.get(k);
-      if (!a) per.set(k, (a = { id: this.targets[k].id, n: 0, min: 4, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
+      if (!a) per.set(k, (a = { id: this.targets[k].id, side: this.targets[k].side, n: 0, min: 4, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
       a.n++;
       for (const l of LAYERS) {
         const v = this.values[l.id][i];
@@ -535,9 +820,13 @@ export class Body3D {
   }
 
   dispose() {
+    this.stopAnim();
+    if (this._pulse) cancelAnimationFrame(this._pulse);
+    this._pulse = 0;
     if (this._onResize) window.removeEventListener('resize', this._onResize);
     if (this.renderer) {
       this.renderer.dispose();
+      try { this.renderer.forceContextLoss(); } catch { /* 何もしない */ }
       this.renderer = null;
     }
   }
