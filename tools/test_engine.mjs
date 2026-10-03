@@ -93,6 +93,29 @@ for (const [text, must, mustNot, safety] of cases) {
   if (!g2) fail++;
 }
 
+// 左右の差が小さい肩も、全体の傾向で重点の側を決めて時間差をつける。頭部は一か所数分まで
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: 0, sides: { L, R } });
+  const f = { kata: side({ kouketsu: 3 }, { kouketsu: 3 }), haimen_jinzo: side({ kouketsu: 4 }, { kouketsu: 1 }), zentoubu: { heat: 3, kouketsu: 2 } };
+  const pl = planSession(db, f, 60, null);
+  const kata = pl.items.find((i) => i.id === 'kata');
+  const head = pl.items.filter((i) => i.region === 'head');
+  const good = kata.side === 'L' && kata.split.length === 2 && kata.split[0].side === 'L' && kata.split[0].minutes > kata.split[1].minutes
+    && head.length === 3 && head.every((i) => i.minutes <= 3) && pl.total === 60;
+  console.log(`${good ? 'ok' : 'NG'}  肩は左右同じでも全体の傾向（左）で左を重点 ${kata.split.map((x) => x.side + x.minutes).join('/')}・頭部 ${head.map((i) => i.name + i.minutes).join(' ')}`);
+  if (!good) fail++;
+  const pl2 = planSession(db, { kata: side({ kouketsu: 2 }, { kouketsu: 2 }) }, 30, analyze(db, '右の肩がこる'));
+  const k2 = pl2.items.find((i) => i.id === 'kata');
+  const g2 = k2.side === 'R' && k2.split[0].minutes > (k2.split[1]?.minutes || 0);
+  console.log(`${g2 ? 'ok' : 'NG'}  訴えが右 → 右の肩を重点 ${k2.split.map((x) => x.side + x.minutes).join('/')}`);
+  if (!g2) fail++;
+  const pl3 = planSession(db, { zentoubu: { heat: 4, kouketsu: 3 } }, 60, analyze(db, '頭が痛い'));
+  const z3 = pl3.items.find((i) => i.id === 'zentoubu');
+  const g3 = z3.minutes > 3 && z3.minutes <= Math.max(4, Math.round(45 * 0.12));
+  console.log(`${g3 ? 'ok' : 'NG'}  頭痛の訴えがある時だけ頭部を長めに（前頭部 ${z3.minutes}分）`);
+  if (!g3) fail++;
+}
+
 // 図でさした細かい場所（左右・上中下）から作る文：「右の胸が痛い」→ 胸の分類・右側
 {
   const { zoneDetail, phrasesForDetails } = await import('../app/zones.js');

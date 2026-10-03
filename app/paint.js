@@ -228,6 +228,8 @@ export class Painter {
     };
     c.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
+      document.body.classList.add('no-select');
+      try { window.getSelection()?.removeAllRanges(); } catch { /* 何もしない */ }
       c.setPointerCapture(ev.pointerId);
       stroke = new Map();
       last = toImage(ev);
@@ -248,6 +250,7 @@ export class Painter {
       redraw();
     });
     const end = () => {
+      document.body.classList.remove('no-select');
       if (!stroke) return;
       if (stroke.size) this.history.push({ layer: this.layer, cells: new Map([...stroke].map(([i, r]) => [i, r.old])) });
       if (this.history.length > 40) this.history.shift();

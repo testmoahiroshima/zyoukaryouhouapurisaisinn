@@ -53,6 +53,12 @@ export async function loadBodyMesh(url) {
 
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// 塗ったり動かしたりしている間は、画面の文字が選ばれて青くならないようにする
+export function noSelect(on) {
+  document.body.classList.toggle('no-select', on);
+  if (on) { try { window.getSelection()?.removeAllRanges(); } catch { /* 何もしない */ } }
+}
+
 export class Body3D {
   // mesh: loadBodyMesh() の結果、points: [{ id, no, name, p3: [[x,y,z],...] }]
   constructor(mesh, points) {
@@ -486,6 +492,7 @@ export class Body3D {
     canvas.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       try { canvas.setPointerCapture(ev.pointerId); } catch { /* 取れない時もそのまま続ける */ }
+      noSelect(true);
       ptrs.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
       this.stopAnim();
       if (ptrs.size === 2) {
@@ -543,6 +550,7 @@ export class Body3D {
     const up = (ev) => {
       if (!ptrs.has(ev.pointerId)) return;
       ptrs.delete(ev.pointerId);
+      if (!ptrs.size) noSelect(false);
       if (pinch) { if (ptrs.size < 2) pinch = null; return; }
       const tap = ev.type === 'pointerup';
       if (stroke) { finishStroke(); }
@@ -570,6 +578,7 @@ export class Body3D {
     };
     canvas.addEventListener('pointerup', up);
     canvas.addEventListener('pointercancel', up);
+    canvas.addEventListener('lostpointercapture', () => { if (!ptrs.size) noSelect(false); });
     canvas.addEventListener('wheel', (ev) => {
       ev.preventDefault();
       this.zoomBy(Math.exp(-ev.deltaY * 0.0015), this.hitAt(ev.clientX, ev.clientY)?.point || null);
