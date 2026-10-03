@@ -133,6 +133,32 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (!good) fail++;
 }
 
+// 左右と排泄経路：右の腎臓部が強く、右の腸骨の内側にも固結 → 右の腎臓部を重点・出口を先に
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
+  const f = {
+    haimen_jinzo: side({ kouketsu: 1.5 }, { kouketsu: 4, atsutsuu: 2 }),
+    choukotsu: side({ kouketsu: 1 }, { kouketsu: 3.5 }),
+    kata: side({ kouketsu: 3, heat: 2 }, { kouketsu: 3, heat: 2 }),
+    koutoubu: { heat: 2, kouketsu: 1 },
+  };
+  const pl = planSession(db, f, 40, null);
+  const kid = pl.items.find((i) => i.id === 'haimen_jinzo');
+  const cho = pl.items.find((i) => i.id === 'choukotsu');
+  const idx = (id) => pl.items.findIndex((i) => i.id === id);
+  const good = kid?.side === 'R' && kid.reasons.some((r) => r.ref === 'kotsuban_naibu') && cho?.side === 'R'
+    && pl.order === 'outlet' && idx('choukotsu') < idx('haimen_jinzo') && idx('haimen_jinzo') < idx('kata')
+    && pl.excretion.level === 'blocked' && pl.excretion.side === 'R' && kid.split?.[0].side === 'R' && kid.split[0].minutes > (kid.split[1]?.minutes || 0)
+    && pl.notes.some((n) => n.ref === 'haisetsu_keiro');
+  console.log(`${good ? 'ok' : 'NG'}  右の腎臓部＋右の腸骨内側 → 順序 ${pl.items.map((i) => `${i.name}${i.side ? '(' + (i.side === 'R' ? '右' : '左') + ')' : ''}${i.minutes}${i.split ? '[' + i.split.map((x) => (x.side === 'R' ? '右' : '左') + x.minutes).join('/') + ']' : ''}`).join(' → ')}`);
+  if (!good) fail++;
+  // 骨盤まわりが塗られていなければ「排泄経路は整っていますか？」と促す
+  const pl2 = planSession(db, { kata: { kouketsu: 3 } }, 30, null);
+  const g2 = pl2.order === 'top' && pl2.notes.some((n) => n.title.includes('排泄経路は整って'));
+  console.log(`${g2 ? 'ok' : 'NG'}  骨盤まわり未入力 → 確認を促す（順序 ${pl2.order}）`);
+  if (!g2) fail++;
+}
+
 // つらい場所の問い返しと、場所・感じから作る文
 {
   const { needsPlace, phrasesFor, catsFor } = await import('../app/zones.js');

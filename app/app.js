@@ -1,4 +1,4 @@
-import { prepare, analyze, planSession, normalize } from './engine.js';
+import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS } from './engine.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
 import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
 import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zoneOf } from './zones.js';
@@ -100,6 +100,7 @@ function citeText(c) {
 function citesHTML(k) {
   const parts = [];
   if (k.textbook) parts.push(`3級テキスト ${esc(k.textbook)}`);
+  if (k.t2) parts.push(`2級テキスト実践編 ${esc(k.t2)}`);
   for (const c of k.cites || []) parts.push(esc(citeText(c)));
   return parts.length ? `<div class="cite">根拠：${parts.join('／')}</div>` : '';
 }
@@ -321,7 +322,7 @@ function renderResult(r) {
       ${r.side ? `<p class="small">「${SIDE_TEXT[r.side]}」の訴えがあります。探査では${SIDE_TEXT[r.side]}を特によく見つめましょう。</p>` : ''}
       <div class="sum-row"><span class="sum-label">見つめる箇所</span><div class="sum-points">${r.points.map((p) => `<span class="sum-pt${p.key ? ' key' : ''}"><b>${p.no}</b>${esc(p.name)}</span>`).join('')}</div></div>
       ${fl0 ? `<div class="sum-row"><span class="sum-label">毒素の流れ</span>${stationsText(fl0)}</div>` : ''}`}
-      <button type="button" class="primary wide big" id="to-session-top">この箇所を探査して、施術へ進む →</button>
+      <button type="button" class="primary wide big" id="to-session-top">② 探査へ進む →</button>
       <div class="sum-actions">
         <button type="button" class="ghost" id="share-result">共有・コピー</button>
         <button type="button" class="ghost" id="print-result">印刷</button>
@@ -357,7 +358,9 @@ function renderResult(r) {
       ${allFlows.map(({ fl, cat }, i) => `<button type="button" class="chip flow-chip" data-i="${i}" aria-pressed="${i === 0}"><i style="background:${FLOW_COLORS[i % FLOW_COLORS.length]}"></i>${esc(shortLabel(cat.label))}｜${esc(flowLabel(fl))}</button>`).join('')}
       ${allFlows.length > 1 ? '<button type="button" class="chip flow-chip" data-i="all" aria-pressed="false">すべて</button>' : ''}
     </div>` : ''}
-    <div id="result-chart">${chartSVG({ highlight, flows: allFlows.slice(0, 1).map((x) => x.fl) })}</div>
+    <div class="b3-stage guide-stage"><div class="b3-wrap" id="result-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rs')}</div>
+    <p class="small muted">緑の丸の番号は探査の順番、線と矢印は毒素の流れです。2本指で大きく・位置を動かす・ひねって回す。</p>
+    <details class="flat-chart"><summary>平面図で見る</summary><div id="result-chart">${chartSVG({ highlight, flows: allFlows.slice(0, 1).map((x) => x.fl) })}</div></details>
     <div class="chart-legend">
       <span><i style="background:var(--point)"></i>見つめる箇所</span>
       ${r.points.some((p) => p.key) ? '<span><i style="background:var(--point-key);box-shadow:0 0 0 2px #ffd36b"></i>重点</span>' : ''}
@@ -370,9 +373,9 @@ function renderResult(r) {
           <div class="roles">${p.roles.map((x) => ROLE_LABEL[x]).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map((x) => `<span class="role role-${x}">${x}</span>`).join('')}</div></div>
       </li>`).join('')}
     </ul>
-    <p class="small muted">番号は探査の順序（岡田式浄化療法の実際 p131）。22 鼠蹊部は全集の記述による追加です。</p>
+    <p class="small muted">番号は探査の順序（岡田式浄化療法の実際 p131）。20〜25は骨盤まわりの自己探査（22 鼠蹊部は全集、23〜25は2級テキスト実践編 p74-76 による追加）。</p>
     ${cautions.map((g) => `<div class="caution">${esc(g.name)}：${esc(g.caution)}</div>`).join('')}
-    <button type="button" class="primary wide" id="to-session">この箇所を探査して、施術の時間配分へ →</button>
+    <button type="button" class="primary wide big" id="to-session">② 探査へ進む →</button>
   </div>`);
 
   // 施術の大事なポイント（4つの要素）
@@ -413,8 +416,26 @@ function renderResult(r) {
   const el = $('#result');
   el.innerHTML = out.join('');
   wireZenshu(el);
+  // 3D図：見つめる箇所（探査の番号）と毒素の流れ
+  const sidePref = r.side === 'left' ? 'L' : r.side === 'right' ? 'R' : null;
+  const guideFlows = (list) => list.flatMap(({ fl, i }) => {
+    const color = parseInt(FLOW_COLORS[i % FLOW_COLORS.length].slice(1), 16);
+    const ids = fl.stations.flatMap((st) => (st.points || []).slice(0, 1));
+    if (ids.length < 2) return [];
+    const sides = sidePref ? [sidePref] : ['R', 'L'];
+    return sides.map((sd) => ({ ids: ids.map((id) => [id, sd]), color }));
+  });
+  const guideSpec = (list) => ({ items: r.points.map((p) => ({ id: p.id, side: sidePref, order: p.no, emphasis: !!p.key })), flows: guideFlows(list), focus: false });
+  const indexed = allFlows.map((x, i) => ({ ...x, i }));
+  resultGuide = guideSpec(indexed.slice(0, 1));
+  mountGuide($('#result-3d', el), resultGuide, { ratio: 1.1, maxH: 0.55 }).then((ok) => {
+    if (ok) guide.b3.setView(r.points.filter((p) => ['zentoubu', 'maekata', 'hentousen', 'sokeibu', 'choukotsu', 'chikotsu'].includes(p.id)).length > r.points.length / 2 ? 'front' : 'back');
+  });
+  wireZoom(el, 'rs', () => guide.b3);
   $$('.flow-chip', el).forEach((b) => b.addEventListener('click', () => {
     $$('.flow-chip', el).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    resultGuide = guideSpec(b.dataset.i === 'all' ? indexed : [indexed[Number(b.dataset.i)]]);
+    guide.b3?.setGuide(resultGuide);
     const flows = b.dataset.i === 'all' ? allFlows.map((x) => x.fl) : [allFlows[Number(b.dataset.i)].fl];
     $('#result-chart').innerHTML = chartSVG({ highlight, flows });
     // 1本だけ描く時は、ボタンの色にそろえる
@@ -446,8 +467,9 @@ function placeName(id) { return zoneById[id]?.name || id; }
 
 function renderTodayForm() {
   $('#today-form').innerHTML = `
+    ${stepBar(1)}
     <form class="card ask-card" id="symptom-form" autocomplete="off">
-      <h2 class="ask-title">どこが、どのように つらいですか？</h2>
+      <h2 class="ask-title">① どこが、どのように つらいですか？</h2>
       <p class="small muted">わかる所だけで大丈夫です。選ぶと、探査して見つめる箇所と毒素の流れをお示しします。</p>
       <div class="ask-step">
         <div class="step-head"><span class="step-no">1</span>つらい場所</div>
@@ -479,6 +501,7 @@ function renderTodayForm() {
       <details class="chips-box"><summary>症状の一覧から選ぶ（くわしい方向け）</summary><div id="chips"></div></details>
     </form>`;
   renderChips();
+  wireStepBar($('#today-form'));
   const ta = $('#symptom-text');
   ta.value = store.get(STORE_INPUT, '') || '';
   const form = $('#symptom-form');
@@ -642,7 +665,7 @@ function printSection(cls) {
 }
 
 // ---- 探査と施術（塗って入力 → 時間配分 → タイマー） ----
-const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', pads: {}, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
+const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'auto', pads: {}, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
 
 // 塗る板：3D人体図と平面図の両方を持ち、道具・色・筆は共通。読み取りは両方の濃い方を使う
 let bodyMeshP = null;
@@ -653,7 +676,7 @@ function getPad(prefix) {
     const { width, height, image } = db.raw.points.chart;
     const img = new Image();
     img.src = image;
-    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, region: null };
+    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, how: settings.paintHow || 'select', region: null };
   }
   return session.pads[prefix];
 }
@@ -662,8 +685,15 @@ function padSample(pad) {
   const a = pad.flat.sample(db.pointList);
   const b = pad.b3 ? pad.b3.sample() : {};
   const out = {};
+  const mx = (x, y) => Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(x?.[l.id] || 0, y?.[l.id] || 0)]));
   for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
-    out[id] = Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(a[id]?.[l.id] || 0, b[id]?.[l.id] || 0)]));
+    out[id] = mx(a[id], b[id]);
+    const sa = a[id]?.sides;
+    const sb = b[id]?.sides;
+    if (sa || sb) {
+      out[id].sides = {};
+      for (const k of ['L', 'R']) if (sa?.[k] || sb?.[k]) out[id].sides[k] = mx(sa?.[k], sb?.[k]);
+    }
   }
   return out;
 }
@@ -684,36 +714,44 @@ function shadeBars(f) {
 // 塗りの道具と人体図（3D／平面図）。塗りが変わるたびに onChange を呼ぶ
 function painterHTML(prefix) {
   const P = `data-${prefix}`;
+  const views = ['back', 'front', 'upperback', 'head', 'lowerback', 'abdomen'];
+  const SIDE = { L: '左', R: '右' };
+  const groups = db.raw.points.regions.map((g) => `<div class="pl-group"><div class="pl-name">${esc(g.name)}</div>${g.points.map((p) => {
+    const two = (p.p3 || []).length > 1;
+    return two
+      ? `<span class="pl-pt"><b>${p.no}</b> ${esc(p.name)} ${['R', 'L'].map((sd) => `<button type="button" class="pl-b" ${P}-pick="${p.id}:${sd}">${SIDE[sd]}</button>`).join('')}</span>`
+      : `<span class="pl-pt"><button type="button" class="pl-b wide" ${P}-pick="${p.id}:"><b>${p.no}</b> ${esc(p.name)}</button></span>`;
+  }).join('')}</div>`).join('');
   return `
     <div class="dim-switch" role="group" aria-label="人体図の種類">
       <button type="button" class="chip" ${P}-dim="3d">3D人体図</button>
       <button type="button" class="chip" ${P}-dim="2d">平面図</button>
     </div>
     <div ${P}-box="3d">
-      <div class="region-chips" role="group" aria-label="向き">${VIEWS3.map((v) => `<button type="button" class="chip region-chip" ${P}-view="${v.id}">${esc(v.name)}</button>`).join('')}</div>
+      <div class="how-switch" role="group" aria-label="入れ方">
+        <button type="button" ${P}-how="select"><span aria-hidden="true">👆</span>番号を押して選ぶ<small>かんたん</small></button>
+        <button type="button" ${P}-how="paint"><span aria-hidden="true">✎</span>なぞって塗る<small>こまかく</small></button>
+      </div>
+      <div class="region-chips" role="group" aria-label="向き">${views.map((id) => `<button type="button" class="chip region-chip" ${P}-view="${id}">${esc(VIEWS3.find((v) => v.id === id).name)}</button>`).join('')}</div>
       <div class="b3-stage">
         <div class="b3-wrap" id="${prefix}-3d"><p class="small muted b3-loading">3D人体図を読み込んでいます…</p></div>
-        <div class="b3-float" role="group" aria-label="指の動き">
-          <button type="button" ${P}-mode="paint">✎ 塗る</button>
-          <button type="button" ${P}-mode="rotate">✋ 見る</button>
-        </div>
         <div class="b3-float b3-right" role="group" aria-label="表示">
           <button type="button" ${P}-organs="1">内臓</button>
           <button type="button" ${P}-nums="1">番号</button>
         </div>
         ${zoomHTML(prefix)}
       </div>
-      <p class="small muted">「塗る」：1本指でなぞって塗る。「見る」：1本指で回す。どちらでも、2本指で広げる・つまむと拡大・縮小、2本指でなぞると回ります。右下のボタンでも操作できます。内臓の位置はおおよその目安です。</p>
-      <div class="tool-row" role="group" aria-label="見せる層">
-        <span class="tool-l">表示</span>
-        <button type="button" class="brush-b" ${P}-show="all">全部</button>${LAYERS.map((l) => `<button type="button" class="brush-b" ${P}-show="${l.id}">${esc(l.name.split('・')[0])}だけ</button>`).join('')}
-      </div>
+      <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指でなぞると回ります。</p>
+      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。</p>
+      <p class="gesture-hint small muted">2本指：広げる・つまむ＝大きさ／そのまま動かす＝位置／ひねる＝向き。2回続けて触れると、その所へ寄ります。</p>
+      <div class="lv-panel" id="${prefix}-level" hidden></div>
+      <details class="pt-list"><summary>箇所の一覧から選ぶ</summary>${groups}</details>
     </div>
     <div ${P}-box="2d" hidden>
       <div class="region-chips" role="group" aria-label="拡大する部位">${REGIONS.map((r) => `<button type="button" class="chip region-chip" ${P}-region="${r.id}">${esc(r.name)}</button>`).join('')}</div>
       <div class="paint-wrap" id="${prefix}-canvas"></div>
     </div>
-    <div class="paint-tools">
+    <div class="paint-tools" ${P}-tools>
       <div class="tool-row" role="group" aria-label="塗るもの">${LAYERS.map((l) => `<button type="button" class="layer-b" ${P}-layer="${l.id}" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name)}</button>`).join('')}</div>
       <div class="tool-row" role="group" aria-label="道具">
         <span class="tool-l">道具</span>${TOOLS.map((t) => `<button type="button" class="brush-b tool-b" ${P}-tool="${t.id}">${esc(t.name)}</button>`).join('')}
@@ -722,8 +760,28 @@ function painterHTML(prefix) {
         <span class="tool-l">筆</span>${BRUSHES.map((x) => `<button type="button" class="brush-b" ${P}-brush="${x.id}"><i style="--s:${x.r * 2.4}px"></i>${x.name}</button>`).join('')}
         <button type="button" class="mini" ${P}-undo="1">戻す</button>
       </div>
+      <div class="tool-row" role="group" aria-label="見せる層">
+        <span class="tool-l">表示</span>
+        <button type="button" class="brush-b" ${P}-show="all">全部</button>${LAYERS.map((l) => `<button type="button" class="brush-b" ${P}-show="${l.id}">${esc(l.name.split('・')[0])}だけ</button>`).join('')}
+      </div>
       <div class="level-legend small muted" aria-hidden="true">${LAYERS.map((l) => `<span><b>${esc(l.name.split('・')[0])}</b><i style="background:linear-gradient(90deg,rgb(${l.light.join(',')}),rgb(${l.deep.join(',')}))"></i></span>`).join('')}<span class="lv-note">うすい ← 20段階 → こい</span></div>
     </div>`;
+}
+
+// 選んだ箇所の熱・固結・圧痛を、0〜5の大きなボタンで入れる
+function levelPanelHTML(b3, k) {
+  const t = b3.targets[k];
+  const p = db.pointById[t.id];
+  const cur = b3.targetLevels(k);
+  const sideName = t.side === 'L' ? '（左）' : t.side === 'R' ? '（右）' : '';
+  const other = t.side ? b3.targetIndexes(t.id, t.side === 'L' ? 'R' : 'L').find((x) => b3.targets[x].side) : -1;
+  return `<div class="lv-head"><span class="no">${p.no}</span><b>${esc(p.name)}${sideName}</b>
+      <button type="button" class="lv-close" data-lv-close="1" aria-label="閉じる">×</button></div>
+    ${LAYERS.map((l) => `<div class="lv-row"><span class="lv-name" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name)}</span>
+      <div class="lv-btns" role="radiogroup" aria-label="${esc(l.name)}の強さ">${[0, 1, 2, 3, 4, 5].map((v) => `<button type="button" role="radio" class="lv-b" data-lv="${l.id}:${v}" aria-checked="${cur[l.id] === v}" style="--c:rgb(${l.rgb.join(',')});--a:${v / 5}">${v === 0 ? 'なし' : v}</button>`).join('')}</div></div>`).join('')}
+    <p class="small muted">数字が大きいほど強い（5がいちばん強い）。</p>
+    ${other >= 0 ? `<button type="button" class="ghost wide" data-lv-other="${other}">反対側（${t.side === 'L' ? '右' : '左'}）も入れる →</button>` : ''}
+    ${p.note ? `<details class="lv-note"><summary>この箇所について</summary><p class="small">${esc(p.note)}</p></details>` : ''}`;
 }
 
 // 3D人体図の拡大・縮小・回転のボタン（指の操作が難しい時に）
@@ -761,6 +819,10 @@ function wirePainter(root, prefix, pad, onChange) {
     press('view', pad.b3?.view);
     press('mode', pad.b3?.mode);
     press('show', pad.b3?.show || 'all');
+    press('how', pad.how);
+    q('hint').forEach((h) => { h.hidden = val(h, 'hint') !== pad.how; });
+    const tools = q('tools')[0];
+    if (tools) tools.hidden = pad.dim === '3d' && pad.how === 'select';
     q('organs').forEach((b) => b.setAttribute('aria-pressed', String(!!pad.b3?.showOrgans)));
     q('nums').forEach((b) => b.setAttribute('aria-pressed', String(pad.b3?.showNumbers ?? true)));
     const rgb = LAYERS.find((l) => l.id === pad.layer).rgb.join(',');
@@ -792,7 +854,9 @@ function wirePainter(root, prefix, pad, onChange) {
         pad.b3.view = startView();
       }
       if (!wrap.isConnected || pad.dim !== '3d') return;
-      pad.b3.onChange = onChange;
+      pad.b3.onChange = () => { onChange(); refreshPanel(); };
+      pad.b3.onSelectTarget = (k) => openPanel(k, false);
+      pad.b3.setMode(pad.how === 'paint' ? 'paint' : 'rotate');
       if (!pad.b3.mount(wrap)) throw new Error('webgl');
     } catch {
       wrap.innerHTML = '<p class="small warn-text">この端末では3D人体図を表示できません。平面図で入力してください。</p>';
@@ -800,6 +864,43 @@ function wirePainter(root, prefix, pad, onChange) {
     }
     mark();
   };
+  // 番号を選んで入れる
+  let panelK = -1;
+  const panel = $(`#${prefix}-level`, root);
+  const refreshPanel = () => { if (panelK >= 0 && !panel.hidden && pad.b3) { panel.innerHTML = levelPanelHTML(pad.b3, panelK); wirePanel(); } };
+  const openPanel = (k, focus = true) => {
+    if (!pad.b3) return;
+    panelK = k;
+    panel.hidden = false;
+    panel.innerHTML = levelPanelHTML(pad.b3, k);
+    wirePanel();
+    pad.b3.setGuide({ items: [{ id: pad.b3.targets[k].id, side: pad.b3.targets[k].side, current: false, emphasis: true }], focus: false });
+    if (focus) pad.b3.focusTargets([k], 0.7);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  };
+  const wirePanel = () => {
+    $$('[data-lv]', panel).forEach((b) => b.addEventListener('click', () => {
+      const [layer, v] = b.dataset.lv.split(':');
+      pad.b3.setTargetLevel(panelK, layer, Number(v));
+    }));
+    $('[data-lv-close]', panel)?.addEventListener('click', () => { panel.hidden = true; panelK = -1; pad.b3?.setGuide({ items: [], focus: false }); });
+    $('[data-lv-other]', panel)?.addEventListener('click', (e) => openPanel(Number(e.currentTarget.dataset.lvOther)));
+  };
+  q('pick').forEach((b) => b.addEventListener('click', async () => {
+    const [id, side] = val(b, 'pick').split(':');
+    if (pad.dim !== '3d') return;
+    if (!pad.b3) await use3d();
+    const k = pad.b3?.targetIndexes(id, side || null)[0];
+    if (k !== undefined) openPanel(k);
+  }));
+  q('how').forEach((b) => b.addEventListener('click', () => {
+    pad.how = val(b, 'how');
+    settings.paintHow = pad.how;
+    saveSettings();
+    pad.b3?.setMode(pad.how === 'paint' ? 'paint' : 'rotate');
+    if (pad.how === 'paint') { panel.hidden = true; panelK = -1; pad.b3?.setGuide({ items: [], focus: false }); }
+    mark();
+  }));
   pad.flat.onChange = onChange;
   q('dim').forEach((b) => b.addEventListener('click', () => {
     settings.paintDim = val(b, 'dim');
@@ -808,7 +909,6 @@ function wirePainter(root, prefix, pad, onChange) {
   }));
   q('region').forEach((b) => b.addEventListener('click', () => showRegion(val(b, 'region'))));
   q('view').forEach((b) => b.addEventListener('click', () => { pad.b3?.setView(val(b, 'view')); mark(); }));
-  q('mode').forEach((b) => b.addEventListener('click', () => { pad.b3?.setMode(val(b, 'mode')); mark(); }));
   q('show').forEach((b) => b.addEventListener('click', () => { pad.b3?.setShow(val(b, 'show')); mark(); }));
   q('organs').forEach((b) => b.addEventListener('click', () => { pad.b3?.setOrgans(!pad.b3.showOrgans); mark(); }));
   q('nums').forEach((b) => b.addEventListener('click', () => { pad.b3?.setNumbers(!pad.b3.showNumbers); mark(); }));
@@ -829,8 +929,32 @@ function startView() {
 
 function readoutHTML(findings, highlightIds = new Set()) {
   const rows = db.pointList.filter((p) => findings[p.id]);
-  if (!rows.length) return '<p class="small muted">まだ塗られていません。探査で熱を感じた所を赤、固い所・張っている所を青、押して痛い所を紫で塗ってください。</p>';
-  return `<ul class="readout">${rows.map((p) => `<li${highlightIds.has(p.id) ? ' class="hl"' : ''}><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${shadeBars(findings[p.id])}</li>`).join('')}</ul>`;
+  if (!rows.length) return '<p class="small muted">まだ入っていません。番号の丸を押して熱・固結・圧痛を選ぶか、なぞって塗ってください。</p>';
+  const sideRows = (f) => {
+    const sd = f.sides;
+    if (!sd || !(sd.L && sd.R)) return sd ? `<div class="small side-only">${sd.R ? '右' : '左'}のみ</div>` : '';
+    const fs = sideFocus(f);
+    return `<div class="cmp"><span class="cmp-l">右</span>${shadeBars(sd.R)}</div><div class="cmp"><span class="cmp-l">左</span>${shadeBars(sd.L)}</div>${fs?.side ? `<div class="small side-strong">${fs.side === 'R' ? '右' : '左'}が強い</div>` : ''}`;
+  };
+  return `<ul class="readout">${rows.map((p) => {
+    const f = findings[p.id];
+    return `<li${highlightIds.has(p.id) ? ' class="hl"' : ''}><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${f.sides?.L && f.sides?.R ? sideRows(f) : shadeBars(f) + sideRows(f)}</li>`;
+  }).join('')}</ul>`;
+}
+
+// ①〜④の進み具合（今どこにいるか）
+const STEPS = [{ n: 1, name: 'つらい所' }, { n: 2, name: '探査' }, { n: 3, name: '施術' }, { n: 4, name: '記録' }];
+function stepBar(now) {
+  return `<ol class="stepbar" aria-label="進み具合">${STEPS.map((x) => `<li class="${x.n < now ? 'done' : x.n === now ? 'now' : ''}"><button type="button" data-step="${x.n}"${x.n === now ? ' aria-current="step"' : ''}><span class="st-no">${x.n}</span>${x.name}</button></li>`).join('')}</ol>`;
+}
+function wireStepBar(root) {
+  $$('[data-step]', root).forEach((b) => b.addEventListener('click', () => {
+    const n = Number(b.dataset.step);
+    if (n === 1) showTab('today');
+    else if (n === 2) { if (session.state !== 'run') session.state = 'input'; showTab('session'); }
+    else if (n === 3) { if (session.plan && session.state !== 'run') session.state = 'plan'; showTab('session'); }
+    else showTab('records');
+  }));
 }
 
 function renderSessionInput() {
@@ -838,26 +962,29 @@ function renderSessionInput() {
   const suggested = lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : [];
   const sugIds = new Set(suggested.map((p) => p.id));
   $('#tab-session').innerHTML = `
+    ${stepBar(2)}
     <div class="card">
-      <h2>探査の結果を塗って入力</h2>
-      <p class="small">体をなぞって塗ります。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。濃さは20段階で、重ねて塗るほど濃くなります。「濃くする」「薄くする」で、塗った所の濃さを変えられます。</p>
+      <h2>② 探査の結果を入れる</h2>
+      <p class="small">探査して感じたことを入れます。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。<b>左右で違う時は、それぞれに入れてください</b>（強い側を重点にした施術をお示しします）。</p>
       ${suggested.length ? `<p class="small">本日の症状から見つめる箇所：${suggested.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</p>` : ''}
+      <p class="small">骨盤まわり（20〜25：腰骨部・尾てい骨部・鼠蹊部・腸骨の内側・仙腸関節付近・恥骨部）は本人に確かめてもらい、<b>排泄経路は整っているか</b>も入れておきましょう。</p>
       ${painterHTML('pb')}
     </div>
     <div class="card">
-      <h2>読み取った探査の結果</h2>
-      <p class="small muted">塗った所を一番近い探査箇所に割り当てて、箇所ごとに読み取ります（5段階）。少しはみ出しただけの所は数えません。</p>
+      <h2>入った探査の結果</h2>
+      <p class="small muted">箇所ごとに5段階で読み取ります。塗った時は、一番近い探査箇所にだけ数え、少しはみ出しただけの所は数えません。</p>
       <div id="readout">${readoutHTML(session.findings, sugIds)}</div>
     </div>
     <div class="card">
       <h2>施術にかける時間</h2>
       <div class="time-chips">${[15, 20, 30, 45, 60].map((m) => `<button type="button" class="chip time-chip" data-m="${m}" aria-pressed="${settings.minutes === m}">${m}分</button>`).join('')}</div>
       <p class="small muted">一回の施術は普通十分から三十分くらい（全集 著述篇一巻p182）。</p>
-      <button type="button" class="primary wide" id="make-plan">優先順位と時間配分を出す</button>
+      <button type="button" class="primary wide big" id="make-plan">③ 施術の順番と時間を出す →</button>
       <p id="plan-msg" class="small warn-text" hidden></p>
     </div>
     ${criteriaCard()}`;
   const root = $('#tab-session');
+  wireStepBar(root);
   wirePainter(root, 'pb', pad, () => {
     session.findings = padSample(pad);
     $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
@@ -872,7 +999,7 @@ function renderSessionInput() {
     const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
     if (!plan.ok) {
       const m = $('#plan-msg');
-      m.textContent = '探査で熱・固結・圧痛を感じた所を、人体図に塗ってください。';
+      m.textContent = '探査で熱・固結・圧痛を感じた所を、番号を押して入れるか、人体図に塗ってください。';
       m.hidden = false;
       return;
     }
@@ -922,31 +1049,99 @@ function wireRecordInputs(root) {
   }));
 }
 
+// ---- 施術箇所を3D図で示す（結果・計画・施術中で共通の1つの図） ----
+const guide = { b3: null, el: null };
+let resultGuide = null;
+async function mountGuide(el, spec, { onSelect = null, ratio = 1.05, maxH = 0.5 } = {}) {
+  if (!el) return false;
+  try {
+    const mesh = await loadMesh();
+    if (!el.isConnected) return false;
+    if (!guide.b3) {
+      guide.b3 = new Body3D(mesh, db.pointList);
+      guide.b3.mode = 'rotate';
+      guide.b3.showNumbers = false;
+      guide.b3.view = 'back';
+    }
+    const g = guide.b3;
+    g.ratio = ratio;
+    g.maxH = maxH;
+    // 探査で塗った色も重ねて見せる
+    const painted = session.pads.pb?.b3;
+    if (painted) g.values = painted.values;
+    g.onSelectTarget = onSelect;
+    g.guide = spec;
+    if (!g.attach(el)) throw new Error('webgl');
+    g.setGuide(spec);
+    g.updateColors();
+    guide.el = el;
+    return true;
+  } catch {
+    if (el.isConnected) el.innerHTML = '<p class="small muted b3-loading">この端末では3D図を表示できません。下の一覧を見てください。</p>';
+    return false;
+  }
+}
+function releaseGuide() { guide.b3?.dispose(); }
+
+// 計画の箇所 → 図に示すもの（強い側を強調）
+function planGuideItems(plan, currentKey = null, doneKeys = new Set()) {
+  const out = [];
+  plan.items.forEach((it, i) => {
+    const sides = it.split ? it.split.map((x) => x.side) : [it.side || null];
+    for (const sd of sides) {
+      const key = `${it.id}:${sd || ''}`;
+      out.push({ id: it.id, side: sd, order: i + 1, emphasis: !!it.side && sd === it.side, current: key === currentKey, done: doneKeys.has(key) });
+    }
+  });
+  return out;
+}
+
+const SIDE_JA = { L: '左', R: '右' };
+function splitText(it) {
+  if (!it.split) return it.side ? `${SIDE_JA[it.side]}を重点に` : '';
+  return it.split.map((x) => `${SIDE_JA[x.side]} ${x.minutes}分`).join(' → ');
+}
+function reSplit(it) {
+  if (!it.split) return;
+  const total = it.split.reduce((t, x) => t + x.minutes, 0) || 1;
+  let left = it.minutes;
+  it.split = it.split.map((x, i) => {
+    const m = i === it.split.length - 1 ? left : Math.max(1, Math.round((x.minutes / total) * it.minutes));
+    left -= m;
+    return { ...x, minutes: m };
+  }).filter((x) => x.minutes > 0);
+}
+
 function renderSessionPlan() {
   const plan = session.plan;
-  const ref = (r) => (r.ref && db.principleById[r.ref] ? ` <span class="ref">${esc(db.principleById[r.ref].cites.map(citeText)[0] || '')}</span>` : '');
-  const maxShare = Math.max(...plan.items.map((i) => i.share));
+  const ref = (r) => {
+    const k = r.ref && db.principleById[r.ref];
+    if (!k) return '';
+    const c = k.cites?.length ? citeText(k.cites[0]) : k.t2 ? `2級テキスト実践編 ${k.t2.split(',')[0]}` : k.textbook ? `3級テキスト ${k.textbook}` : '';
+    return c ? ` <span class="ref">${esc(c)}</span>` : '';
+  };
+  const ORDER_NAME = { outlet: '出口を先に', top: '上から下', text: 'テキストの探査順' };
   $('#tab-session').innerHTML = `
-    <div class="card">
-      <h2>施術の優先順位と時間配分</h2>
-      <div class="timeline">
-        <span class="tl probe">探査 ${plan.probe}分</span>
-        ${plan.items.map((it) => `<span class="tl treat">${esc(it.name)} ${it.minutes}分</span>`).join('')}
-        <span class="tl check">確認 ${plan.check}分</span>
-      </div>
+    ${stepBar(3)}
+    <div class="card plan-card">
+      <h2>③ 今日の施術（この方に合わせた順番）</h2>
+      <div class="guide-wrap"><div class="b3-stage guide-stage"><div class="b3-wrap" id="plan-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('pg')}</div>
+        <p class="small muted">緑の丸の番号が施術の順番です。大きい丸は重点の側。一覧の箇所を押すと、図がその場所へ寄ります。</p></div>
+      ${plan.notes.map((n) => `<div class="plan-note ${n.kind}"><b>${esc(n.title)}</b><p>${esc(n.text)}${ref(n)}</p></div>`).join('')}
       <div class="order-row" role="group" aria-label="施術の順序">
-        <span class="tool-l">順序</span>
-        <button type="button" class="chip order-chip" data-order="top" aria-pressed="${plan.order === 'top'}">上から下（基本）</button>
-        <button type="button" class="chip order-chip" data-order="text" aria-pressed="${plan.order === 'text'}">テキストの探査順</button>
+        <span class="tool-l">順番</span>
+        ${['outlet', 'top', 'text'].map((o) => `<button type="button" class="chip order-chip" data-order="${o}" aria-pressed="${plan.order === o}">${ORDER_NAME[o]}${o === 'outlet' && plan.excretion.level === 'blocked' ? '（おすすめ）' : o === 'top' && plan.excretion.level !== 'blocked' ? '（基本）' : ''}</button>`).join('')}
       </div>
-      <p class="small muted">合計 <b id="plan-total">${plan.total}</b>分。施術は上から下へ進めるのが基本です（まず頭を清め、首・肩、背、腎臓部、腰へ）。</p>
-      <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item">
-        <div class="plan-head"><span class="no">${it.no}</span><span class="name">${esc(it.name)}${it.stub ? ' <span class="tag">重要施術部位</span>' : ''}</span>
+      <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item" data-focus="${i}">
+        <div class="plan-head"><span class="ord">${i + 1}</span><span class="name"><span class="no">${it.no}</span>${esc(it.name)}${it.side ? ` <span class="tag tag-side">${SIDE_JA[it.side]}重点</span>` : ''}${it.stub ? ' <span class="tag">重要施術部位</span>' : ''}${OUTLET_POINTS.includes(it.id) ? ' <span class="tag tag-outlet">出口</span>' : ''}</span>
           <span class="mins"><button type="button" class="mini" data-adj="-1" data-i="${i}" aria-label="1分減らす">−</button><b>${it.minutes}</b>分<button type="button" class="mini" data-adj="1" data-i="${i}" aria-label="1分増やす">＋</button></span></div>
-        <div class="bar"><i style="width:${Math.round((it.share / maxShare) * 100)}%"></i></div>
-        <div class="small">${shadeBars(it.finding)}</div>
-        <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
+        ${splitText(it) ? `<div class="split">${esc(splitText(it))}</div>` : ''}
+        <details class="why"><summary>なぜここを？</summary>
+          <div class="small">${shadeBars(it.finding)}</div>
+          <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
+        </details>
       </li>`).join('')}</ol>
+      <p class="small muted">合計 <b>${plan.total}</b>分（はじめに探査 ${plan.probe}分、最後に確認 ${plan.check}分）。</p>
       ${plan.others.length ? `<p class="small muted">今回は外した箇所：${plan.others.map((o) => esc(o.name)).join('、')}（時間があれば続けて）</p>` : ''}
     </div>
     <details class="card fold before-card"${settings.detail === 'full' ? ' open' : ''}>
@@ -960,15 +1155,28 @@ function renderSessionPlan() {
       ${receiverHTML()}
       ${ratingHTML('before', '施術前のつらさ', session.ratingBefore)}
       <div class="actions">
-        <button type="button" class="primary" id="start-run">施術を始める</button>
-        <button type="button" class="ghost" id="back-input">入力に戻る</button>
+        <button type="button" class="primary big" id="start-run">施術を始める</button>
+        <button type="button" class="ghost" id="back-input">探査に戻る</button>
       </div>
     </div>
     ${criteriaCard()}`;
-  wireRecordInputs($('#tab-session'));
+  const root = $('#tab-session');
+  wireStepBar(root);
+  wireRecordInputs(root);
+  mountGuide($('#plan-3d'), { items: planGuideItems(plan), focus: false });
+  wireZoom(root, 'pg', () => guide.b3);
+  $$('[data-focus]', root).forEach((li) => li.addEventListener('click', (e) => {
+    if (e.target.closest('button, summary, details')) return;
+    const it = plan.items[Number(li.dataset.focus)];
+    const ks = guide.b3?.targetIndexes(it.id, it.side || null) || [];
+    guide.b3?.focusTargets(ks, 0.75);
+    $$('[data-focus]', root).forEach((x) => x.classList.toggle('sel', x === li));
+    $('#plan-3d')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }));
   $$('.mini[data-adj]').forEach((b) => b.addEventListener('click', () => {
     const it = plan.items[Number(b.dataset.i)];
     it.minutes = Math.max(1, it.minutes + Number(b.dataset.adj));
+    reSplit(it);
     plan.total = plan.probe + plan.check + plan.items.reduce((s, x) => s + x.minutes, 0);
     renderSessionPlan();
   }));
@@ -976,7 +1184,7 @@ function renderSessionPlan() {
     session.order = b.dataset.order;
     const keep = Object.fromEntries(plan.items.map((it) => [it.id, it.minutes]));
     session.plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
-    for (const it of session.plan.items) if (keep[it.id]) it.minutes = keep[it.id];
+    for (const it of session.plan.items) if (keep[it.id]) { it.minutes = keep[it.id]; reSplit(it); }
     session.plan.total = session.plan.probe + session.plan.check + session.plan.items.reduce((s, x) => s + x.minutes, 0);
     renderSessionPlan();
   }));
@@ -993,7 +1201,13 @@ function startRun() {
   unlockAudio();
   const plan = session.plan;
   const phases = [{ type: 'probe', label: '探査', sec: plan.probe * 60 }];
-  plan.items.forEach((it, i) => phases.push({ type: 'treat', id: it.id, label: it.name, sec: it.minutes * 60, n: i + 1 }));
+  // 左右がある箇所は、強い側から先に、左右を分けて施術する
+  plan.items.forEach((it, i) => {
+    const parts = it.split && it.split.length ? it.split : [{ side: it.side || null, minutes: it.minutes }];
+    for (const x of parts) {
+      phases.push({ type: 'treat', id: it.id, side: x.side, key: `${it.id}:${x.side || ''}`, label: `${it.name}${x.side ? `（${SIDE_JA[x.side]}）` : ''}`, sec: x.minutes * 60, n: i + 1 });
+    }
+  });
   phases.push({ type: 'check', label: '確認（再探査）', sec: plan.check * 60 });
   session.run = { phases, i: 0, left: phases[0].sec, paused: false, tick: null, wake: null, checkShow: 0 };
   session.state = 'run';
@@ -1012,7 +1226,7 @@ function releaseWake() { try { session.run?.wake?.release(); } catch { /* 何も
 function phaseMessage(ph) {
   if (ph.type === 'probe') return '探査を始めます。発熱、固結、圧痛の順に確かめましょう。';
   if (ph.type === 'check') return '最後に、施術した箇所をもう一度探査して、熱が冷めたか、固結がゆるんだかを確かめましょう。';
-  return `${ph.n}番目、${speechName(ph.id)}です。${Math.round(ph.sec / 60)}分。力を抜いて、軽い気持ちで。`;
+  return `${ph.n}番目、${ph.side ? (ph.side === 'R' ? 'みぎの' : 'ひだりの') : ''}${speechName(ph.id)}です。${Math.round(ph.sec / 60)}分。力を抜いて、軽い気持ちで。`;
 }
 
 function enterPhase() {
@@ -1083,8 +1297,9 @@ function renderRun() {
   const run = session.run;
   const ph = run.phases[run.i];
   const next = run.phases[run.i + 1];
-  const highlight = ph.type === 'treat' ? { [ph.id]: { key: true } } : Object.fromEntries(session.plan.items.map((it) => [it.id, {}]));
+  const doneKeys = new Set(run.phases.slice(0, run.i).filter((p) => p.type === 'treat').map((p) => p.key));
   $('#tab-session').innerHTML = `
+    ${stepBar(3)}
     <div class="card run-card">
       <div class="run-phase">${ph.type === 'treat' ? `施術 ${ph.n}/${session.plan.items.length}` : esc(ph.label)}</div>
       <div class="run-name">${ph.type === 'treat' ? esc(ph.label) : (ph.type === 'probe' ? '発熱・固結・圧痛を確かめる' : '熱が冷めたか、固結がゆるんだか')}</div>
@@ -1100,10 +1315,16 @@ function renderRun() {
       </div>
       <p class="small hint">${ph.type === 'treat' ? '力を抜いて、軽い気持ちで。施術中は話さずに。' : '額や首の周りに手を当てて熱い所を探し、固結・圧痛を確かめます。頸部は三指で強く押さずに。'}</p>
     </div>
+    <div class="card guide-card">
+      <div class="b3-stage guide-stage"><div class="b3-wrap" id="run-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rg')}</div>
+      <p class="small muted">${ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番）。'}</p>
+    </div>
     ${musicBarHTML()}
-    <div class="card">${chartSVG({ highlight })}</div>
     <ol class="card phase-list">${run.phases.map((p, i) => `<li class="${i === run.i ? 'now' : i < run.i ? 'done' : ''}">${esc(p.label)}<span>${Math.round(p.sec / 60)}分</span></li>`).join('')}</ol>`;
   updateRunClock();
+  wireStepBar($('#tab-session'));
+  mountGuide($('#run-3d'), { items: planGuideItems(session.plan, ph.type === 'treat' ? ph.key : null, doneKeys), focus: ph.type === 'treat' }, { ratio: 0.9, maxH: 0.45 });
+  wireZoom($('#tab-session'), 'rg', () => guide.b3);
   $('#run-pause').addEventListener('click', () => { run.paused = !run.paused; renderRun(); });
   $('#run-plus').addEventListener('click', () => { run.left += 60; ph.sec += 60; updateRunClock(); });
   $('#run-next').addEventListener('click', () => { stopSpeaking(); nextPhase(); });
@@ -1132,8 +1353,9 @@ function renderDone() {
   const items = session.plan.items;
   const pad = getPad('pa');
   $('#tab-session').innerHTML = `
+    ${stepBar(4)}
     <div class="card">
-      <h2>お疲れさまでした</h2>
+      <h2>④ お疲れさまでした</h2>
       <p>施術した箇所をもう一度探査して、今の熱・固結・圧痛を塗ってみましょう。熱が冷めたか、固結がゆるんだかを確かめます。</p>
       ${painterHTML('pa')}
     </div>
@@ -1159,6 +1381,7 @@ function renderDone() {
       <p class="small muted">施術後、溶けた毒素が胸や胃に降りる、反対側に痛みが出る（平均浄化）などの変化が起こることがあります。「用語」の施術後の変化も見てください。</p>
     </div>`;
   const root = $('#tab-session');
+  wireStepBar(root);
   wirePainter(root, 'pa', pad, () => {
     session.after = padSample(pad);
     $('#compare').innerHTML = compareHTML(items);
@@ -1181,14 +1404,15 @@ function renderDone() {
   });
   $('#new-session').addEventListener('click', () => {
     releasePads();
-    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
+    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, order: 'auto', state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
     renderSession();
   });
 }
 
 const r1 = (v) => Math.round((v || 0) * 10) / 10;
 function buildRecord() {
-  const toList = (f) => Object.entries(f).map(([point_id, v]) => ({ point_id, heat: r1(v.heat), kouketsu: r1(v.kouketsu), atsutsuu: r1(v.atsutsuu) }));
+  const one = (v) => ({ heat: r1(v.heat), kouketsu: r1(v.kouketsu), atsutsuu: r1(v.atsutsuu) });
+  const toList = (f) => Object.entries(f).map(([point_id, v]) => ({ point_id, ...one(v), ...(v.sides ? { sides: Object.fromEntries(Object.entries(v.sides).map(([k, x]) => [k, one(x)])) } : {}) }));
   const complaints = [];
   if (lastAnalysis?.input?.trim()) complaints.push(lastAnalysis.input.trim());
   for (const c of lastAnalysis?.categories || []) complaints.push(c.label);
@@ -1199,7 +1423,7 @@ function buildRecord() {
     complaints: [...new Set(complaints)],
     self_rating_before: { つらさ: session.ratingBefore },
     findings: toList(session.findings),
-    treatments: session.plan.items.map((it, i) => ({ point_id: it.id, minutes: it.minutes, order: i + 1 })),
+    treatments: session.plan.items.map((it, i) => ({ point_id: it.id, minutes: it.minutes, order: i + 1, ...(it.side ? { side: it.side } : {}), ...(it.split ? { split: it.split } : {}) })),
     findings_after: toList(session.after),
     self_rating_after: { つらさ: session.ratingAfter },
     changes_observed: session.changes.slice(),
@@ -1211,6 +1435,7 @@ function buildRecord() {
 
 function renderSession() {
   releasePads();
+  if (!(session.state === 'plan' || session.state === 'run')) releaseGuide();
   if (session.state === 'plan' && session.plan) return renderSessionPlan();
   if (session.state === 'run' && session.run) return renderRun();
   if (session.state === 'done' && session.plan) return renderDone();
@@ -1503,7 +1728,7 @@ function renderPointsTab(selected = null) {
   $('#tab-points').innerHTML = `
     <div class="card">
       <h2>基本的な探査箇所と探査の順序</h2>
-      <p class="small muted">頭部4か所、頸部6か所、肩2か所、背部4か所、腎臓部3か所。※20〜22は自己探査。</p>
+      <p class="small muted">頭部4か所、頸部6か所、肩2か所、背部4か所、腎臓部3か所。※20〜25は骨盤まわりの自己探査（排泄の出口。本人に確かめてもらう）。</p>
       ${chartSVG({ showAll: true, includeSelf: true, selected })}
       <div class="point-info">${pointInfo(selected)}</div>
     </div>
@@ -1723,7 +1948,7 @@ function showLearn(sub) {
     b.setAttribute('aria-selected', String(b.dataset.learn === sub));
     if (b.dataset.learn === sub) b.scrollIntoView({ inline: 'nearest', block: 'nearest' });
   });
-  $$('#tab-learn .learn-panel').forEach((el) => { el.hidden = el.id !== (sub === 'points' ? 'tab-points' : `learn-${sub}`); });
+  $$('#tab-learn .learn-panel').forEach((el) => { el.hidden = el.id !== (sub === 'points' ? 'tab-points' : sub === 'kenkai' ? 'tab-kenkai' : `learn-${sub}`); });
   store.set('joka.learnSub', sub);
 }
 
@@ -1734,14 +1959,6 @@ function greeting() {
   if (h < 17) return 'こんにちは';
   return 'こんばんは';
 }
-const HOME_TILES = [
-  { tab: 'today', icon: '症', title: 'からだの不調から調べる', desc: 'つらい場所と感じを選ぶだけ。探査して見つめる箇所と毒素の流れがわかります。', main: true },
-  { tab: 'session', icon: '施', title: '探査と施術をはじめる', desc: '探査の結果をからだの図に塗ると、時間配分とタイマーで施術を進められます。' },
-  { tab: 'kenkai', icon: '見', title: '岡田先生の見解', desc: '症状や病名から、全集の見解を調べます。' },
-  { tab: 'records', icon: '録', title: '施術の記録', desc: '' },
-  { tab: 'learn', icon: '学', title: '学ぶ', desc: '探査19か所・流れと用語・全集の知見・実践の心得・使い方' },
-  { tab: 'settings', icon: '設', title: '文字の大きさ・音楽・設定', desc: '見やすさと、施術中の音楽・声のお知らせ' },
-];
 function renderHome() {
   const n = loadRecords().length;
   const day = Math.floor(Date.now() / 86400000);
@@ -1750,26 +1967,36 @@ function renderHome() {
   const resume = session.state === 'run'
     ? `<div class="card resume"><b>施術の途中です</b><button type="button" class="primary" data-go="session">施術に戻る</button></div>`
     : (lastAnalysis && (lastAnalysis.askText || lastAnalysis.input || ask.zones.length)
-      ? `<div class="card resume"><span>前回調べた症状：<b>${esc(lastAnalysis.askText || ask.zones.map(placeName).join('・') || lastAnalysis.input)}</b></span><button type="button" class="ghost" data-go="today">結果を見る</button></div>` : '');
+      ? `<div class="card resume"><span>前回調べた症状：<b>${esc(lastAnalysis.askText || ask.zones.map(placeName).join('・') || lastAnalysis.input)}</b></span><button type="button" class="ghost" data-go="today">続きから</button></div>` : '');
   $('#tab-home').innerHTML = `
     <div class="hero">
       <p class="hero-hello">${greeting()}</p>
       <h1 class="hero-title">今日も、ていねいに。</h1>
-      <p class="hero-lead">本日の不調から、探査して見つめる箇所と、施術の時間配分をご案内します。</p>
     </div>
     ${settings.welcomed ? '' : `<div class="card welcome">
       <h2>はじめての方へ</h2>
-      <p>まず、読みやすい文字の大きさを選んでください。あとから上の「あ 文字」でも変えられます。</p>
+      <p>読みやすい文字の大きさを選んでください（あとから上の「あ 文字」でも変えられます）。</p>
       <div class="size-choice" role="radiogroup" aria-label="文字の大きさ">${TEXT_SIZES.map((t) => `<button type="button" role="radio" class="size-opt size-${t.id}" data-size="${t.id}" aria-checked="${settings.textSize === t.id}">あ<span>${t.name}</span></button>`).join('')}</div>
-      <ol class="steps small"><li>「からだの不調から調べる」で、つらい所と感じを選ぶ</li><li>見つめる箇所を探査して、結果をからだの図に塗る</li><li>時間配分とタイマーで施術し、記録を残す</li></ol>
       <button type="button" class="primary wide" id="welcome-ok">わかりました</button>
     </div>`}
     ${resume}
-    <div class="tiles">${HOME_TILES.map((t) => `<button type="button" class="tile${t.main ? ' tile-main' : ''}" data-go="${t.tab}">
-      <span class="tile-icon" aria-hidden="true">${t.icon}</span>
-      <span class="tile-text"><b>${t.title}</b><span>${esc(t.tab === 'records' ? (n ? `${n}件の記録があります。つらさの変化や箇所ごとの変化を見られます。` : 'まだ記録はありません。施術の終わりに残せます。') : t.desc)}</span></span>
-    </button>`).join('')}</div>
-    ${tip ? `<div class="card tip-card"><div class="tip-head">今日のひとこと<span class="small muted">（全集の知見から）</span></div><div class="k-title">${esc(tip.title)}</div><p>${esc(tip.summary)}</p>${citesHTML(tip)}</div>` : ''}`;
+    <button type="button" class="start-big" data-go="today">
+      <span class="sb-main">はじめる</span>
+      <span class="sb-sub">下の4つの順に、画面がご案内します</span>
+    </button>
+    <ol class="flow4" aria-label="使い方の流れ">
+      <li><span class="f-no">1</span><b>つらい所</b><span>場所と感じを選ぶ</span></li>
+      <li><span class="f-no">2</span><b>探査</b><span>熱・固結・圧痛を入れる</span></li>
+      <li><span class="f-no">3</span><b>施術</b><span>図とタイマーが案内</span></li>
+      <li><span class="f-no">4</span><b>記録</b><span>前と後を比べる</span></li>
+    </ol>
+    <div class="mini-tiles">
+      <button type="button" class="mini-tile" data-go="session"><b>探査から始める</b><span>症状を選ばずに</span></button>
+      <button type="button" class="mini-tile" data-go="kenkai"><b>岡田先生の見解</b><span>症状・病名から</span></button>
+      <button type="button" class="mini-tile" data-go="records"><b>記録</b><span>${n ? `${n}件` : 'まだありません'}</span></button>
+      <button type="button" class="mini-tile" data-go="learn"><b>学ぶ</b><span>知見・心得・使い方</span></button>
+    </div>
+    ${tip ? `<div class="card tip-card"><div class="tip-head">今日のひとこと<span class="small muted">（全集・テキストの知見から）</span></div><div class="k-title">${esc(tip.title)}</div><p>${esc(tip.summary)}</p>${citesHTML(tip)}</div>` : ''}`;
   const root = $('#tab-home');
   $$('[data-go]', root).forEach((b) => b.addEventListener('click', () => showTab(b.dataset.go)));
   $$('[data-size]', root).forEach((b) => b.addEventListener('click', () => { setTextSize(b.dataset.size); renderHome(); }));
@@ -1817,6 +2044,8 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); inst
 // ---- 画面の切り替え・タイトル ----
 let currentTab = 'home';
 function showTab(name) {
+  // 見解は「学ぶ・見解」の中
+  if (name === 'kenkai') { store.set('joka.learnSub', 'kenkai'); name = 'learn'; }
   $('#title-screen').hidden = true;
   $('header.top').hidden = false;
   $('nav.bottom-nav').hidden = false;
@@ -1828,8 +2057,10 @@ function showTab(name) {
   if (name === 'session') renderSession();
   if (name === 'settings') renderSettings();
   if (name === 'records') renderRecordsTab();
-  if (name === 'learn') showLearn(store.get('joka.learnSub', 'points'));
+  if (name === 'learn') showLearn(store.get('joka.learnSub', 'kenkai'));
   if (name !== 'today' && askPicker?.renderer) askPicker.dispose();
+  if (name !== 'today' && name !== 'session') releaseGuide();
+  if (name === 'today' && $('#result-3d') && resultGuide) mountGuide($('#result-3d'), resultGuide, { ratio: 1.1, maxH: 0.55 });
   if (name === 'today' && !$('#picker-box').hidden) openPicker(true);
   // タイトルの音楽は、ホーム以外では静かに止める
   if (name !== 'home' && player.playing && player.titleMode) { player.titleMode = false; player.stop(4); }

@@ -163,7 +163,8 @@ export function buildFlow(db, src, kind) {
 
 const ROLE_WEIGHT = { rakuya: 1.0, keiro: 0.8, butai: 0.9, look: 0.8, kakuron: 1.0, outlet: 0.6, extra: 0.9 };
 const PELVIC_CATS = new Set(['legs', 'breath', 'lowback', 'abdomen', 'urinary', 'women', 'anus', 'lungs', 'fatigue']);
-const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu'];
+const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu', 'choukotsu', 'senchou', 'chikotsu'];
+export { OUTLET_POINTS };
 const PELVIC_KENKAI = new Set(['hie', 'ashi', 'ashiura', 'oshiri', 'koshi', 'ji', 'fujin', 'seki', 'darui', 'mukumi', 'geri', 'benpi']);
 const KIDNEY = ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side'];
 
@@ -373,26 +374,91 @@ export function findingScore(f) {
   return 1.5 * h + k + a + (h && k ? 1 : 0) + (h && k && a ? 1 : 0);
 }
 
-// 施術の順序。既定は体の上から下（背面図での高さ順）、'text' はテキストの探査順
+// 施術の順序。'top'＝体の上から下（背面図での高さ順）、'text'＝テキストの探査順、
+// 'outlet'＝出口を先に開ける（頭 → 骨盤まわりの出口 → 腎臓部 → 首・肩・背 → その他。2級テキスト実践編 p100-105 の臥位の手順の例）
+const OUTLET_GROUP = (p) => {
+  if (p.region === 'head') return 0;
+  if (OUTLET_POINTS.includes(p.id)) return 1;
+  if (p.region === 'kidney') return 2;
+  return 3;
+};
 export function orderPoints(db, items, order = 'top') {
   const key = (it) => {
     const p = db.pointById[it.id];
-    if (order === 'text') return [p.no, 0];
+    if (order === 'text') return [p.no, 0, it.side === 'L' ? 1 : 0];
     const a = p.anchor || (p.chart || [[0, 0]])[0];
-    return [a[1], p.no];
+    if (order === 'outlet') return [OUTLET_GROUP(p), a[1], p.no];
+    return [a[1], p.no, 0];
   };
   return items.slice().sort((x, y) => {
-    const [a1, a2] = key(x);
-    const [b1, b2] = key(y);
-    return a1 - b1 || a2 - b2;
+    const a = key(x);
+    const b = key(y);
+    return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
   });
 }
 
-export function planSession(db, findings, total, analysis = null, { order = 'top' } = {}) {
+// ---- 左右の違い ----
+// f.sides = { L: {...}, R: {...} }（L＝体の左）。どちらかが明らかに強ければ、その側を重点にする
+const SIDE_NAME = { L: '左', R: '右' };
+export function sideFocus(f) {
+  const s = f?.sides;
+  if (!s) return null;
+  const l = findingScore(s.L);
+  const r = findingScore(s.R);
+  if (!l && !r) return null;
+  if (l && !r) return { side: 'L', strong: l, weak: 0, only: true };
+  if (r && !l) return { side: 'R', strong: r, weak: 0, only: true };
+  const hi = Math.max(l, r);
+  const lo = Math.min(l, r);
+  if (hi - lo >= 1 && hi >= lo * 1.3) return { side: l > r ? 'L' : 'R', strong: hi, weak: lo, only: false };
+  return { side: null, strong: hi, weak: lo, only: false, both: true };
+}
+// 骨盤まわり（出口）の左右：腸骨の内側・鼠蹊部・仙腸関節・腎臓下方部の固結の強い側
+function pelvicSide(findings) {
+  let L = 0;
+  let R = 0;
+  for (const id of ['choukotsu', 'sokeibu', 'senchou', 'jinzo_kahou', 'jinzo_kahou_side']) {
+    const s = findings[id]?.sides;
+    if (!s) continue;
+    L = Math.max(L, s.L?.kouketsu || 0);
+    R = Math.max(R, s.R?.kouketsu || 0);
+  }
+  if (Math.abs(L - R) < 1) return null;
+  return L > R ? 'L' : 'R';
+}
+
+// ---- 排泄経路は整っているか ----
+// 骨盤まわり（出口）の固結と、排泄の不調の訴えから、出口の詰まり具合をみる
+const EXCRETION_KENKAI = new Set(['benpi', 'mukumi', 'hara', 'geri', 'fujin']);
+const EXCRETION_CATS = new Set(['abdomen', 'urinary', 'women', 'anus']);
+export function excretionCheck(db, findings, analysis = null) {
+  const outlet = OUTLET_POINTS.concat(['jinzo_kahou']);
+  let max = 0;
+  const hard = [];
+  for (const id of outlet) {
+    const k = findings[id]?.kouketsu || 0;
+    max = Math.max(max, k);
+    if (k >= 2.5) hard.push(id);
+  }
+  const signs = [];
+  if (analysis && !analysis.fallback) {
+    for (const c of analysis.categories || []) if (EXCRETION_CATS.has(c.id)) signs.push(c.label);
+    for (const e of analysis.kenkai || []) if (EXCRETION_KENKAI.has(e.id)) signs.push(e.label);
+  }
+  const nausea = !!analysis && /吐き気|はきけ|むかむか|ムカムカ|胸がむかつ|嘔吐|突き上げ/.test(analysis.input || '');
+  let level = 'clear';
+  if (max >= 3 || (max >= 2 && signs.length)) level = 'blocked';
+  else if (max >= 1.5 || signs.length) level = 'some';
+  const painted = outlet.some((id) => findings[id]);
+  return { level, max, hard, signs: [...new Set(signs)], nausea, side: pelvicSide(findings), painted };
+}
+
+export function planSession(db, findings, total, analysis = null, { order = 'auto' } = {}) {
   const roleOf = Object.fromEntries((analysis?.points || []).map((p) => [p.id, p]));
   const hasAnalysis = !!analysis && !analysis.fallback;
-  const lowerCongested = OUTLET_POINTS.concat(['jinzo_kahou', 'jinzo_kahou_side'])
-    .some((id) => (findings[id]?.kouketsu || 0) >= 3);
+  const ex = excretionCheck(db, findings, analysis);
+  const lowerCongested = ex.level === 'blocked';
+  const pSide = ex.side;
 
   const cands = [];
   for (const [id, f] of Object.entries(findings)) {
@@ -425,7 +491,18 @@ export function planSession(db, findings, total, analysis = null, { order = 'top
     }
     // 4. 各論
     if (r?.roles.includes('kakuron')) { W *= 1.25; reasons.push({ text: '各論：本日の症状について説かれた急所', ref: null }); }
-    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, W, P: F * W, reasons, finding: { heat: h, kouketsu: k, atsutsuu: a } });
+    // 5. 左右：強い側を重点に。腎臓部と骨盤の内側が同じ側で強ければ、その側の固結の柱をさらに重く
+    const sf = sideFocus(f);
+    let side = sf?.side || null;
+    if (sf?.side) {
+      reasons.push({ text: `${SIDE_NAME[sf.side]}が強い${sf.only ? '（塗られたのは' + SIDE_NAME[sf.side] + 'のみ）' : ''}：${SIDE_NAME[sf.side]}を重点に`, ref: 'sayuu' });
+    }
+    if (pSide && (p.region === 'kidney' || OUTLET_POINTS.includes(id)) && (!side || side === pSide) && (f.sides?.[pSide])) {
+      side = pSide;
+      W *= 1.25;
+      reasons.push({ text: `${SIDE_NAME[pSide]}の腎臓部から${SIDE_NAME[pSide]}の骨盤の内側へ固結が続いている：${SIDE_NAME[pSide]}の固結の柱を重点に（排泄の道を開く）`, ref: 'kotsuban_naibu' });
+    }
+    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, W, P: F * W, reasons, side, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
   }
   if (!cands.length) return { ok: false, message: '探査で熱・固結・圧痛のあった箇所を入力してください。' };
 
@@ -444,7 +521,15 @@ export function planSession(db, findings, total, analysis = null, { order = 'top
       finding: { heat: 0, kouketsu: 0, atsutsuu: 0 },
     };
   });
-  // 2) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
+  // 2) 排泄経路が詰まっている時は、骨盤まわりの出口を必ず一つは入れる（排泄を邪魔している凝りの解消を優先）
+  if (lowerCongested) {
+    const o = cands.find((c) => OUTLET_POINTS.includes(c.id));
+    if (o && !required.includes(o)) {
+      o.reasons.push({ text: '排泄経路が詰まっている：先に出口（骨盤まわり）を開けてから上を施術する', ref: 'haisetsu_keiro' });
+      required.push(o);
+    }
+  }
+  // 3) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
   const realReq = required.filter((c) => !c.stub).length;
   const extras = cands.filter((c) => !required.includes(c)).slice(0, Math.max(0, maxN - realReq));
 
@@ -452,9 +537,12 @@ export function planSession(db, findings, total, analysis = null, { order = 'top
   const check = Math.max(2, Math.round(total * 0.1));
   const avail = Math.max(0, total - probe - check);
   const stubMin = Math.max(2, Math.round(avail * 0.06));
-  const minOf = (c) => (c.stub ? stubMin : 3);
-  // 時間が足りない時は、優先度の低い箇所から外す（重要施術部位は外さない）
-  while (extras.length && [...required, ...extras].reduce((s, c) => s + minOf(c), 0) > avail) extras.pop();
+  let realMin = 3;
+  const minOf = (c) => (c.stub ? stubMin : realMin);
+  const need = () => [...required, ...extras].reduce((s, c) => s + minOf(c), 0);
+  // 時間が足りない時は、優先度の低い箇所から外し（重要施術部位は外さない）、それでも足りなければ最低時間を2分に
+  while (extras.length && need() > avail) extras.pop();
+  if (need() > avail) realMin = 2;
   const chosen = [...required, ...extras];
   for (const c of required) {
     if (!c.stub && !cands.slice(0, maxN).includes(c)) {
@@ -475,9 +563,41 @@ export function planSession(db, findings, total, analysis = null, { order = 'top
   let left = treat - mins.reduce((s, m) => s + m, 0);
   raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { mins[i]++; left--; } });
 
-  const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: mins[i] / treat }));
-  // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）
-  const ordered = orderPoints(db, items, order);
+  const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: mins[i] / treat, split: splitSides(c, mins[i]) }));
+  // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）。排泄経路が詰まっている時は出口を先に
+  const used = order === 'auto' ? (lowerCongested ? 'outlet' : 'top') : order;
+  const ordered = orderPoints(db, items, used);
   const others = cands.filter((c) => !chosen.includes(c));
-  return { ok: true, order, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
+  const notes = planNotes(ex, ordered);
+  return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
+}
+
+// 左右がある箇所の時間の分け方：強い側を先に、長く（約3分の2）。片側だけ塗られていれば、その側を主に、反対側も少し
+function splitSides(c, minutes) {
+  const p = c.finding?.sides;
+  if (!p || c.stub) return null;
+  const has = (k) => findingScore(p[k]) > 0;
+  if (!has('L') && !has('R')) return null;
+  const first = c.side || (findingScore(p.R) >= findingScore(p.L) ? 'R' : 'L');
+  const second = first === 'R' ? 'L' : 'R';
+  if (minutes < 3) return [{ side: first, minutes }];
+  const main = c.side ? Math.max(2, Math.round(minutes * (has(second) ? 0.65 : 0.75))) : Math.ceil(minutes / 2);
+  return [{ side: first, minutes: main }, { side: second, minutes: minutes - main }].filter((x) => x.minutes > 0);
+}
+
+// 計画に添える注意（排泄経路・突き上げ・左右）
+function planNotes(ex, items) {
+  const notes = [];
+  if (ex.level === 'blocked') {
+    notes.push({ kind: 'warn', title: '排泄経路が詰まっている可能性', text: `骨盤まわり（出口）の固結が強い${ex.signs.length ? '、または排泄の不調の訴えがある' : ''}ため、先に出口（腸骨の内側・鼠蹊部・腎臓下方部）を開けてから、首・肩を施術する順序にしました。出口が詰まったまま頭や肩を強く施術すると、溶けた毒素が下りきれず、別の所の浄化や吐き気（突き上げ）として出ることがあります。`, ref: 'haisetsu_keiro' });
+  } else if (ex.level === 'some') {
+    notes.push({ kind: 'info', title: '排泄経路も見ておきましょう', text: ex.painted ? '骨盤まわりにやや固結があります。施術の後に、お腹の張りや吐き気が出ないか見ておき、出る時は腸骨の内側・鼠蹊部・みぞおちの辺りを施術します。' : '排泄の不調の訴えがあります。腸骨の内側・鼠蹊部・腰（自己探査）も確かめてもらいましょう。', ref: 'kotsuban_naibu' });
+  } else if (!ex.painted) {
+    notes.push({ kind: 'info', title: '排泄経路は整っていますか？', text: '腸骨の内側・鼠蹊部・仙腸関節付近（自己探査）が塗られていません。腰・脚・お腹・婦人科の訴えがある時は、ここも確かめてもらうと、施術の順序をより合わせられます。', ref: 'haisetsu_keiro' });
+  }
+  if (ex.nausea) notes.push({ kind: 'warn', title: '突き上げに気をつける', text: '吐き気・胸のむかつきの訴えがあります。下の出口が詰まっていると、溶けた毒素が上へ突き上げてきます。みぞおちの辺りや背中、腸骨の内側・鼠蹊部を施術します。', ref: 'tsukiage' });
+  if (ex.side) notes.push({ kind: 'info', title: `${SIDE_NAME[ex.side]}の骨盤まわりが強い`, text: `${SIDE_NAME[ex.side]}の腎臓部〜腸骨の内側の固結の柱を重点にし、${SIDE_NAME[ex.side]}から先に施術します（よく施術すべき方から先に）。`, ref: 'jinzo_yoko' });
+  const sided = items.filter((it) => it.side && !OUTLET_POINTS.includes(it.id) && it.region !== 'kidney');
+  if (sided.length) notes.push({ kind: 'info', title: '左右の違い', text: sided.map((it) => `${it.name}は${SIDE_NAME[it.side]}が強い`).join('、') + '。強い側から先に、長めに施術します。', ref: 'sayuu' });
+  return notes;
 }
