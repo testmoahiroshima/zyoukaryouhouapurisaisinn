@@ -1,7 +1,7 @@
 import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS } from './engine.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
 import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
-import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zoneOf } from './zones.js';
+import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zoneBounds, zoneDetail, phrasesForDetails } from './zones.js';
 import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
@@ -257,7 +257,7 @@ function kenkaiItemHTML(e, { open = true, link = false } = {}) {
     ${e.disease ? '<p class="small dis-line">病気の診断・治療は医療機関で受けてください。以下は岡田先生の見解の紹介です。</p>' : ''}
     <p>${esc(e.view)}</p>
     ${e.note ? `<div class="caution">${esc(e.note)}</div>` : ''}
-    ${pts.length ? `<div class="small">見解で挙げられている箇所：${pts.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</div>` : '<div class="small muted">見解の中に施術箇所の記述はありません。重要施術部位（腎臓部）から探査してみましょう。</div>'}
+    ${pts.length ? `<div class="small">見解で挙げられている箇所：${pts.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}${pts.some((p) => p.region === 'head') && pts.filter((p) => p.region === 'head').length < 4 ? '<span class="muted">（頭部は、前頭部・頭頂部・こめかみ部・後頭部の全体を見ます）</span>' : ''}</div>` : '<div class="small muted">見解の中に施術箇所の記述はありません。重要施術部位（腎臓部）から探査してみましょう。</div>'}
     ${citesHTML(e)}
     ${link ? `<button type="button" class="ghost small-btn" data-kenkai-go="${esc(e.id)}">この症状で探査する箇所を見る →</button>` : ''}
   </details>`;
@@ -320,7 +320,7 @@ function renderResult(r) {
         <button type="button" class="speak-b" id="speak-result" aria-pressed="false"><span aria-hidden="true">🔊</span>読み上げ</button></div>
       ${r.fallback ? `<p>${askText || r.safety.length ? '入力から当てはまる症状の流れが見つかりませんでした。' : ''}頭部4か所、頸部6か所、肩2か所、背部4か所、腎臓部3か所を、番号の順にまんべんなく探査してみましょう。</p><p class="cite">根拠：岡田式浄化療法の実際 p130-131（基本的な探査箇所と探査の順序）</p>`
         : `<div class="sum-row"><span class="sum-label">読み取った症状</span><div>${r.categories.map((c) => `<span class="tag">${esc(c.label)}</span>`).join('')}</div></div>
-      ${ask.zones.length ? `<div class="sum-row"><span class="sum-label">つらい場所</span><div>${ask.zones.map((id) => `<span class="tag tag-place">${esc(placeName(id))}</span>`).join('')}</div></div>` : ''}
+      ${ask.zones.length ? `<div class="sum-row"><span class="sum-label">つらい場所</span><div>${placeLabels().map((l) => `<span class="tag tag-place">${esc(l)}</span>`).join('')}</div></div>` : ''}
       ${r.side ? `<p class="small">「${SIDE_TEXT[r.side]}」の訴えがあります。探査では${SIDE_TEXT[r.side]}を特によく見つめましょう。</p>` : ''}
       <div class="sum-row"><span class="sum-label">見つめる箇所</span><div class="sum-points">${r.points.map((p) => `<span class="sum-pt${p.key ? ' key' : ''}"><b>${p.no}</b>${esc(p.name)}</span>`).join('')}</div></div>
       ${fl0 ? `<div class="sum-row"><span class="sum-label">毒素の流れ</span>${stationsText(fl0)}</div>` : ''}`}
@@ -376,6 +376,7 @@ function renderResult(r) {
       </li>`).join('')}
     </ul>
     <p class="small muted">番号は探査の順序（岡田式浄化療法の実際 p131）。20〜25は骨盤まわりの自己探査（22 鼠蹊部は岡田先生の論述、23〜25は2級テキスト実践編 p74-76 による追加）。</p>
+    ${r.points.some((p) => p.region === 'head') ? '<div class="caution">頭部：前頭部・頭頂部・こめかみ部・後頭部は、すべて大事な所です。中でも熱のある所を見つけて施術します。後頭部は頭部の毒素の出入り口で、延髄部・首とつながっています。</div>' : ''}
     ${cautions.map((g) => `<div class="caution">${esc(g.name)}：${esc(g.caution)}</div>`).join('')}
     <button type="button" class="primary wide big" id="to-session">② 探査へ進む →</button>
   </div>`);
@@ -462,10 +463,22 @@ function renderResult(r) {
 // ---- 症状の入力（場所 → 感じ → ことば） ----
 const STORE_ASK = 'joka.lastAsk';
 const ask = Object.assign({ zones: [], senses: [], pins: [] }, store.get(STORE_ASK, {}));
-ask.pins = [];
+// 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
+ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
+let zoneBoundsCache = null;
 let askPicker = null;
 
 function placeName(id) { return zoneById[id]?.name || id; }
+// 選んだ場所の名前（図でさした所は細かい名前で）
+function placeLabels() {
+  const out = [];
+  for (const z of ask.zones) {
+    const ps = ask.pins.filter((x) => x.zone === z);
+    if (ps.length) for (const x of ps) out.push(x.d.label);
+    else out.push(placeName(z));
+  }
+  return [...new Set(out)];
+}
 
 function renderTodayForm() {
   $('#today-form').innerHTML = `
@@ -527,7 +540,9 @@ function renderTodayForm() {
     ta.value = '';
     ask.zones = [];
     ask.senses = [];
-    ask.pins = [];
+    // 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
+ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
+let zoneBoundsCache = null;
     askPicker?.clearPins();
     $$('#chips .chip').forEach((b) => b.setAttribute('aria-pressed', 'false'));
     $('#result').innerHTML = '';
@@ -546,12 +561,17 @@ function markAsk() {
   for (const id of ['pin-undo', 'pin-clear']) { const b = $(`#${id}`); if (b) b.disabled = !ask.pins.length; }
   const box = $('#chosen-places');
   if (box) {
-    box.innerHTML = ask.zones.length
-      ? `<span class="small muted">選んだ場所：</span>${ask.zones.map((id) => `<button type="button" class="chosen-b" data-unzone="${id}" aria-label="${esc(placeName(id))}を外す">${esc(placeName(id))}<span aria-hidden="true">×</span></button>`).join('')}`
-      : '';
+    const chips = ask.zones.flatMap((id) => {
+      const ps = ask.pins.map((x, i) => [x, i]).filter(([x]) => x.zone === id);
+      return ps.length
+        ? ps.map(([x, i]) => `<button type="button" class="chosen-b" data-unpin="${i}" aria-label="${esc(x.d.label)}を外す">${esc(x.d.label)}<span aria-hidden="true">×</span></button>`)
+        : [`<button type="button" class="chosen-b" data-unzone="${id}" aria-label="${esc(placeName(id))}を外す">${esc(placeName(id))}<span aria-hidden="true">×</span></button>`];
+    });
+    box.innerHTML = chips.length ? `<span class="small muted">選んだ場所：</span>${chips.join('')}` : '';
     $$('[data-unzone]', box).forEach((b) => b.addEventListener('click', () => toggleZone(b.dataset.unzone)));
+    $$('[data-unpin]', box).forEach((b) => b.addEventListener('click', () => removePin(Number(b.dataset.unpin))));
   }
-  store.set(STORE_ASK, { zones: ask.zones, senses: ask.senses });
+  store.set(STORE_ASK, { zones: ask.zones, senses: ask.senses, pins: ask.pins });
 }
 
 // 最後につけた印を外す（その場所に他の印が無ければ、選んだ場所からも外す）
@@ -560,28 +580,48 @@ function undoPin() {
   if (!last) return;
   askPicker?.removeLastPin();
   if (!ask.pins.some((x) => x.zone === last.zone)) ask.zones = ask.zones.filter((z) => z !== last.zone);
-  toast(`「${placeName(last.zone)}」の印を戻しました`);
+  toast(`「${last.d.label}」の印を戻しました`);
   markAsk();
 }
 // 図につけた印を全部消す（ボタンで選んだ場所はそのまま）
 function clearPinZones() {
   if (!ask.pins.length) return;
   const zones = new Set(ask.pins.map((x) => x.zone));
-  ask.pins = [];
+  // 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
+ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
+let zoneBoundsCache = null;
   askPicker?.clearPins();
   ask.zones = ask.zones.filter((z) => !zones.has(z));
   toast('図の印を消しました');
   markAsk();
 }
 
-function toggleZone(id, pin = null) {
+// 印を一つ外す（その場所に他の印が無ければ、選んだ場所からも外す）
+function removePin(i) {
+  const [x] = ask.pins.splice(i, 1);
+  if (!x) return;
+  if (!ask.pins.some((y) => y.zone === x.zone)) ask.zones = ask.zones.filter((z) => z !== x.zone);
+  redrawPins();
+  markAsk();
+}
+function redrawPins() {
+  if (!askPicker) return;
+  askPicker.clearPins();
+  for (const x of ask.pins) askPicker.addPin(x.p);
+}
+
+function toggleZone(id, pin = null, detail = null) {
   if (ask.zones.includes(id) && !pin) {
     ask.zones = ask.zones.filter((x) => x !== id);
     ask.pins = ask.pins.filter((x) => x.zone !== id);
-    if (askPicker) { askPicker.clearPins(); for (const x of ask.pins) askPicker.addPin(x.p); }
+    redrawPins();
   } else {
     if (!ask.zones.includes(id)) ask.zones.push(id);
-    if (pin) { ask.pins.push({ zone: id, p: pin }); askPicker?.addPin(pin); }
+    if (pin) {
+      const p = { x: pin.x, y: pin.y, z: pin.z };
+      ask.pins.push({ zone: id, p, d: detail || zoneDetail(p, zoneBoundsCache) });
+      askPicker?.addPin(p);
+    }
   }
   markAsk();
 }
@@ -595,14 +635,16 @@ async function openPicker(open) {
   const wrap = $('#ask-3d');
   try {
     if (!askPicker) {
-      askPicker = new Body3D(await loadMesh(), db.pointList);
+      const mesh = await loadMesh();
+      zoneBoundsCache ||= zoneBounds(mesh.positions);
+      askPicker = new Body3D(mesh, db.pointList);
       askPicker.mode = 'pick';
       askPicker.showNumbers = false;
       askPicker.view = 'front';
       askPicker.onPick = (p) => {
-        const z = zoneOf(p);
-        toggleZone(z, p);
-        toast(`「${placeName(z)}」を選びました`);
+        const d = zoneDetail(p, zoneBoundsCache);
+        toggleZone(d.zone, p, d);
+        toast(`「${d.label}」を選びました`);
       };
     }
     if (!askPicker.mount(wrap)) throw new Error('webgl');
@@ -629,7 +671,9 @@ function senseWordOf(text) {
 
 function runAsk() {
   const text = $('#symptom-text').value.trim();
-  const phrases = phrasesFor(ask.zones, ask.senses);
+  // 図でさした所は「右の胸が痛い」のように細かく、ボタンで選んだ所は場所の名前で
+  const pinZones = new Set(ask.pins.map((x) => x.zone));
+  const phrases = [...new Set([...phrasesFor(ask.zones.filter((z) => !pinZones.has(z)), ask.senses), ...phrasesForDetails(ask.pins.map((x) => x.d), ask.senses)])];
   const full = [text, ...phrases].filter(Boolean).join('。');
   const chips = [...new Set([...selectedChips(), ...catsFor(ask.zones)])];
   store.set(STORE_INPUT, text);
@@ -1465,6 +1509,10 @@ function buildRecord() {
     self_rating_after: { つらさ: session.ratingAfter },
     changes_observed: session.changes.slice(),
     memo: session.memo,
+    places: ask.pins.length || ask.zones.length ? [
+      ...ask.pins.map((x) => ({ zone: x.zone, label: x.d.label, side: x.d.side, at: x.d.at })),
+      ...ask.zones.filter((z) => !ask.pins.some((x) => x.zone === z)).map((z) => ({ zone: z, label: placeName(z) })),
+    ] : undefined,
     follow_up: '',
     plan_minutes: { probe: session.plan.probe, check: session.plan.check },
   };
@@ -1654,6 +1702,7 @@ function recordItemHTML(r) {
     <summary><span class="rec-date">${esc(r.date)}</span> <span class="tag">${esc(r.receiver_code)}</span>
       <span class="small muted">${minutes}分・つらさ ${r.self_rating_before?.つらさ ?? '−'}→${r.self_rating_after?.つらさ ?? '−'}</span></summary>
     ${(r.complaints || []).length ? `<p class="small">症状：${r.complaints.map(esc).join('、')}</p>` : ''}
+    ${(r.places || []).length ? `<p class="small">つらい場所：${r.places.map((x) => esc(x.label)).join('、')}</p>` : ''}
     <ul class="readout compare-list">${(r.treatments || []).map((t) => `<li><span class="no">${db.pointById[t.point_id]?.no ?? ''}</span><span class="name">${esc(name(t.point_id))}　${t.minutes}分</span>
       <div class="cmp"><span class="cmp-l">前</span>${shadeBars(fb[t.point_id])}</div>
       <div class="cmp"><span class="cmp-l">後</span>${shadeBars(fa[t.point_id])}</div></li>`).join('')}</ul>
@@ -2005,7 +2054,7 @@ function renderHome() {
   const resume = session.state === 'run'
     ? `<div class="card resume"><b>施術の途中です</b><button type="button" class="primary" data-go="session">施術に戻る</button></div>`
     : (lastAnalysis && (lastAnalysis.askText || lastAnalysis.input || ask.zones.length)
-      ? `<div class="card resume"><span>前回調べた症状：<b>${esc(lastAnalysis.askText || ask.zones.map(placeName).join('・') || lastAnalysis.input)}</b></span><button type="button" class="ghost" data-go="today">続きから</button></div>` : '');
+      ? `<div class="card resume"><span>前回調べた症状：<b>${esc(lastAnalysis.askText || placeLabels().join('・') || lastAnalysis.input)}</b></span><button type="button" class="ghost" data-go="today">続きから</button></div>` : '');
   $('#tab-home').innerHTML = `
     <div class="hero">
       <p class="hero-hello">${greeting()}</p>

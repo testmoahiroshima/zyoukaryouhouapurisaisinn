@@ -75,7 +75,7 @@ export function exportJSON(list) {
 
 // CSV：1行＝1回の施術の1箇所（探査の前後と施術分数）
 export function exportCSV(list, pointName) {
-  const head = ['記録ID', '日付', '受け手コード', '症状', 'つらさ（前）', 'つらさ（後）', '箇所', '施術分', '熱（前）', '固結（前）', '圧痛（前）', '熱（後）', '固結（後）', '圧痛（後）', '変化', 'メモ', '翌日以降の変化'];
+  const head = ['記録ID', '日付', '受け手コード', '症状', 'つらい場所（座標 x,y,z m）', 'つらさ（前）', 'つらさ（後）', '箇所', '施術分', '熱（前）', '固結（前）', '圧痛（前）', '熱（後）', '固結（後）', '圧痛（後）', '変化', 'メモ', '翌日以降の変化'];
   const q = (v) => {
     const s = v === undefined || v === null ? '' : String(v);
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -86,7 +86,7 @@ export function exportCSV(list, pointName) {
     const fa = Object.fromEntries((r.findings_after || []).map((f) => [f.point_id, f]));
     const tm = Object.fromEntries((r.treatments || []).map((t) => [t.point_id, t.minutes]));
     const ids = [...new Set([...(r.treatments || []).map((t) => t.point_id), ...Object.keys(fb), ...Object.keys(fa)])];
-    const base = [r.session_id, r.date, r.receiver_code, (r.complaints || []).join(' / '), r.self_rating_before?.つらさ ?? '', r.self_rating_after?.つらさ ?? ''];
+    const base = [r.session_id, r.date, r.receiver_code, (r.complaints || []).join(' / '), (r.places || []).map((x) => `${x.label}${x.at ? `(${x.at.join(',')})` : ''}`).join(' / '), r.self_rating_before?.つらさ ?? '', r.self_rating_after?.つらさ ?? ''];
     const tail = [(r.changes_observed || []).join(' / '), r.memo || '', r.follow_up || ''];
     if (!ids.length) rows.push([...base, '', '', '', '', '', '', '', '', ...tail]);
     for (const id of ids) {

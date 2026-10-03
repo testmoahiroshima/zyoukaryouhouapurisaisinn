@@ -170,6 +170,44 @@
      "type": "number"
     }
    }
+  },
+  "places": {
+   "type": "array",
+   "description": "つらい場所。図でさした所は細かい名前（左右・上中下・前後）と座標（m、yが上・zが前・+xが体の左）",
+   "items": {
+    "type": "object",
+    "properties": {
+     "zone": {
+      "type": "string"
+     },
+     "label": {
+      "type": "string"
+     },
+     "side": {
+      "type": [
+       "string",
+       "null"
+      ],
+      "enum": [
+       "L",
+       "R",
+       null
+      ]
+     },
+     "at": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "minItems": 3,
+      "maxItems": 3
+     }
+    },
+    "required": [
+     "zone",
+     "label"
+    ]
+   }
   }
  }
 }

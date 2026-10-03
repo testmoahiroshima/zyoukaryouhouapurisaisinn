@@ -172,3 +172,59 @@ export function zoneOf(pt) {
   if (y >= 1.0) return 'onaka';
   return 'shitabara';
 }
+
+// ---- 場所の中をさらに細かく（左右・上中下・前後）。触れた座標もそのまま残す ----
+// 左右を言わない場所（体のまん中にある・名前に左右が入っている）
+const NO_SIDE = new Set(['atama_top', 'hana', 'kuchi', 'nodo', 'migi_hara', 'zenshin']);
+// 上中下に分けない小さな場所
+const NO_VERT = new Set(['atama_top', 'komekami', 'me', 'hana', 'mimi', 'kuchi', 'nodo', 'hiji', 'hiza', 'ashikubi', 'sokei', 'migi_hara', 'senaka_shita', 'zenshin']);
+const VERT_NAME = { 上: '上の方', 中: 'まん中', 下: '下の方' };
+
+// 場所ごとの高さの範囲（3D人体図の頂点から一度だけ作る）
+export function zoneBounds(positions) {
+  const b = {};
+  for (let i = 0; i < positions.length; i += 3) {
+    const pt = { x: positions[i], y: positions[i + 1], z: positions[i + 2] };
+    const z = zoneOf(pt);
+    const r = (b[z] ||= { y0: Infinity, y1: -Infinity });
+    if (pt.y < r.y0) r.y0 = pt.y;
+    if (pt.y > r.y1) r.y1 = pt.y;
+  }
+  return b;
+}
+
+// 触れた点 → { zone, side, vert, face, label, word, at }
+export function zoneDetail(pt, bounds = null) {
+  const zone = zoneOf(pt);
+  const z = zoneById[zone];
+  const side = NO_SIDE.has(zone) || Math.abs(pt.x) < 0.02 ? null : pt.x > 0 ? 'L' : 'R';
+  let vert = null;
+  const r = bounds?.[zone];
+  if (!NO_VERT.has(zone) && r && r.y1 - r.y0 > 0.03) {
+    const t = (pt.y - r.y0) / (r.y1 - r.y0);
+    vert = t > 0.66 ? '上' : t < 0.34 ? '下' : '中';
+  }
+  const face = zone === 'kata' ? (pt.z > -0.01 ? '前' : '後') : null;
+  const sideJa = side === 'R' ? '右の' : side === 'L' ? '左の' : '';
+  const extra = [face ? `${face === '前' ? '前側' : '後ろ側'}` : '', vert ? VERT_NAME[vert] : ''].filter(Boolean).join('・');
+  return {
+    zone,
+    side,
+    vert,
+    face,
+    label: `${sideJa}${z.name}${extra ? `（${extra}）` : ''}`,
+    word: `${sideJa}${z.word}`,
+    at: [pt.x, pt.y, pt.z].map((v) => Math.round(v * 1000) / 1000),
+  };
+}
+
+// 細かい場所（zoneDetail の結果）と感じから、判断に使う文を作る（例：「右の胸が痛い」）
+export function phrasesForDetails(details, senseIds) {
+  const senses = senseIds.map((id) => SENSATIONS.find((s) => s.id === id)).filter((s) => s && s.place !== false);
+  const out = [];
+  for (const d of details) {
+    if (!senses.length) out.push(`${d.word}がつらい`);
+    for (const s of senses) out.push(`${d.word}が${s.form}`);
+  }
+  return out;
+}
