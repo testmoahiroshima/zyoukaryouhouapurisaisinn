@@ -192,7 +192,7 @@ export function findKenkai(db, text, selected = [], blockWords = []) {
   return out.sort((a, b) => (a.firstIndex < 0) - (b.firstIndex < 0) || a.firstIndex - b.firstIndex);
 }
 
-// 全集で霊的な原因と結びつけられている病気（見解を載せない）
+// このアプリでは見解を載せない病気（受診の案内だけにする）
 export function findSpiritual(db, text) {
   const sp = db.raw.kenkai?.spiritual;
   if (!sp) return [];
@@ -247,7 +247,7 @@ export function analyze(db, text, selected = []) {
     });
   }
   // 症状別の見解：つながる症状カテゴリがあればそこに添え、無ければ見解そのものを一つの症状として扱う
-  // 霊的な原因と結びつけられた病名を含む時は、見解・探査箇所を出さず受診の案内だけにする
+  // 見解を載せない病名を含む時は、見解・探査箇所を出さず受診の案内だけにする
   const kenkai = spiritual.length ? [] : findKenkai(db, text, selected, urgentWords);
   for (const m of matched) {
     m.kenkai = kenkai.filter((e) => e.categories.includes(m.id));

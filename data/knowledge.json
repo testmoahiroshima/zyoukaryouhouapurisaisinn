@@ -11,7 +11,8 @@
     {
      "id": "chojutsu04#80",
      "page": "著述篇四巻p303",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     }
    ],
    "checked": true
@@ -26,7 +27,8 @@
     {
      "id": "chojutsu04#80",
      "page": "著述篇四巻p303",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     }
    ],
    "checked": true
@@ -41,7 +43,8 @@
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     }
    ],
    "checked": true
@@ -56,12 +59,14 @@
     {
      "id": "chojutsu04#78",
      "page": "著述篇四巻p299",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     },
     {
      "id": "chojutsu10#71",
      "page": "著述篇十巻p196",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     }
    ],
    "checked": true
@@ -76,12 +81,14 @@
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu04#80",
      "page": "著述篇四巻p303",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     }
    ],
    "checked": true
@@ -96,7 +103,8 @@
     {
      "id": "chojutsu10#0",
      "page": "著述篇十巻p7",
-     "year": 1952
+     "year": 1952,
+     "date": "195202"
     }
    ],
    "checked": true
@@ -111,12 +119,14 @@
     {
      "id": "chojutsu05#51",
      "page": "著述篇五巻p192",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu03#125",
      "page": "著述篇三巻p350",
-     "year": 1942
+     "year": 1942,
+     "date": "194209"
     }
    ],
    "checked": true
@@ -131,22 +141,26 @@
     {
      "id": "chojutsu10#84",
      "page": "著述篇十巻p221",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     },
     {
      "id": "chojutsu10#83",
      "page": "著述篇十巻p219",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     },
     {
      "id": "chojutsu08#42",
      "page": "著述篇八巻p106",
-     "year": 1950
+     "year": 1950,
+     "date": "195004"
     },
     {
      "id": "chojutsu10#89",
      "page": "著述篇十巻p251",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     }
    ],
    "checked": true,
@@ -163,17 +177,20 @@
     {
      "id": "chojutsu04#80",
      "page": "著述篇四巻p303",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     },
     {
      "id": "chojutsu05#87",
      "page": "著述篇五巻p257",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "kowa03#731",
      "page": "講話篇三巻",
-     "year": 1950
+     "year": 1950,
+     "date": "195006"
     }
    ],
    "checked": true,
@@ -189,17 +206,20 @@
     {
      "id": "chojutsu10#0",
      "page": "著述篇十巻p7",
-     "year": 1952
+     "year": 1952,
+     "date": "195202"
     },
     {
      "id": "chojutsu11#18",
      "page": "著述篇十一巻p39",
-     "year": 1953
+     "year": 1953,
+     "date": "195301"
     },
     {
      "id": "kowa10#0",
      "page": "講話篇十巻p166",
-     "year": 1953
+     "year": 1953,
+     "date": "195304"
     }
    ],
    "checked": true,
@@ -215,12 +235,14 @@
     {
      "id": "chojutsu02#79",
      "page": "著述篇二巻p201",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     },
     {
      "id": "chojutsu02#88",
      "page": "著述篇二巻p228",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ],
    "checked": true
@@ -235,12 +257,14 @@
     {
      "id": "kowa01#416",
      "page": "講話篇一巻p543",
-     "year": 1948
+     "year": 1948,
+     "date": "194812"
     },
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     }
    ],
    "checked": true
@@ -255,17 +279,20 @@
     {
      "id": "kowa01#31",
      "page": "講話篇一巻p224",
-     "year": 1940
+     "year": 1940,
+     "date": "194011"
     },
     {
      "id": "chojutsu08#293",
      "page": "著述篇八巻p706",
-     "year": 1950
+     "year": 1950,
+     "date": "195012"
     },
     {
      "id": "kowa07#167",
      "page": "講話篇七巻p297",
-     "year": 1952
+     "year": 1952,
+     "date": "195206"
     }
    ],
    "checked": true
@@ -280,7 +307,8 @@
     {
      "id": "chojutsu01#52",
      "page": "著述篇一巻p182",
-     "year": 1935
+     "year": 1935,
+     "date": "1935"
     }
    ],
    "checked": true
@@ -320,7 +348,8 @@
     {
      "id": "chojutsu09#196",
      "page": "著述篇九巻p519",
-     "year": 1951
+     "year": 1951,
+     "date": "195110"
     }
    ],
    "checked": true
@@ -335,17 +364,20 @@
     {
      "id": "kowa02#644",
      "page": null,
-     "year": 1950
+     "year": 1950,
+     "date": "195001"
     },
     {
      "id": "kowa11#254",
      "page": "講話篇十一巻p380",
-     "year": 1953
+     "year": 1953,
+     "date": "195311"
     },
     {
      "id": "chojutsu10#0",
      "page": "著述篇十巻p7",
-     "year": 1952
+     "year": 1952,
+     "date": "195202"
     }
    ],
    "checked": true
@@ -360,7 +392,8 @@
     {
      "id": "kowa01#80",
      "page": null,
-     "year": 1948
+     "year": 1948,
+     "date": "194901"
     }
    ],
    "checked": true
@@ -375,7 +408,8 @@
     {
      "id": "kowa08#7",
      "page": "講話篇八巻p271",
-     "year": 1952
+     "year": 1952,
+     "date": "195211"
     }
    ],
    "checked": true
@@ -390,7 +424,8 @@
     {
      "id": "kowa09#154",
      "page": "講話篇九巻p309",
-     "year": 1953
+     "year": 1953,
+     "date": "1953"
     }
    ],
    "checked": true
@@ -405,7 +440,8 @@
     {
      "id": "kowa02#482",
      "page": null,
-     "year": 1949
+     "year": 1949,
+     "date": "1949"
     }
    ],
    "checked": true
@@ -421,7 +457,8 @@
     {
      "id": "chojutsu10#87",
      "page": "著述篇十巻p236",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     }
    ],
    "checked": true
@@ -465,7 +502,8 @@
     {
      "id": "kowa04#301",
      "page": "講話篇四巻p286",
-     "year": 1951
+     "year": 1951,
+     "date": "195112"
     }
    ],
    "checked": true
@@ -557,17 +595,20 @@
     {
      "id": "chojutsu02#88",
      "page": "著述篇二巻p228",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     },
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu10#16",
      "page": "著述篇十巻p20",
-     "year": 1952
+     "year": 1952,
+     "date": "195207"
     }
    ]
   },
@@ -590,12 +631,14 @@
     {
      "id": "chojutsu10#0",
      "page": "著述篇十巻p7",
-     "year": 1952
+     "year": 1952,
+     "date": "195202"
     },
     {
      "id": "chojutsu01#24",
      "page": "著述篇一巻p124",
-     "year": 1935
+     "year": 1935,
+     "date": "1935"
     }
    ]
   },
@@ -616,7 +659,8 @@
     {
      "id": "chojutsu02#89",
      "page": "著述篇二巻p228",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -635,7 +679,8 @@
     {
      "id": "chojutsu02#90",
      "page": "著述篇二巻p229",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -662,17 +707,20 @@
     {
      "id": "kowa01#416",
      "page": "講話篇一巻p543",
-     "year": 1948
+     "year": 1948,
+     "date": "194812"
     },
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "kowa02#644",
      "page": null,
-     "year": 1950
+     "year": 1950,
+     "date": "195001"
     }
    ]
   },
@@ -691,12 +739,14 @@
     {
      "id": "chojutsu02#85",
      "page": "著述篇二巻p225",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     },
     {
      "id": "chojutsu02#96",
      "page": "著述篇二巻p254",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -714,7 +764,8 @@
     {
      "id": "chojutsu02#97",
      "page": "著述篇二巻p256",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -734,7 +785,8 @@
     {
      "id": "chojutsu02#98",
      "page": "著述篇二巻p258",
-     "year": 1936
+     "year": 1936,
+     "date": "1936"
     }
    ]
   },
@@ -756,17 +808,20 @@
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu05#87",
      "page": "著述篇五巻p257",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "kowa01#416",
      "page": "講話篇一巻p543",
-     "year": 1948
+     "year": 1948,
+     "date": "194812"
     }
    ]
   },
@@ -788,12 +843,14 @@
     {
      "id": "kowa01#416",
      "page": "講話篇一巻p543",
-     "year": 1948
+     "year": 1948,
+     "date": "194812"
     },
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     }
    ]
   },
@@ -814,7 +871,8 @@
     {
      "id": "kowa01#416",
      "page": "講話篇一巻p543",
-     "year": 1948
+     "year": 1948,
+     "date": "194812"
     }
    ]
   },
@@ -837,22 +895,26 @@
     {
      "id": "chojutsu05#84",
      "page": "著述篇五巻p251",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu05#87",
      "page": "著述篇五巻p257",
-     "year": 1947
+     "year": 1947,
+     "date": "194702"
     },
     {
      "id": "chojutsu04#80",
      "page": "著述篇四巻p303",
-     "year": 1943
+     "year": 1943,
+     "date": "194310"
     },
     {
      "id": "chojutsu02#124",
      "page": "著述篇二巻p321",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -872,17 +934,20 @@
     {
      "id": "chojutsu08#217",
      "page": "著述篇八巻p538",
-     "year": 1950
+     "year": 1950,
+     "date": "195004"
     },
     {
      "id": "chojutsu11#18",
      "page": "著述篇十一巻p39",
-     "year": 1953
+     "year": 1953,
+     "date": "195301"
     },
     {
      "id": "chojutsu10#0",
      "page": "著述篇十巻p7",
-     "year": 1952
+     "year": 1952,
+     "date": "195202"
     }
    ]
   },
@@ -901,12 +966,14 @@
     {
      "id": "chojutsu08#42",
      "page": "著述篇八巻p106",
-     "year": 1950
+     "year": 1950,
+     "date": "195004"
     },
     {
      "id": "chojutsu10#89",
      "page": "著述篇十巻p251",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     }
    ]
   },
@@ -928,12 +995,14 @@
     {
      "id": "chojutsu10#84",
      "page": "著述篇十巻p221",
-     "year": 1952
+     "year": 1952,
+     "date": "1952"
     },
     {
      "id": "kowa10#0",
      "page": "講話篇十巻p166",
-     "year": 1953
+     "year": 1953,
+     "date": "195304"
     }
    ]
   },
@@ -955,12 +1024,14 @@
     {
      "id": "chojutsu03#41",
      "page": "著述篇三巻p53",
-     "year": 1939
+     "year": 1939,
+     "date": "1939"
     },
     {
      "id": "chojutsu02#123",
      "page": "著述篇二巻p319",
-     "year": 1936
+     "year": 1936,
+     "date": "193607"
     }
    ]
   },
@@ -981,7 +1052,8 @@
     {
      "id": "kowa01#99",
      "page": null,
-     "year": 1948
+     "year": 1948,
+     "date": "194901"
     }
    ]
   }

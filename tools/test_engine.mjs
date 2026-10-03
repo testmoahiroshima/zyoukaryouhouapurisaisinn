@@ -45,7 +45,10 @@ const cases = [
   ['高血圧で肩がこる', ['k:d_ketsuatsu', 'katakori'], [], ['disease']],
   ['喘息の発作', ['k:d_zensoku'], [], ['disease']],
   ['インフルエンザにかかった', ['k:d_kansen'], [], ['disease']],
-  ['胃がんの疑い', [], ['stomach'], ['disease']],
+  ['胃がんの疑い', ['k:d_gan'], [], ['disease']],
+  ['乳がんで治療中', ['k:d_gan'], [], ['disease', 'medicine']],
+  ['躁うつ病と診断された', ['k:yuutsu'], [], ['disease']],
+  ['頑張りすぎて頭がガンガンする', ['headache'], ['k:d_gan'], []],
   ['うつ病と言われた', ['k:yuutsu'], [], ['disease']],
   ['頑張りすぎて肩が痛い', ['katakori'], [], []],
   ['頭がガンガンする', ['headache'], [], []],
@@ -75,6 +78,19 @@ for (const [text, must, mustNot, safety] of cases) {
   const pts = r.points.map((p) => p.no + (p.key ? '*' : '')).join(',');
   console.log(`${errs.length ? 'NG' : 'ok'}  ${text} → [${ids}] safety[${sids}] side=${r.side} points=${pts}${errs.length ? '  !! ' + errs.join('; ') : ''}`);
   if (errs.length) fail++;
+}
+
+// 「霊的」という言葉は画面に出さない。見解を載せない病気も、受診の案内だけ
+{
+  const txt = JSON.stringify(db.raw.kenkai) + JSON.stringify(db.raw.knowledge);
+  const r = analyze(db, '統合失調症と言われた');
+  const good = !txt.replace(/"_note":"[^"]*"/g, '').includes('霊的') && r.spiritual.length && !r.kenkai.length && !db.raw.kenkai.spiritual.message.includes('霊');
+  console.log(`${good ? 'ok' : 'NG'}  「霊的」を出さない・見解を載せない病気は受診の案内のみ`);
+  if (!good) fail++;
+  const gan = db.kenkai.find((e) => e.id === 'd_gan');
+  const g2 = gan && gan.disease && /医療機関/.test(gan.note) && /医療に代わるものではありません/.test(gan.note);
+  console.log(`${g2 ? 'ok' : 'NG'}  がんの見解は医療を前提にした注意つき`);
+  if (!g2) fail++;
 }
 
 // 毒素の流れの補完（例：肩の前に肩甲間部・腎臓部）
