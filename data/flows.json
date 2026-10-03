@@ -343,6 +343,44 @@
     "youkotsu",
     "biteikotsu"
    ]
+  },
+  {
+   "id": "head_down",
+   "stage": "頭から脊柱の際を下りて腰へ（頭が楽屋になることがある）",
+   "route": [
+    "前頭部・頭頂部",
+    "延髄部・後頸部",
+    "肩部",
+    "肩甲間部（脊柱の際）",
+    "背面腎臓部",
+    "腰の中心（尾てい骨）"
+   ],
+   "look_order": [
+    "頭部",
+    "頸部",
+    "肩部",
+    "肩甲間部",
+    "腎臓部",
+    "腰の中心"
+   ],
+   "basis": "頭の毒が溶けて下がる時は、脊柱付近からずっと下がって、いったん腰（尾てい骨付近）に溜まり、そこから前の方（下腹部・陰部）や足へ行く。足・腰・婦人科・痔などの訴えも、楽屋が頭にあることがある。頭（前頭部・頭頂部）を清め、首・肩・肩甲間部・腎臓部と脊柱の際を下りて、腰の中心へと見ていく",
+   "textbook": "p63-65",
+   "t2": "p78-79, p84-85",
+   "zenshu_candidates": [],
+   "verified": true,
+   "look_points": [
+    "zentoubu",
+    "touchoubu",
+    "koutoubu",
+    "enzui",
+    "koukeibu",
+    "kata",
+    "kenkoukan",
+    "sekichuu",
+    "haimen_jinzo",
+    "youkotsu",
+    "biteikotsu"
+   ]
   }
  ]
 }

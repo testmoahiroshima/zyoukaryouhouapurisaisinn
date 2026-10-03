@@ -392,11 +392,11 @@ function renderResult(r) {
       <details class="el" open><summary>② 楽屋と舞台（毒素の流れ）</summary>
         <p class="small muted">症状が出ている所が舞台、その原因になっている所が楽屋。楽屋をやらなければ根本的には治らない（3級テキスト p59-61）。</p>
         ${r.categories.map((c) => `<h3>${esc(c.label)}</h3>
-          ${c.flows.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">3級テキスト</span>${esc(fl.src.stage)}</div>${stationsText(fl)}<p class="basis">${esc(fl.src.basis)}</p><div class="cite">根拠：3級テキスト ${esc(fl.src.textbook)}</div>${zenshuDetails(fl.src.zenshu_candidates)}</div>`).join('')}
+          ${c.flows.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">${fl.src.t2 ? 'テキスト' : '3級テキスト'}</span>${esc(fl.src.stage)}</div>${stationsText(fl)}<p class="basis">${esc(fl.src.basis)}</p><div class="cite">根拠：3級テキスト ${esc(fl.src.textbook)}${fl.src.t2 ? `／2級テキスト実践編 ${esc(fl.src.t2)}` : ''}</div>${zenshuDetails(fl.src.zenshu_candidates)}</div>`).join('')}
           ${c.routes.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">早見表 No.${fl.src.no}</span>${esc(fl.src.text)}</div>${stationsText(fl)}${fl.src.note ? `<div class="small muted">※${esc(fl.src.note)}</div>` : ''}</div>`).join('')}
           ${c.basis ? `<p class="basis">${esc(c.basis)}</p>${c.textbook ? `<div class="cite">根拠：3級テキスト ${esc(c.textbook)}</div>` : ''}` : ''}`).join('')}
         <p class="small muted">（ ）の箇所は、基本経路（腎臓部→肩甲間部→肩→頸部→頭／腎臓部→腎臓下方部→腰部）で補った箇所です。早見表は、既存のテキストに基づく試験的な分類です。</p>
-        ${principleCard('joushou')}${principleCard('senaka_main')}
+        ${principleCard('joushou')}${principleCard('atama_kudari')}${principleCard('senaka_main')}
       </details>
       <details class="el"${r.pelvic ? ' open' : ''}><summary>③ 毒素集溜と排泄の順序</summary>
         <div class="k-item"><div class="k-title">毒素集溜の特徴</div><p>${esc(db.raw.concepts.concepts.find((x) => x.id === 'shuryu')?.definition)}</p><div class="cite">根拠：3級テキスト p61-62, p64</div></div>
@@ -1052,8 +1052,8 @@ function criteriaCard() {
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
       <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
-      <li><b>重要施術部位</b>：頭・肩・腎臓部は、探査で目立った所見が無くても必ず少しでも施術に入れる（所見のある箇所があればそこを、無ければ短い時間で）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
-      <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。</li>
+      <li><b>重要施術部位</b>：頭（前頭部・頭頂部はどちらも外さず、所見が無くても1分でも）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
+      <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について岡田先生が説かれた急所を重く。</li>
       <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、所見のある箇所は最低3分、所見の無い重要施術部位は2〜3分確保したうえで、優先度に比例して配る。所見から選ぶ箇所は時間8分あたり1か所（2〜5か所）。施術中は5分ごとに、熱・固結の変化を確かめる声かけをする。</li>
@@ -1858,7 +1858,7 @@ function renderLearnTab() {
     </div>
     <div class="card">
       <h2>3級テキストにある毒素の流れ</h2>
-      ${db.raw.flows.flows.map((f) => `<div class="flow-block"><div class="flow-title">${esc(f.stage)}</div><div class="small">${f.route.map(esc).join(' → ') || '—'}</div><p class="basis">${esc(f.basis)}</p><div class="cite">3級テキスト ${esc(f.textbook)}</div></div>`).join('')}
+      ${db.raw.flows.flows.map((f) => `<div class="flow-block"><div class="flow-title">${esc(f.stage)}</div><div class="small">${f.route.map(esc).join(' → ') || '—'}</div><p class="basis">${esc(f.basis)}</p><div class="cite">3級テキスト ${esc(f.textbook)}${f.t2 ? `／2級テキスト実践編 ${esc(f.t2)}` : ''}</div></div>`).join('')}
     </div>
     <div class="card">
       <h2>具体的な毒素の移動経路（早見表）</h2>

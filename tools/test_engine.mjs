@@ -144,8 +144,10 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   const p3 = planSession(db, f, t, null);
   const regs = new Set(p3.items.map((i) => db.pointById[i.id].region));
   const s3 = p3.probe + p3.check + p3.items.reduce((s, i) => s + i.minutes, 0);
-  const good = ['head', 'shoulder', 'kidney'].every((r) => regs.has(r)) && s3 === t && p3.items.every((i) => i.minutes >= 2);
-  console.log(`${good ? 'ok' : 'NG'}  頭・肩・腎臓部を必ず含む ${t}分: ` + p3.items.map((i) => `${i.name}${i.minutes}${i.stub ? '(所見なし)' : ''}`).join(' '));
+  const ids3 = new Set(p3.items.map((i) => i.id));
+  const good = ['head', 'shoulder', 'kidney'].every((r) => regs.has(r)) && ids3.has('zentoubu') && ids3.has('touchoubu') && s3 === t
+    && p3.items.every((i) => i.minutes >= (i.headStub ? 1 : 2));
+  console.log(`${good ? 'ok' : 'NG'}  頭（前頭部・頭頂部）・肩・腎臓部を必ず含む ${t}分: ` + p3.items.map((i) => `${i.name}${i.minutes}${i.stub ? '(所見なし)' : ''}`).join(' '));
   if (!good) fail++;
 }
 
