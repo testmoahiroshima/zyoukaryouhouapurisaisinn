@@ -811,6 +811,14 @@ function painterHTML(prefix) {
         <div class="b3-float b3-edit" role="group" aria-label="入れた結果の操作">
           <button type="button" ${P}-undo="1" aria-label="最後に入れたものを戻す"><span aria-hidden="true">↶</span>戻す</button>
         </div>
+        <div class="b3-paintbar" ${P}-paintbar hidden>
+          <div role="group" aria-label="塗るもの">${LAYERS.map((l) => `<button type="button" class="pb-layer" ${P}-layer="${l.id}" style="--c:rgb(${l.rgb.join(',')})" aria-label="${esc(l.name)}を塗る"><i></i><span>${esc(l.name.split('・')[0])}</span></button>`).join('')}</div>
+          <div role="group" aria-label="道具">
+            <button type="button" class="pb-tool" ${P}-tool="paint" aria-label="塗る"><b>✎</b><span>塗る</span></button>
+            <button type="button" class="pb-tool" ${P}-tool="deepen" aria-label="濃くする"><b>＋</b><span>濃く</span></button>
+            <button type="button" class="pb-tool" ${P}-tool="lighten" aria-label="薄くする"><b>－</b><span>薄く</span></button>
+          </div>
+        </div>
         <div class="b3-float b3-right" role="group" aria-label="表示">
           <button type="button" ${P}-organs="1">内臓</button>
           <button type="button" ${P}-nums="1">番号</button>
@@ -818,7 +826,7 @@ function painterHTML(prefix) {
         ${zoomHTML(prefix)}
       </div>
       <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指で<b>縦になぞると上下に動き</b>、<b>横になぞると回ります</b>。</p>
-      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。上下に動かす時は2本指で、または ▲▼ ボタンで。</p>
+      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。図の左の「熱・固結・圧痛」で色を、「塗る・濃く・薄く」で道具を変えられます。上下に動かす時は2本指で、または ▲▼ ボタンで。</p>
       <p class="gesture-hint small muted">2本指：広げる・つまむ＝大きさ／そのまま動かす＝位置／ひねる＝向き。2回続けて触れると、その所へ寄ります。</p>
       <div class="lv-panel" id="${prefix}-level" hidden></div>
       <details class="pt-list"><summary>箇所の一覧から選ぶ</summary>${groups}</details>
@@ -904,6 +912,7 @@ function wirePainter(root, prefix, pad, onChange) {
     q('hint').forEach((h) => { h.hidden = val(h, 'hint') !== pad.how; });
     const tools = q('tools')[0];
     if (tools) tools.hidden = pad.dim === '3d' && pad.how === 'select';
+    q('paintbar').forEach((b) => { b.hidden = !(pad.dim === '3d' && pad.how === 'paint'); });
     q('organs').forEach((b) => b.setAttribute('aria-pressed', String(!!pad.b3?.showOrgans)));
     q('nums').forEach((b) => b.setAttribute('aria-pressed', String(pad.b3?.showNumbers ?? true)));
     const rgb = LAYERS.find((l) => l.id === pad.layer).rgb.join(',');
@@ -1096,7 +1105,7 @@ function criteriaCard() {
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
       <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
-      <li><b>重要施術部位</b>：頭（前頭部・頭頂部はどちらも外さず、所見が無くても1分でも）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
+      <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。頭部は一か所あたり3分ほどまで（頭痛など頭部が特に大事と読み取れる時だけ長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について岡田先生が説かれた急所を重く。</li>

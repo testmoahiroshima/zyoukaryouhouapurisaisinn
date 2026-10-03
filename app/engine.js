@@ -170,6 +170,8 @@ const KIDNEY = ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side'];
 // 一まとまりで見る重要施術部位（頭部は前頭部・頭頂部・こめかみ部・後頭部のすべて）
 const HEAD = ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'];
 const KEY_GROUPS = [HEAD, ['kata', 'maekata'], KIDNEY];
+// 頭部が特に大事と読み取れる症状（頭部の時間を長めにしてよい）
+const HEAD_CATS = new Set(['headache', 'occipital', 'frontal', 'top', 'temple', 'head_use', 'head_warm', 'head_area', 'dizziness', 'insomnia']);
 export { HEAD };
 
 // 症状別・病気別の見解（kenkai.json）を引く。selected に 'k:id' があれば、その見解を選んだものとする。
@@ -373,10 +375,11 @@ const REGION_FACTOR = {
 
 // 重要施術部位（頭・肩・腎臓部）は、探査で所見がなくても必ず少しでも施術に入れる。
 // 所見のある箇所が無い時に入れる箇所（本日の症状で見つめる箇所があればそちらを先に）
-// 頭は、前頭部と頭頂部をどちらも外さない（所見が無くても1分でも施術する）。肩・腎臓部は、その部位で一番の箇所を
+// 頭は、前頭部・頭頂部・後頭部を外さない（所見が無くても1分でも施術する）。肩・腎臓部は、その部位で一番の箇所を
 const REQUIRED = [
   { id: 'zentoubu', name: '頭（前頭部）', head: true },
   { id: 'touchoubu', name: '頭（頭頂部）', head: true },
+  { id: 'koutoubu', name: '頭（後頭部・頭部の毒素の出入り口）', head: true },
   { region: 'shoulder', name: '肩', def: 'kata' },
   { region: 'kidney', name: '腎臓部', def: 'haimen_jinzo' },
 ];
@@ -429,6 +432,23 @@ export function sideFocus(f) {
   if (hi - lo >= 1 && hi >= lo * 1.3) return { side: l > r ? 'L' : 'R', strong: hi, weak: lo, only: false };
   return { side: null, strong: hi, weak: lo, only: false, both: true };
 }
+// からだ全体の左右の傾向：左右がある箇所の所見を左右で足し合わせ、訴えの左右（「右の肩が…」）も加える。
+// 左右の差がはっきりしない箇所は、この傾向で重点の側を決める（左右どちらかを必ず重点にして時間差をつける）
+export function overallSide(findings, analysis = null) {
+  let L = 0;
+  let R = 0;
+  for (const f of Object.values(findings || {})) {
+    if (!f?.sides) continue;
+    L += findingScore(f.sides.L);
+    R += findingScore(f.sides.R);
+  }
+  const said = analysis?.side === 'left' ? 'L' : analysis?.side === 'right' ? 'R' : null;
+  if (said === 'L') L += 3;
+  if (said === 'R') R += 3;
+  if (Math.abs(L - R) >= 0.5) return { side: L > R ? 'L' : 'R', why: said && Math.abs(L - R) <= 3.01 ? 'said' : 'body', L, R };
+  return { side: 'R', why: 'none', L, R };
+}
+
 // 骨盤まわり（出口）の左右：腸骨の内側・鼠蹊部・仙腸関節・腎臓下方部の固結の強い側
 function pelvicSide(findings) {
   let L = 0;
@@ -473,6 +493,14 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const roleOf = Object.fromEntries((analysis?.points || []).map((p) => [p.id, p]));
   const hasAnalysis = !!analysis && !analysis.fallback;
   const ex = excretionCheck(db, findings, analysis);
+  const whole = overallSide(findings, analysis);
+  const WHY = { body: 'からだ全体では', said: '訴えが', none: '' };
+  const pickSide = () => ({
+    side: whole.side,
+    reason: whole.why === 'none'
+      ? { text: `左右の差が見られない：${SIDE_NAME[whole.side]}から先に、${SIDE_NAME[whole.side]}を長めに（よく施術すべき方から先に）`, ref: 'jinzo_yoko' }
+      : { text: `左右の差が小さい：${WHY[whole.why]}${SIDE_NAME[whole.side]}が強いので、${SIDE_NAME[whole.side]}を重点に`, ref: 'sayuu' },
+  });
   const lowerCongested = ex.level === 'blocked';
   const pSide = ex.side;
 
@@ -524,7 +552,9 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       W *= 1.25;
       reasons.push({ text: `${SIDE_NAME[pSide]}の腎臓部から${SIDE_NAME[pSide]}の骨盤の内側へ固結が続いている：${SIDE_NAME[pSide]}の固結の柱を重点に（排泄の道を開く）`, ref: 'kotsuban_naibu' });
     }
-    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, W, P: F * W, reasons, side, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
+    const paired = (p.p3 || []).length > 1;
+    if (paired && !side) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
+    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, W, P: F * W, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
   }
   if (!cands.length) return { ok: false, message: '探査で熱・固結・圧痛のあった箇所を入力してください。' };
 
@@ -537,9 +567,13 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     const fromText = g.id ? null : (analysis?.points || []).find((pt) => db.pointById[pt.id]?.region === g.region);
     const p = db.pointById[g.id || fromText?.id || g.def];
     const rf = REGION_FACTOR[p.region];
+    const paired = (p.p3 || []).length > 1;
+    const reasons = [{ text: g.head ? `重要施術部位（${g.name}）：外せない所。所見が無くても1分でも施術する` : `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }];
+    let side = null;
+    if (paired) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
     return {
-      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true, headStub: !!g.head,
-      reasons: [{ text: g.head ? `重要施術部位（${g.name}）：外せない所。所見が無くても1分でも施術する` : `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }],
+      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true, headStub: !!g.head, paired, side,
+      reasons,
       finding: { heat: 0, kouketsu: 0, atsutsuu: 0 },
     };
   });
@@ -559,7 +593,8 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const check = Math.max(2, Math.round(total * 0.1));
   const avail = Math.max(0, total - probe - check);
   const stubMin = Math.max(2, Math.round(avail * 0.06));
-  const headMin = Math.max(1, Math.round(avail * 0.03));
+  // 頭の所見なしの最低時間：60分で3分ほど、短い時は1分
+  const headMin = Math.max(1, Math.min(3, Math.round(avail / 15)));
   let realMin = 3;
   const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : realMin);
   const need = () => [...required, ...extras].reduce((s, c) => s + minOf(c), 0);
@@ -586,6 +621,27 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   let left = treat - mins.reduce((s, m) => s + m, 0);
   raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { mins[i]++; left--; } });
 
+  // 頭部は一か所あたり数分まで（頭部が特に大事と読み取れる時だけ長めに）。余った時間はほかの箇所へ
+  const headImportant = (analysis?.categories || []).some((c) => HEAD_CATS.has(c.id)) || chosen.some((c) => c.region === 'head' && (c.finding?.heat || 0) >= 4);
+  const headCap = headImportant ? Math.max(4, Math.round(avail * 0.12)) : 3;
+  let surplus = 0;
+  chosen.forEach((c, i) => { if (c.region === 'head' && mins[i] > headCap) { surplus += mins[i] - headCap; mins[i] = headCap; } });
+  if (surplus) {
+    const others = chosen.map((c, i) => [c, i]).filter(([c]) => c.region !== 'head');
+    const real2 = others.filter(([c]) => !c.stub);
+    const pool = real2.length ? real2 : others;
+    if (!pool.length) {
+      // 頭部しか無い時は戻す
+      chosen.forEach((c, i) => { if (surplus > 0 && c.region === 'head') { const add = Math.ceil(surplus / chosen.length); mins[i] += add; surplus -= add; } });
+    } else {
+      const wsum = pool.reduce((t, [c]) => t + (c.P || 1), 0);
+      const share = pool.map(([c, i]) => [i, (surplus * (c.P || 1)) / wsum]);
+      let left2 = surplus;
+      for (const [i, v] of share) { const m = Math.floor(v); mins[i] += m; left2 -= m; }
+      share.sort((a, b) => (b[1] % 1) - (a[1] % 1)).forEach(([i]) => { if (left2 > 0) { mins[i]++; left2--; } });
+    }
+  }
+
   const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: mins[i] / treat, split: splitSides(c, mins[i]) }));
   // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）。排泄経路が詰まっている時は出口を先に
   const used = order === 'auto' ? (lowerCongested ? 'outlet' : 'top') : order;
@@ -596,16 +652,19 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
 }
 
 // 左右がある箇所の時間の分け方：強い側を先に、長く（約3分の2）。片側だけ塗られていれば、その側を主に、反対側も少し
+// 左右がある箇所の時間の分け方：重点の側を先に、必ず長く（左右で時間差をつける）。
+// 差がはっきりしている時は約3分の2（反対側に所見が無ければ4分の3）、全体の傾向で決めた時は約6割。2分以下は重点の側だけ
 function splitSides(c, minutes) {
-  const p = c.finding?.sides;
-  if (!p || c.stub) return null;
+  if (!c.paired) return null;
+  const p = c.finding?.sides || {};
   const has = (k) => findingScore(p[k]) > 0;
-  if (!has('L') && !has('R')) return null;
   const first = c.side || (findingScore(p.R) >= findingScore(p.L) ? 'R' : 'L');
   const second = first === 'R' ? 'L' : 'R';
-  if (minutes < 3) return [{ side: first, minutes }];
-  const main = c.side ? Math.max(2, Math.round(minutes * (has(second) ? 0.65 : 0.75))) : Math.ceil(minutes / 2);
-  return [{ side: first, minutes: main }, { side: second, minutes: minutes - main }].filter((x) => x.minutes > 0);
+  if (minutes <= 2) return [{ side: first, minutes }];
+  const clear = !!c.sideInfo?.side;
+  const ratio = clear ? (has(second) ? 0.65 : 0.75) : 0.6;
+  const main = Math.min(minutes - 1, Math.max(Math.floor(minutes / 2) + 1, Math.round(minutes * ratio)));
+  return [{ side: first, minutes: main }, { side: second, minutes: minutes - main }];
 }
 
 // 計画に添える注意（排泄経路・突き上げ・左右）

@@ -803,3 +803,17 @@ button.ghost.picker-open { border: 2px solid var(--accent); color: var(--accent)
 .b3-edit button { display: inline-flex; align-items: center; gap: 3px; min-height: 40px; padding: 4px 10px; font-size: .82rem; }
 .b3-edit button span { font-size: 1rem; line-height: 1; }
 .b3-edit button:disabled { opacity: .45; cursor: default; }
+
+/* 塗る・動かす所は文字の選択やコピーの対象にしない */
+.b3-stage, .b3-stage *, .paint-wrap, .paint-wrap *, .paint-canvas, .body3d-canvas { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+body.no-select, body.no-select * { -webkit-user-select: none !important; user-select: none !important; }
+
+/* 塗る時の、図の上の色と道具（左端のまん中） */
+.b3-paintbar { position: absolute; left: 6px; top: 50%; transform: translateY(-50%); display: grid; gap: 10px; }
+.b3-paintbar > div { display: grid; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, .82); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.b3-paintbar button { display: grid; justify-items: center; gap: 0; width: 46px; min-height: 44px; padding: 3px 0; border: 2px solid transparent; border-radius: 10px; background: transparent; color: #22302a; font: inherit; font-size: .68rem; line-height: 1.2; cursor: pointer; }
+.b3-paintbar .pb-layer i { width: 20px; height: 20px; border-radius: 50%; background: var(--c); opacity: .5; }
+.b3-paintbar .pb-layer[aria-pressed="true"] { border-color: var(--c); background: #fff; font-weight: 700; }
+.b3-paintbar .pb-layer[aria-pressed="true"] i { opacity: 1; box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--c); }
+.b3-paintbar .pb-tool b { font-size: 1.05rem; line-height: 1.2; }
+.b3-paintbar .pb-tool[aria-pressed="true"] { background: #3f6b4f; color: #fff; }
