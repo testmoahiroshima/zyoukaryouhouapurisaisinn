@@ -93,6 +93,39 @@ for (const [text, must, mustNot, safety] of cases) {
   if (!g2) fail++;
 }
 
+// 図でさした細かい場所（左右・上中下）から作る文：「右の胸が痛い」→ 胸の分類・右側
+{
+  const { zoneDetail, phrasesForDetails } = await import('../app/zones.js');
+  const d = zoneDetail({ x: -0.06, y: 1.22, z: 0.1 });
+  const ph = phrasesForDetails([d], ['itai']);
+  const r = analyze(db, ph.join('。'), ['lungs', 'heart']);
+  const good = d.zone === 'mune' && d.side === 'R' && ph[0] === '右の胸が痛い' && r.side === 'right' && d.at.length === 3;
+  console.log(`${good ? 'ok' : 'NG'}  細かい場所 → ${d.label}（${d.at}）→ 「${ph[0]}」 side=${r.side}`);
+  if (!good) fail++;
+}
+
+// 頭部・肩・腎臓部は一まとまり：一部だけ出たり、一部だけが重点になったりしない
+{
+  const G = [['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'], ['kata', 'maekata'], ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side']];
+  const words = [...db.categories.map((c) => c.label.split(/[（・]/)[0]), ...db.kenkai.map((e) => e.label.split(/[・（]/)[0]), '頭がかゆい', '後頭部がかゆい', '眠れない'];
+  const bad = [];
+  for (const w of words) {
+    const r = analyze(db, w);
+    if (r.fallback) continue;
+    const ids = new Set(r.points.map((p) => p.id));
+    const keys = new Set(r.points.filter((p) => p.key).map((p) => p.id));
+    for (const g of G) {
+      const n = g.filter((id) => ids.has(id)).length;
+      const k = g.filter((id) => keys.has(id)).length;
+      if ((n && n < g.length) || (k && k < g.length)) bad.push(`${w}:${g[0]}`);
+    }
+  }
+  const hd = analyze(db, '頭がかゆい').points.map((p) => p.id);
+  const good = !bad.length && ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'].every((id) => hd.includes(id));
+  console.log(`${good ? 'ok' : 'NG'}  頭部・肩・腎臓部は一まとまりで出す（${words.length}語）${bad.length ? ' !! ' + bad.slice(0, 8).join(' ') : ''}`);
+  if (!good) fail++;
+}
+
 // 毒素の流れの補完（例：肩の前に肩甲間部・腎臓部）
 const has = (text, ids) => {
   const r = analyze(db, text);

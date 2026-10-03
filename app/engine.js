@@ -167,6 +167,10 @@ const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu', 'choukotsu', 'sencho
 export { OUTLET_POINTS };
 const PELVIC_KENKAI = new Set(['hie', 'ashi', 'ashiura', 'oshiri', 'koshi', 'ji', 'fujin', 'seki', 'darui', 'mukumi', 'geri', 'benpi']);
 const KIDNEY = ['haimen_jinzo', 'jinzo_kahou', 'jinzo_kahou_side'];
+// 一まとまりで見る重要施術部位（頭部は前頭部・頭頂部・こめかみ部・後頭部のすべて）
+const HEAD = ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'];
+const KEY_GROUPS = [HEAD, ['kata', 'maekata'], KIDNEY];
+export { HEAD };
 
 // 症状別・病気別の見解（kenkai.json）を引く。selected に 'k:id' があれば、その見解を選んだものとする。
 // 病名の見解を先に引き、病名に含まれる語（例：「糖尿病」の「尿」）は症状の見解に使わない
@@ -309,10 +313,20 @@ export function analyze(db, text, selected = []) {
       if (m.pelvic) for (const id of OUTLET_POINTS) add(id, 'outlet', m.id);
     }
   }
+  // 頭部・肩・腎臓部は、それぞれ一まとまりの重要施術部位：一部だけが出たら全体を出し、一部が重点なら全体を重点にする
+  if (!fallback) {
+    for (const g of KEY_GROUPS) {
+      const present = g.filter((id) => acc[id]);
+      if (!present.length) continue;
+      const from = [...new Set(present.flatMap((id) => [...acc[id].from]))];
+      for (const id of g) if (!acc[id]) for (const c of from) add(id, 'look', c);
+    }
+  }
   const ranked = Object.entries(acc).sort((a, b) => b[1].score - a[1].score);
   const keyIds = new Set(
     fallback ? [] : ranked.filter(([, a]) => a.score >= 1.5).slice(0, 3).map(([id]) => id),
   );
+  for (const g of KEY_GROUPS) if (g.some((id) => keyIds.has(id))) for (const id of g) keyIds.add(id);
   const points = Object.entries(acc)
     .map(([id, a]) => {
       const p = db.pointById[id];
@@ -490,6 +504,8 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       else if (r?.roles.includes('butai')) { reasons.push({ text: '舞台（症状が出ている所）', ref: 'kyuusho' }); }
       else if (!r) { W *= 0.85; }
     }
+    // 頭部の中では、熱のある所を重く（熱は上で重みづけ済み）。後頭部は頭の毒素の出入り口
+    if (id === 'koutoubu') { W *= 1.1; reasons.push({ text: '後頭部は頭部の毒素の出入り口（延髄部・首へつながる）', ref: 'atama_first' }); }
     // 3. 毒素集溜と排泄の順序
     if (OUTLET_POINTS.includes(id) || id === 'jinzo_kahou_side') {
       W *= lowerCongested ? 1.3 : 1.15;
