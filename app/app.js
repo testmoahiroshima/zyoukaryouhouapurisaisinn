@@ -1,5 +1,6 @@
 import { prepare, analyze, planSession, normalize } from './engine.js';
-import { Painter, LAYERS, REGIONS, BRUSHES, SHADES } from './paint.js';
+import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
+import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
 import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
@@ -33,6 +34,7 @@ const settings = Object.assign({
   voice: true,
   chime: true,
   minutes: 30,
+  paintDim: '3d',
 }, store.get(STORE_SETTINGS, {}));
 const saveSettings = () => store.set(STORE_SETTINGS, settings);
 
@@ -397,13 +399,35 @@ function setupToday() {
 }
 
 // ---- 探査と施術（塗って入力 → 時間配分 → タイマー） ----
-const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', region: null, painter: null, afterPainter: null, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
+const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', pads: {}, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
 
-function newPainter() {
-  const { width, height, image } = db.raw.points.chart;
-  const img = new Image();
-  img.src = image;
-  return new Painter({ image: img, width, height });
+// 塗る板：3D人体図と平面図の両方を持ち、道具・色・筆は共通。読み取りは両方の濃い方を使う
+let bodyMeshP = null;
+const loadMesh = () => (bodyMeshP ||= loadBodyMesh('data/body3d.bin').catch((e) => { bodyMeshP = null; throw e; }));
+
+function getPad(prefix) {
+  if (!session.pads[prefix]) {
+    const { width, height, image } = db.raw.points.chart;
+    const img = new Image();
+    img.src = image;
+    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, region: null };
+  }
+  return session.pads[prefix];
+}
+
+function padSample(pad) {
+  const a = pad.flat.sample(db.pointList);
+  const b = pad.b3 ? pad.b3.sample() : {};
+  const out = {};
+  for (const id of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    out[id] = Object.fromEntries(LAYERS.map((l) => [l.id, Math.max(a[id]?.[l.id] || 0, b[id]?.[l.id] || 0)]));
+  }
+  return out;
+}
+
+// 画面を描き替える前に、3D表示の描画を手放す（塗った値は残る）
+function releasePads() {
+  for (const pad of Object.values(session.pads)) pad.b3?.dispose();
 }
 
 // 濃さ（0〜5）を色の帯で示す
@@ -414,55 +438,130 @@ function shadeBars(f) {
   }).join('')}</span>`;
 }
 
-// 塗りの道具と拡大図。painter に塗り、変わるたびに onChange を呼ぶ
+// 塗りの道具と人体図（3D／平面図）。塗りが変わるたびに onChange を呼ぶ
 function painterHTML(prefix) {
+  const P = `data-${prefix}`;
   return `
-    <div class="region-chips" role="group" aria-label="拡大する部位">${REGIONS.map((r) => `<button type="button" class="chip region-chip" data-${prefix}-region="${r.id}">${esc(r.name)}</button>`).join('')}</div>
-    <div class="paint-wrap" id="${prefix}-canvas"></div>
+    <div class="dim-switch" role="group" aria-label="人体図の種類">
+      <button type="button" class="chip" ${P}-dim="3d">3D人体図</button>
+      <button type="button" class="chip" ${P}-dim="2d">平面図</button>
+    </div>
+    <div ${P}-box="3d">
+      <div class="region-chips" role="group" aria-label="向き">${VIEWS3.map((v) => `<button type="button" class="chip region-chip" ${P}-view="${v.id}">${esc(v.name)}</button>`).join('')}</div>
+      <div class="b3-stage">
+        <div class="b3-wrap" id="${prefix}-3d"><p class="small muted b3-loading">3D人体図を読み込んでいます…</p></div>
+        <div class="b3-float" role="group" aria-label="操作">
+          <button type="button" ${P}-mode="paint">✎ 塗る</button>
+          <button type="button" ${P}-mode="rotate">↻ 回す</button>
+        </div>
+        <div class="b3-float b3-right" role="group" aria-label="表示">
+          <button type="button" ${P}-organs="1">内臓</button>
+          <button type="button" ${P}-nums="1">番号</button>
+        </div>
+      </div>
+      <p class="small muted">「回す」で1本指で回転、2本指で拡大・移動。「塗る」で体をなぞって塗ります。内臓の位置はおおよその目安です。</p>
+      <div class="tool-row" role="group" aria-label="見せる層">
+        <span class="tool-l">表示</span>
+        <button type="button" class="brush-b" ${P}-show="all">全部</button>${LAYERS.map((l) => `<button type="button" class="brush-b" ${P}-show="${l.id}">${esc(l.name.split('・')[0])}だけ</button>`).join('')}
+      </div>
+    </div>
+    <div ${P}-box="2d" hidden>
+      <div class="region-chips" role="group" aria-label="拡大する部位">${REGIONS.map((r) => `<button type="button" class="chip region-chip" ${P}-region="${r.id}">${esc(r.name)}</button>`).join('')}</div>
+      <div class="paint-wrap" id="${prefix}-canvas"></div>
+    </div>
     <div class="paint-tools">
-      <div class="tool-row" role="group" aria-label="塗るもの">${LAYERS.map((l) => `<button type="button" class="layer-b" data-${prefix}-layer="${l.id}" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name)}</button>`).join('')}</div>
-      <div class="tool-row" role="group" aria-label="濃さ">
-        <span class="tool-l">濃さ</span>${Array.from({ length: SHADES }, (_, i) => i + 1).map((v) => `<button type="button" class="shade-b" data-${prefix}-shade="${v}" aria-label="濃さ${v}"><i></i></button>`).join('')}
+      <div class="tool-row" role="group" aria-label="塗るもの">${LAYERS.map((l) => `<button type="button" class="layer-b" ${P}-layer="${l.id}" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name)}</button>`).join('')}</div>
+      <div class="tool-row" role="group" aria-label="道具">
+        <span class="tool-l">道具</span>${TOOLS.map((t) => `<button type="button" class="brush-b tool-b" ${P}-tool="${t.id}">${esc(t.name)}</button>`).join('')}
       </div>
       <div class="tool-row" role="group" aria-label="筆">
-        <span class="tool-l">筆</span>${BRUSHES.map((x) => `<button type="button" class="brush-b" data-${prefix}-brush="${x.id}"><i style="--s:${x.r * 2.4}px"></i>${x.name}</button>`).join('')}
-        <button type="button" class="brush-b" data-${prefix}-erase="1">消す</button>
-        <button type="button" class="mini" data-${prefix}-undo="1">戻す</button>
+        <span class="tool-l">筆</span>${BRUSHES.map((x) => `<button type="button" class="brush-b" ${P}-brush="${x.id}"><i style="--s:${x.r * 2.4}px"></i>${x.name}</button>`).join('')}
+        <button type="button" class="mini" ${P}-undo="1">戻す</button>
       </div>
+      <div class="level-legend small muted" aria-hidden="true">${LAYERS.map((l) => `<span><b>${esc(l.name.split('・')[0])}</b><i style="background:linear-gradient(90deg,rgb(${l.light.join(',')}),rgb(${l.deep.join(',')}))"></i></span>`).join('')}<span class="lv-note">うすい ← 20段階 → こい</span></div>
     </div>`;
 }
 
-function wirePainter(root, prefix, painter, onChange) {
+function wirePainter(root, prefix, pad, onChange) {
+  const q = (k) => $$(`[data-${prefix}-${k}]`, root);
+  const val = (b, k) => b.getAttribute(`data-${prefix}-${k}`);
+  const sync = () => {
+    for (const p of [pad.flat, pad.b3]) if (p) Object.assign(p, { layer: pad.layer, tool: pad.tool, brush: pad.brush });
+  };
   const mark = () => {
-    $$(`[data-${prefix}-region]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Region`] === painter.region.id)));
-    $$(`[data-${prefix}-layer]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Layer`] === painter.layer && !painter.erase)));
-    const rgb = LAYERS.find((l) => l.id === painter.layer).rgb.join(',');
-    $$(`[data-${prefix}-shade]`, root).forEach((b) => {
-      const v = Number(b.dataset[`${prefix}Shade`]);
-      b.style.setProperty('--c', `rgba(${rgb},${(v / SHADES) * 0.85})`);
-      b.setAttribute('aria-pressed', String(v === painter.shade));
-    });
-    $$(`[data-${prefix}-brush]`, root).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset[`${prefix}Brush`] === painter.brush)));
-    $(`[data-${prefix}-erase]`, root).setAttribute('aria-pressed', String(painter.erase));
+    sync();
+    const press = (k, cur) => q(k).forEach((b) => b.setAttribute('aria-pressed', String(val(b, k) === cur)));
+    press('dim', pad.dim);
+    press('layer', pad.layer);
+    press('tool', pad.tool);
+    press('brush', pad.brush);
+    press('region', pad.flat.region?.id);
+    press('view', pad.b3?.view);
+    press('mode', pad.b3?.mode);
+    press('show', pad.b3?.show || 'all');
+    q('organs').forEach((b) => b.setAttribute('aria-pressed', String(!!pad.b3?.showOrgans)));
+    q('nums').forEach((b) => b.setAttribute('aria-pressed', String(pad.b3?.showNumbers ?? true)));
+    const rgb = LAYERS.find((l) => l.id === pad.layer).rgb.join(',');
+    root.style.setProperty(`--${prefix}-c`, `rgb(${rgb})`);
   };
   const markers = db.pointList.map((p) => ({ no: p.no, xy: p.chart || [] }));
-  const show = (id) => { session.region = id; painter.mount($(`#${prefix}-canvas`, root), id, markers); mark(); };
-  painter.onChange = onChange;
-  $$(`[data-${prefix}-region]`, root).forEach((b) => b.addEventListener('click', () => show(b.dataset[`${prefix}Region`])));
-  $$(`[data-${prefix}-layer]`, root).forEach((b) => b.addEventListener('click', () => { painter.layer = b.dataset[`${prefix}Layer`]; painter.erase = false; mark(); }));
-  $$(`[data-${prefix}-shade]`, root).forEach((b) => b.addEventListener('click', () => { painter.shade = Number(b.dataset[`${prefix}Shade`]); painter.erase = false; mark(); }));
-  $$(`[data-${prefix}-brush]`, root).forEach((b) => b.addEventListener('click', () => { painter.brush = b.dataset[`${prefix}Brush`]; mark(); }));
-  $(`[data-${prefix}-erase]`, root).addEventListener('click', () => { painter.erase = !painter.erase; mark(); });
-  $(`[data-${prefix}-undo]`, root).addEventListener('click', () => painter.undo());
-  // 本日の症状で見つめる箇所が多い部位から始める
-  let start = session.region;
-  if (!start) {
-    const pts = (lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : []).map((p) => db.pointById[p.id]);
-    const score = (r) => pts.filter((p) => (p.chart || []).some(([x, y]) => x >= r.box[0] && x <= r.box[2] && y >= r.box[1] && y <= r.box[3])).length;
-    start = REGIONS.slice(0, 7).map((r) => [r.id, score(r)]).sort((x, y) => y[1] - x[1])[0][0];
-    if (!pts.length) start = 'back';
-  }
-  show(start);
+  const showRegion = (id) => { pad.region = id; pad.flat.mount($(`#${prefix}-canvas`, root), id, markers); mark(); };
+  const box = (d) => q('box').forEach((b) => { b.hidden = val(b, 'box') !== d; });
+  const use2d = () => {
+    pad.dim = '2d';
+    box('2d');
+    let start = pad.region;
+    if (!start) {
+      const pts = (lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : []).map((p) => db.pointById[p.id]);
+      const score = (r) => pts.filter((p) => (p.chart || []).some(([x, y]) => x >= r.box[0] && x <= r.box[2] && y >= r.box[1] && y <= r.box[3])).length;
+      start = REGIONS.slice(0, 7).map((r) => [r.id, score(r)]).sort((x, y) => y[1] - x[1])[0][0];
+      if (!pts.length) start = 'back';
+    }
+    showRegion(start);
+  };
+  const use3d = async () => {
+    pad.dim = '3d';
+    box('3d');
+    mark();
+    const wrap = $(`#${prefix}-3d`, root);
+    try {
+      if (!pad.b3) {
+        pad.b3 = new Body3D(await loadMesh(), db.pointList);
+        pad.b3.view = startView();
+      }
+      if (!wrap.isConnected || pad.dim !== '3d') return;
+      pad.b3.onChange = onChange;
+      if (!pad.b3.mount(wrap)) throw new Error('webgl');
+    } catch {
+      wrap.innerHTML = '<p class="small warn-text">この端末では3D人体図を表示できません。平面図で入力してください。</p>';
+      return use2d();
+    }
+    mark();
+  };
+  pad.flat.onChange = onChange;
+  q('dim').forEach((b) => b.addEventListener('click', () => {
+    settings.paintDim = val(b, 'dim');
+    saveSettings();
+    if (settings.paintDim === '3d') use3d(); else use2d();
+  }));
+  q('region').forEach((b) => b.addEventListener('click', () => showRegion(val(b, 'region'))));
+  q('view').forEach((b) => b.addEventListener('click', () => { pad.b3?.setView(val(b, 'view')); mark(); }));
+  q('mode').forEach((b) => b.addEventListener('click', () => { pad.b3?.setMode(val(b, 'mode')); mark(); }));
+  q('show').forEach((b) => b.addEventListener('click', () => { pad.b3?.setShow(val(b, 'show')); mark(); }));
+  q('organs').forEach((b) => b.addEventListener('click', () => { pad.b3?.setOrgans(!pad.b3.showOrgans); mark(); }));
+  q('nums').forEach((b) => b.addEventListener('click', () => { pad.b3?.setNumbers(!pad.b3.showNumbers); mark(); }));
+  q('layer').forEach((b) => b.addEventListener('click', () => { pad.layer = val(b, 'layer'); mark(); }));
+  q('tool').forEach((b) => b.addEventListener('click', () => { pad.tool = val(b, 'tool'); mark(); }));
+  q('brush').forEach((b) => b.addEventListener('click', () => { pad.brush = val(b, 'brush'); mark(); }));
+  q('undo').forEach((b) => b.addEventListener('click', () => (pad.dim === '3d' && pad.b3 ? pad.b3 : pad.flat).undo()));
+  if (pad.dim === '3d') use3d(); else use2d();
+}
+
+// 本日の症状で見つめる箇所が多い向きから始める（多くは背面）
+function startView() {
+  const ids = new Set((lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : []).map((p) => p.id));
+  const front = ['zentoubu', 'maekata', 'hentousen', 'sokeibu'].filter((id) => ids.has(id)).length;
+  return front > 2 ? 'front' : 'back';
 }
 
 function readoutHTML(findings, highlightIds = new Set()) {
@@ -472,20 +571,19 @@ function readoutHTML(findings, highlightIds = new Set()) {
 }
 
 function renderSessionInput() {
-  session.painter ||= newPainter();
-  const painter = session.painter;
+  const pad = getPad('pb');
   const suggested = lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : [];
   const sugIds = new Set(suggested.map((p) => p.id));
   $('#tab-session').innerHTML = `
     <div class="card">
       <h2>探査の結果を塗って入力</h2>
-      <p class="small">部位を選んで拡大し、指でなぞって塗ります。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。濃さは5段階で、薄い濃さで上からなぞれば薄く塗り直せます。</p>
+      <p class="small">体をなぞって塗ります。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。濃さは20段階で、重ねて塗るほど濃くなります。「濃くする」「薄くする」で、塗った所の濃さを変えられます。</p>
       ${suggested.length ? `<p class="small">本日の症状から見つめる箇所：${suggested.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</p>` : ''}
       ${painterHTML('pb')}
     </div>
     <div class="card">
       <h2>読み取った探査の結果</h2>
-      <p class="small muted">塗った濃さを、近くの探査箇所ごとに読み取ります（5段階）。</p>
+      <p class="small muted">塗った所を一番近い探査箇所に割り当てて、箇所ごとに読み取ります（5段階）。少しはみ出しただけの所は数えません。</p>
       <div id="readout">${readoutHTML(session.findings, sugIds)}</div>
     </div>
     <div class="card">
@@ -497,8 +595,8 @@ function renderSessionInput() {
     </div>
     ${criteriaCard()}`;
   const root = $('#tab-session');
-  wirePainter(root, 'pb', painter, () => {
-    session.findings = painter.sample(db.pointList);
+  wirePainter(root, 'pb', pad, () => {
+    session.findings = padSample(pad);
     $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
   });
   $$('.time-chip').forEach((b) => b.addEventListener('click', () => {
@@ -507,7 +605,7 @@ function renderSessionInput() {
     $$('.time-chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   $('#make-plan').addEventListener('click', () => {
-    session.findings = painter.sample(db.pointList);
+    session.findings = padSample(pad);
     const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
     if (!plan.ok) {
       const m = $('#plan-msg');
@@ -527,11 +625,11 @@ function criteriaCard() {
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
       <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
-      <li><b>重要施術部位</b>：腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。腎臓部に所見があれば必ず施術に入れる。</li>
+      <li><b>重要施術部位</b>：頭・肩・腎臓部は、探査で目立った所見が無くても必ず少しでも施術に入れる（所見のある箇所があればそこを、無ければ短い時間で）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について全集で説かれた急所を重く。</li>
-      <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、最低3分ずつ確保したうえで優先度に比例して配る。施術する箇所は時間8分あたり1か所（2〜5か所）。</li>
+      <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、所見のある箇所は最低3分、所見の無い重要施術部位は2〜3分確保したうえで、優先度に比例して配る。所見から選ぶ箇所は時間8分あたり1か所（2〜5か所）。施術中は5分ごとに、熱・固結の変化を確かめる声かけをする。</li>
       <li><b>順序</b>：上から下が基本（まず頭を清め、首・肩、背、腎臓部、腰へ）。テキストの探査順にも切り替えられる。</li>
     </ol>
     ${principleCard('jinzo_first')}${principleCard('netsu')}${principleCard('kotsuban')}${principleCard('jikan')}
@@ -580,7 +678,7 @@ function renderSessionPlan() {
       </div>
       <p class="small muted">合計 <b id="plan-total">${plan.total}</b>分。施術は上から下へ進めるのが基本です（まず頭を清め、首・肩、背、腎臓部、腰へ）。</p>
       <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item">
-        <div class="plan-head"><span class="no">${it.no}</span><span class="name">${esc(it.name)}</span>
+        <div class="plan-head"><span class="no">${it.no}</span><span class="name">${esc(it.name)}${it.stub ? ' <span class="tag">重要施術部位</span>' : ''}</span>
           <span class="mins"><button type="button" class="mini" data-adj="-1" data-i="${i}" aria-label="1分減らす">−</button><b>${it.minutes}</b>分<button type="button" class="mini" data-adj="1" data-i="${i}" aria-label="1分増やす">＋</button></span></div>
         <div class="bar"><i style="width:${Math.round((it.share / maxShare) * 100)}%"></i></div>
         <div class="small">${shadeBars(it.finding)}</div>
@@ -628,7 +726,7 @@ function startRun() {
   const phases = [{ type: 'probe', label: '探査', sec: plan.probe * 60 }];
   plan.items.forEach((it, i) => phases.push({ type: 'treat', id: it.id, label: it.name, sec: it.minutes * 60, n: i + 1 }));
   phases.push({ type: 'check', label: '確認（再探査）', sec: plan.check * 60 });
-  session.run = { phases, i: 0, left: phases[0].sec, paused: false, tick: null, adviced: false, wake: null };
+  session.run = { phases, i: 0, left: phases[0].sec, paused: false, tick: null, wake: null, checkShow: 0 };
   session.state = 'run';
   renderSession();
   window.scrollTo({ top: 0 });
@@ -652,7 +750,6 @@ function enterPhase() {
   const run = session.run;
   const ph = run.phases[run.i];
   run.left = ph.sec;
-  run.adviced = false;
   if (settings.chime) chime();
   if (settings.voice) setTimeout(() => speak(phaseMessage(ph)), settings.chime ? 1200 : 0);
   clearInterval(run.tick);
@@ -660,15 +757,26 @@ function enterPhase() {
   renderRun();
 }
 
+// 施術中の確認の声かけ：5分ごと。5分に満たない箇所は、その箇所の施術が終わる時に
+const CHECK_VOICE = '固結の変化、熱の変化など、もう一度確認してみましょう。';
+const CHECK_EVERY = 300;
+
 function tick() {
   const run = session.run;
   if (!run || run.paused) return;
   run.left--;
+  if (run.checkShow > 0 && --run.checkShow === 0) { const el = $('#run-check'); if (el) el.hidden = true; }
   const ph = run.phases[run.i];
-  // 施術の終わり近くで、熱・固結・圧痛の確認を促す
-  if (ph.type === 'treat' && !run.adviced && run.left === Math.min(60, Math.floor(ph.sec / 3))) {
-    run.adviced = true;
-    if (settings.voice) speak('施術した箇所の、熱、固結、圧痛を確認してみましょう。');
+  if (ph.type === 'treat') {
+    const done = ph.sec - run.left;
+    const short = ph.sec < CHECK_EVERY;
+    if ((!short && done > 0 && done % CHECK_EVERY === 0) || (short && run.left <= 0)) {
+      if (settings.voice) speak(CHECK_VOICE);
+      // 画面にも15秒ほど出す（次の箇所に移っても残す）
+      run.checkShow = 15;
+      const el = $('#run-check');
+      if (el) el.hidden = false;
+    }
   }
   if (run.left <= 0) return nextPhase();
   updateRunClock();
@@ -713,6 +821,7 @@ function renderRun() {
       <div class="run-name">${ph.type === 'treat' ? esc(ph.label) : (ph.type === 'probe' ? '発熱・固結・圧痛を確かめる' : '熱が冷めたか、固結がゆるんだか')}</div>
       <div class="run-clock" id="run-clock">${mmss(run.left)}</div>
       <div class="run-progress"><i id="run-bar" style="width:0%"></i></div>
+      <p class="run-check" id="run-check"${run.checkShow > 0 ? '' : ' hidden'}>${esc(CHECK_VOICE)}</p>
       <p class="small muted">${next ? `次：${esc(next.label)}（${Math.round(next.sec / 60)}分）` : '最後の段階です'}</p>
       <div class="run-controls">
         <button type="button" id="run-pause" class="ghost">${run.paused ? '▶ 再開' : '⏸ 停止'}</button>
@@ -752,8 +861,7 @@ function compareHTML(items) {
 
 function renderDone() {
   const items = session.plan.items;
-  session.afterPainter ||= newPainter();
-  const painter = session.afterPainter;
+  const pad = getPad('pa');
   $('#tab-session').innerHTML = `
     <div class="card">
       <h2>お疲れさまでした</h2>
@@ -782,8 +890,8 @@ function renderDone() {
       <p class="small muted">施術後、溶けた毒素が胸や胃に降りる、反対側に痛みが出る（平均浄化）などの変化が起こることがあります。「用語」の施術後の変化も見てください。</p>
     </div>`;
   const root = $('#tab-session');
-  wirePainter(root, 'pa', painter, () => {
-    session.after = painter.sample(db.pointList);
+  wirePainter(root, 'pa', pad, () => {
+    session.after = padSample(pad);
     $('#compare').innerHTML = compareHTML(items);
   });
   wireRecordInputs(root);
@@ -803,7 +911,8 @@ function renderDone() {
     $('#go-records', root)?.addEventListener('click', () => showTab('records'));
   });
   $('#new-session').addEventListener('click', () => {
-    Object.assign(session, { findings: {}, after: {}, plan: null, painter: null, afterPainter: null, state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
+    releasePads();
+    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
     renderSession();
   });
 }
@@ -832,6 +941,7 @@ function buildRecord() {
 }
 
 function renderSession() {
+  releasePads();
   if (session.state === 'plan' && session.plan) return renderSessionPlan();
   if (session.state === 'run' && session.run) return renderRun();
   if (session.state === 'done' && session.plan) return renderDone();

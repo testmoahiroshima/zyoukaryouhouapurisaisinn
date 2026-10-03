@@ -346,7 +346,7 @@ export function analyze(db, text, selected = []) {
 }
 
 // ---- 施術の優先順位と時間配分 ----
-// findings: { pointId: { heat, kouketsu, atsutsuu } }（各 0〜3）
+// findings: { pointId: { heat, kouketsu, atsutsuu } }（各 0〜5）
 // total: 全体の分数、analysis: analyze() の結果（無くてもよい）
 
 const REGION_FACTOR = {
@@ -355,6 +355,14 @@ const REGION_FACTOR = {
   head: { f: 1.2, why: '重要施術部位：頭は四肢五体の根元', ref: 'atama_first' },
   shoulder: { f: 1.2, why: '重要施術部位：肩（肩の硬軟は健康の目安）', ref: 'kata_gauge' },
 };
+
+// 重要施術部位（頭・肩・腎臓部）は、探査で所見がなくても必ず少しでも施術に入れる。
+// 所見のある箇所が無い時に入れる箇所（本日の症状で見つめる箇所があればそちらを先に）
+const REQUIRED = [
+  { region: 'head', name: '頭', def: 'zentoubu' },
+  { region: 'shoulder', name: '肩', def: 'kata' },
+  { region: 'kidney', name: '腎臓部', def: 'haimen_jinzo' },
+];
 
 // 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加え、重なる所（急所）をさらに重くする
 export function findingScore(f) {
@@ -423,27 +431,51 @@ export function planSession(db, findings, total, analysis = null, { order = 'top
 
   cands.sort((x, y) => y.P - x.P);
   const maxN = Math.max(2, Math.min(5, Math.round(total / 8)));
-  let chosen = cands.slice(0, Math.min(maxN, cands.length));
-  // 腎臓部に所見があれば必ず含める（腎臓部第一）
-  const kid = cands.find((c) => c.region === 'kidney');
-  if (kid && !chosen.includes(kid)) {
-    chosen[chosen.length - 1] = kid;
-    kid.reasons.push({ text: '腎臓部の固結が溶けると他の局部も溶けやすくなるため組み入れ', ref: 'jinzo_first' });
-  }
+  // 1) 重要施術部位：その部位で一番優先度の高い所見の箇所。所見が無ければ短い時間だけ入れる
+  const required = REQUIRED.map((g) => {
+    const c = cands.find((x) => x.region === g.region);
+    if (c) return c;
+    const fromText = (analysis?.points || []).find((pt) => db.pointById[pt.id]?.region === g.region);
+    const p = db.pointById[fromText?.id || g.def];
+    const rf = REGION_FACTOR[g.region];
+    return {
+      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true,
+      reasons: [{ text: `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }],
+      finding: { heat: 0, kouketsu: 0, atsutsuu: 0 },
+    };
+  });
+  // 2) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
+  const realReq = required.filter((c) => !c.stub).length;
+  const extras = cands.filter((c) => !required.includes(c)).slice(0, Math.max(0, maxN - realReq));
 
   const probe = Math.max(3, Math.round(total * 0.15));
   const check = Math.max(2, Math.round(total * 0.1));
-  const treat = Math.max(chosen.length * 3, total - probe - check);
-  const sumP = chosen.reduce((s, c) => s + c.P, 0);
-  // 最低3分を確保し、残りを優先度で比例配分（端数は大きい順に配る）
-  const base = 3 * chosen.length;
+  const avail = Math.max(0, total - probe - check);
+  const stubMin = Math.max(2, Math.round(avail * 0.06));
+  const minOf = (c) => (c.stub ? stubMin : 3);
+  // 時間が足りない時は、優先度の低い箇所から外す（重要施術部位は外さない）
+  while (extras.length && [...required, ...extras].reduce((s, c) => s + minOf(c), 0) > avail) extras.pop();
+  const chosen = [...required, ...extras];
+  for (const c of required) {
+    if (!c.stub && !cands.slice(0, maxN).includes(c)) {
+      c.reasons.push(c.region === 'kidney'
+        ? { text: '腎臓部の固結が溶けると他の局部も溶けやすくなるため組み入れ', ref: 'jinzo_first' }
+        : { text: '重要施術部位のため必ず組み入れ', ref: REGION_FACTOR[c.region]?.ref || null });
+    }
+  }
+
+  const base = chosen.reduce((s, c) => s + minOf(c), 0);
+  const treat = Math.max(base, avail);
+  const real = chosen.filter((c) => !c.stub);
+  const sumP = real.reduce((s, c) => s + c.P, 0) || 1;
+  // 最低時間（所見あり3分・所見なしの重要施術部位2〜3分）を確保し、残りを所見のある箇所に優先度で比例配分（端数は大きい順に配る）
   const rest = Math.max(0, treat - base);
-  const raw = chosen.map((c) => 3 + (rest * c.P) / sumP);
+  const raw = chosen.map((c) => minOf(c) + (c.stub ? (real.length ? 0 : rest / chosen.length) : (rest * c.P) / sumP));
   const mins = raw.map(Math.floor);
   let left = treat - mins.reduce((s, m) => s + m, 0);
   raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { mins[i]++; left--; } });
 
-  const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: c.P / sumP }));
+  const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: mins[i] / treat }));
   // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）
   const ordered = orderPoints(db, items, order);
   const others = cands.filter((c) => !chosen.includes(c));

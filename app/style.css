@@ -483,3 +483,22 @@ table.rec-table td:first-child { width: auto; text-align: left; color: var(--tex
 table.rec-table td:nth-child(2) { width: 2em; text-align: right; color: var(--muted); }
 table.rec-table td { white-space: nowrap; }
 table.rec-table td:first-child { white-space: normal; }
+
+/* 3D人体図 */
+.dim-switch { display: flex; gap: 6px; margin: 4px 0 2px; }
+.dim-switch .chip[aria-pressed="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.b3-stage { position: relative; margin: 6px 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #f7f5f0; }
+.b3-wrap { min-height: 240px; }
+.b3-wrap canvas { display: block; touch-action: none; }
+.b3-loading { padding: 40px 12px; text-align: center; }
+.b3-float { position: absolute; top: 8px; left: 8px; display: flex; gap: 4px; }
+.b3-float.b3-right { left: auto; right: 8px; }
+.b3-float button { font: inherit; font-size: .8rem; padding: 6px 10px; border-radius: 999px; border: 1px solid #c9cfc6; background: rgba(255,255,255,.88); color: #22302a; cursor: pointer; }
+.b3-float button[aria-pressed="true"] { background: #3f6b4f; color: #fff; border-color: #3f6b4f; }
+.level-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.level-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.level-legend i { display: inline-block; width: 56px; height: 8px; border-radius: 4px; }
+.tool-b[aria-pressed="true"] { background: var(--accent); color: var(--surface); border-color: var(--accent); }
+.run-check { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); color: var(--text); font-weight: 500; }
+.b3-float { pointer-events: none; }
+.b3-float button { pointer-events: auto; }
