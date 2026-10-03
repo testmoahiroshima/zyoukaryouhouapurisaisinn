@@ -796,3 +796,6 @@ button.ghost.picker-open { border: 2px solid var(--accent); color: var(--accent)
 :root[data-theme="dark"] .tag-side { background: #4a2c18; color: #f5c899; }
 :root[data-theme="dark"] .tag-outlet { background: #1f3550; color: #b9d4f2; }
 :root[data-theme="dark"] .split, :root[data-theme="dark"] .side-strong { color: #f5b77a; }
+/* 上下に動かすボタン（右端のまん中） */
+.b3-updown { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: grid; gap: 8px; }
+.b3-updown button { width: 48px; height: 48px; border-radius: 50%; border: 1px solid #c9cfc6; background: rgba(255, 255, 255, .92); color: #22302a; font: inherit; font-size: 1.05rem; cursor: pointer; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }

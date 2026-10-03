@@ -361,7 +361,7 @@ function renderResult(r) {
       ${allFlows.length > 1 ? '<button type="button" class="chip flow-chip" data-i="all" aria-pressed="false">すべて</button>' : ''}
     </div>` : ''}
     <div class="b3-stage guide-stage"><div class="b3-wrap" id="result-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rs')}</div>
-    <p class="small muted">緑の丸の番号は探査の順番、線と矢印は毒素の流れです。2本指で大きく・位置を動かす・ひねって回す。</p>
+    <p class="small muted">緑の丸の番号は探査の順番、線と矢印は毒素の流れです。1本指で縦になぞると上下に動き、横になぞると回ります。2本指で広げると大きくなります。</p>
     <details class="flat-chart"><summary>平面図で見る</summary><div id="result-chart">${chartSVG({ highlight, flows: allFlows.slice(0, 1).map((x) => x.fl) })}</div></details>
     <div class="chart-legend">
       <span><i style="background:var(--point)"></i>見つめる箇所</span>
@@ -483,7 +483,7 @@ function renderTodayForm() {
             <div class="b3-wrap" id="ask-3d"><p class="small muted b3-loading">からだの図を読み込んでいます…</p></div>
             ${zoomHTML('ask')}
           </div>
-          <p class="small muted">つらい所に、指で軽く触れてください。触れた所に印がつき、下に場所の名前が出ます。2本指で広げると大きく、2本指でなぞると回ります。</p>
+          <p class="small muted">つらい所に、指で軽く触れてください。触れた所に印がつき、下に場所の名前が出ます。1本指で縦になぞると上下に動き、横になぞると回ります。2本指で広げると大きくなります。</p>
         </div>
         <div id="chosen-places" class="chosen" aria-live="polite"></div>
       </div>
@@ -743,8 +743,8 @@ function painterHTML(prefix) {
         </div>
         ${zoomHTML(prefix)}
       </div>
-      <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指でなぞると回ります。</p>
-      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。</p>
+      <p class="gesture-hint small" ${P}-hint="select">番号の丸を押すと、その箇所の熱・固結・圧痛を選べます。1本指で<b>縦になぞると上下に動き</b>、<b>横になぞると回ります</b>。</p>
+      <p class="gesture-hint small" ${P}-hint="paint" hidden>1本指でなぞって塗ります。上下に動かす時は2本指で、または ▲▼ ボタンで。</p>
       <p class="gesture-hint small muted">2本指：広げる・つまむ＝大きさ／そのまま動かす＝位置／ひねる＝向き。2回続けて触れると、その所へ寄ります。</p>
       <div class="lv-panel" id="${prefix}-level" hidden></div>
       <details class="pt-list"><summary>箇所の一覧から選ぶ</summary>${groups}</details>
@@ -789,7 +789,11 @@ function levelPanelHTML(b3, k) {
 // 3D人体図の拡大・縮小・回転のボタン（指の操作が難しい時に）
 function zoomHTML(prefix) {
   const P = `data-${prefix}`;
-  return `<div class="b3-zoom" role="group" aria-label="拡大・回転">
+  return `<div class="b3-updown" role="group" aria-label="上下に動かす">
+    <button type="button" ${P}-move="1" aria-label="頭の方へ動かす">▲</button>
+    <button type="button" ${P}-move="-1" aria-label="足の方へ動かす">▼</button>
+  </div>
+  <div class="b3-zoom" role="group" aria-label="拡大・回転">
     <button type="button" ${P}-zoom="in" aria-label="大きくする">＋</button>
     <button type="button" ${P}-zoom="out" aria-label="小さくする">－</button>
     <button type="button" ${P}-rot="l" aria-label="左に回す">⟲</button>
@@ -802,6 +806,7 @@ function wireZoom(root, prefix, get) {
   q('zoom').forEach((b) => b.addEventListener('click', () => get()?.zoomBy(b.getAttribute(`data-${prefix}-zoom`) === 'in' ? 1.35 : 1 / 1.35)));
   q('rot').forEach((b) => b.addEventListener('click', () => get()?.rotateBy(b.getAttribute(`data-${prefix}-rot`) === 'l' ? -Math.PI / 6 : Math.PI / 6)));
   q('home').forEach((b) => b.addEventListener('click', () => { const x = get(); x?.setView(x.view); }));
+  q('move').forEach((b) => b.addEventListener('click', () => get()?.stepVertical(Number(b.getAttribute(`data-${prefix}-move`)))));
 }
 
 function wirePainter(root, prefix, pad, onChange) {
@@ -1931,10 +1936,11 @@ function renderGuide() {
     <div class="card">
       <h2>からだの図の動かし方</h2>
       <ul class="tips">
+        <li>1本指で縦になぞる：体に沿って上下に動く（頭の方・足の方）</li>
+        <li>1本指で横になぞる：回る</li>
         <li>2本指で広げる・つまむ：大きく・小さく</li>
-        <li>2本指でなぞる：回す</li>
-        <li>「✋ 見る」にすると、1本指でも回せます</li>
-        <li>右下の ＋ － ⟲ ⟳ ⌂ ボタンでも動かせます（⌂ は元の向き）</li>
+        <li>「なぞって塗る」の時は1本指で塗るので、2本指で動かします</li>
+        <li>右下の ▲ ▼（上下）＋ －（大きさ）⟲ ⟳（回す）⌂（元の向き）ボタンでも動かせます</li>
       </ul>
     </div>
     <div class="card">
