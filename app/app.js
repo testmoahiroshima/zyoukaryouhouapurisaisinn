@@ -749,7 +749,7 @@ function getPad(prefix) {
     const { width, height, image } = db.raw.points.chart;
     const img = new Image();
     img.src = image;
-    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: settings.paintDim, how: settings.paintHow || 'select', finger: 'paint', region: null };
+    session.pads[prefix] = { flat: new Painter({ image: img, width, height }), b3: null, layer: 'heat', tool: 'paint', brush: 'mid', dim: '3d', how: settings.paintHow || 'select', finger: 'paint', region: null };
   }
   return session.pads[prefix];
 }
@@ -958,7 +958,7 @@ function wirePainter(root, prefix, pad, onChange) {
     try {
       if (!pad.b3) {
         pad.b3 = new Body3D(await loadMesh(), db.pointList);
-        pad.b3.view = pad.seed?.view || startView();
+        pad.b3.view = startView();
         // 施術後の図は、施術前の図をそのまま写して始める
         if (pad.seed) pad.b3.copyFrom(pad.seed);
         pad.seed = null;
@@ -1037,11 +1037,25 @@ function wirePainter(root, prefix, pad, onChange) {
   if (pad.dim === '3d') use3d(); else use2d();
 }
 
-// 本日の症状で見つめる箇所が多い向きから始める（多くは背面）
+// 探査は、3D人体図の背面の全体が見える所から始める（前面などは向きのチップや指で変える）
 function startView() {
-  const ids = new Set((lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : []).map((p) => p.id));
-  const front = ['zentoubu', 'maekata', 'hentousen', 'sokeibu'].filter((id) => ids.has(id)).length;
-  return front > 2 ? 'abdomen' : 'upperback';
+  return 'back';
+}
+
+// 探査の場面に入ったら、すぐ人体図の所へ移る（上の帯に隠れないように）
+function jumpToBody(root) {
+  const go = () => {
+    const el = $('.dim-switch', root);
+    if (!el || root.hidden || !el.isConnected) return;
+    const head = $('header.top')?.offsetHeight || 0;
+    window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - head - 8) });
+  };
+  // タブを開いた時の「いちばん上へ」の後に動かす。文字の読み込みで位置がずれた時も、触っていなければ合わせ直す
+  requestAnimationFrame(() => {
+    go();
+    const y = window.scrollY;
+    setTimeout(() => { if (Math.abs(window.scrollY - y) < 2) go(); }, 400);
+  });
 }
 
 function readoutHTML(findings, highlightIds = new Set()) {
@@ -1102,6 +1116,7 @@ function renderSessionInput() {
     ${criteriaCard()}`;
   const root = $('#tab-session');
   wireStepBar(root);
+  jumpToBody(root);
   wirePainter(root, 'pb', pad, () => {
     session.findings = padSample(pad);
     $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
@@ -1524,6 +1539,7 @@ function renderDone() {
     $('#compare').innerHTML = compareHTML(items);
   };
   wirePainter(root, 'pa', pad, afterChange);
+  jumpToBody(root);
   $('#pa-reset', root)?.addEventListener('click', () => {
     if (!confirm('施術後に塗り直した所を消して、施術前の図に戻しますか？')) return;
     pad.flat.copyFrom(session.pads.pb.flat);
