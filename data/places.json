@@ -116,6 +116,21 @@
   ],
   "鼠蹊部": [
    "sokeibu"
+  ],
+  "前頭部・頭頂部": [
+   "touchoubu",
+   "zentoubu"
+  ],
+  "延髄部・後頸部": [
+   "enzui",
+   "koukeibu"
+  ],
+  "肩甲間部（脊柱の際）": [
+   "kenkoukan"
+  ],
+  "腰の中心（尾てい骨）": [
+   "youkotsu",
+   "biteikotsu"
   ]
  },
  "levels": {

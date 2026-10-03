@@ -713,7 +713,9 @@
    "id": "lowback",
    "group": "腰部・脚部",
    "label": "腰部（腰の痛み・重さ）",
-   "flows": [],
+   "flows": [
+    "head_down"
+   ],
    "routes": [
     25,
     26
@@ -735,7 +737,8 @@
    "group": "腰部・脚部",
    "label": "足が悪い・だるい・吊る・膝",
    "flows": [
-    "legs"
+    "legs",
+    "head_down"
    ],
    "routes": [
     23,
@@ -800,7 +803,9 @@
    "id": "urinary",
    "group": "腰部・脚部",
    "label": "下腹部・膀胱",
-   "flows": [],
+   "flows": [
+    "head_down"
+   ],
    "routes": [
     27
    ],
@@ -822,7 +827,9 @@
    "id": "women",
    "group": "腰部・脚部",
    "label": "子宮・卵巣・陰部",
-   "flows": [],
+   "flows": [
+    "head_down"
+   ],
    "routes": [
     28,
     29
@@ -846,7 +853,9 @@
    "id": "anus",
    "group": "腰部・脚部",
    "label": "肛門・鼠蹊部",
-   "flows": [],
+   "flows": [
+    "head_down"
+   ],
    "routes": [
     30,
     31

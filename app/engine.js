@@ -359,8 +359,10 @@ const REGION_FACTOR = {
 
 // 重要施術部位（頭・肩・腎臓部）は、探査で所見がなくても必ず少しでも施術に入れる。
 // 所見のある箇所が無い時に入れる箇所（本日の症状で見つめる箇所があればそちらを先に）
+// 頭は、前頭部と頭頂部をどちらも外さない（所見が無くても1分でも施術する）。肩・腎臓部は、その部位で一番の箇所を
 const REQUIRED = [
-  { region: 'head', name: '頭', def: 'zentoubu' },
+  { id: 'zentoubu', name: '頭（前頭部）', head: true },
+  { id: 'touchoubu', name: '頭（頭頂部）', head: true },
   { region: 'shoulder', name: '肩', def: 'kata' },
   { region: 'kidney', name: '腎臓部', def: 'haimen_jinzo' },
 ];
@@ -479,7 +481,11 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     // 2. 楽屋と舞台
     const r = roleOf[id];
     if (hasAnalysis) {
-      if (r?.roles.includes('rakuya')) { W *= 1.3; reasons.push({ text: '楽屋（本日の症状の元）', ref: 'kyuusho' }); }
+      if (r?.roles.includes('rakuya')) {
+        W *= 1.3;
+        const down = p.region === 'head' && (analysis.categories || []).some((c) => (c.flows || []).some((fl) => fl.src.id === 'head_down'));
+        reasons.push(down ? { text: '楽屋：頭の毒が脊柱の際（首・肩・肩甲間部・腎臓部）を下りて腰に溜まる流れの元', ref: 'atama_kudari' } : { text: '楽屋（本日の症状の元）', ref: 'kyuusho' });
+      }
       else if (r?.roles.includes('keiro')) { W *= 1.1; reasons.push({ text: '毒素の流れの経路上', ref: 'joushou' }); }
       else if (r?.roles.includes('butai')) { reasons.push({ text: '舞台（症状が出ている所）', ref: 'kyuusho' }); }
       else if (!r) { W *= 0.85; }
@@ -510,14 +516,14 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const maxN = Math.max(2, Math.min(5, Math.round(total / 8)));
   // 1) 重要施術部位：その部位で一番優先度の高い所見の箇所。所見が無ければ短い時間だけ入れる
   const required = REQUIRED.map((g) => {
-    const c = cands.find((x) => x.region === g.region);
+    const c = g.id ? cands.find((x) => x.id === g.id) : cands.find((x) => x.region === g.region);
     if (c) return c;
-    const fromText = (analysis?.points || []).find((pt) => db.pointById[pt.id]?.region === g.region);
-    const p = db.pointById[fromText?.id || g.def];
-    const rf = REGION_FACTOR[g.region];
+    const fromText = g.id ? null : (analysis?.points || []).find((pt) => db.pointById[pt.id]?.region === g.region);
+    const p = db.pointById[g.id || fromText?.id || g.def];
+    const rf = REGION_FACTOR[p.region];
     return {
-      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true,
-      reasons: [{ text: `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }],
+      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true, headStub: !!g.head,
+      reasons: [{ text: g.head ? `重要施術部位（${g.name}）：外せない所。所見が無くても1分でも施術する` : `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }],
       finding: { heat: 0, kouketsu: 0, atsutsuu: 0 },
     };
   });
@@ -537,8 +543,9 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const check = Math.max(2, Math.round(total * 0.1));
   const avail = Math.max(0, total - probe - check);
   const stubMin = Math.max(2, Math.round(avail * 0.06));
+  const headMin = Math.max(1, Math.round(avail * 0.03));
   let realMin = 3;
-  const minOf = (c) => (c.stub ? stubMin : realMin);
+  const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : realMin);
   const need = () => [...required, ...extras].reduce((s, c) => s + minOf(c), 0);
   // 時間が足りない時は、優先度の低い箇所から外し（重要施術部位は外さない）、それでも足りなければ最低時間を2分に
   while (extras.length && need() > avail) extras.pop();
