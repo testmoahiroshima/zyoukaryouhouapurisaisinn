@@ -232,7 +232,14 @@ function renderChips() {
   $('#chips').addEventListener('click', (e) => {
     const b = e.target.closest('.chip');
     if (b) b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+    markChips();
   });
+}
+// 一覧で選んでいる症状の数を、閉じていても見えるように出す（選んだままの症状が、知らないうちに混ざらないように）
+function markChips() {
+  const n = selectedChips().length;
+  const c = $('#chips-count');
+  if (c) c.textContent = n ? `：${n}つ選んでいます` : '';
 }
 const selectedChips = () => $$('#chips .chip[aria-pressed="true"]').map((b) => b.dataset.id);
 const SIDE_TEXT = { left: '左側', right: '右側', both: '左右' };
@@ -287,12 +294,21 @@ function wireKenkaiLinks(root) {
     const e = db.kenkai.find((x) => x.id === b.dataset.kenkaiGo);
     showTab('today');
     $('#symptom-text').value = e.label;
-    ask.zones = [];
-    ask.senses = [];
-    markAsk();
+    resetAsk();
     store.set(STORE_INPUT, e.label);
     renderResult(analyze(db, e.label, [`k:${e.id}`]));
   }));
+}
+
+// 入力したこと（ことば・場所・感じ・一覧で選んだ症状）。読み取った症状は、ここに書いたことだけから出す
+function askedHTML(r) {
+  const rows = [];
+  const text = r.askText ?? r.input;
+  if (text) rows.push(['ことば', `<span class="tag tag-said">${esc(text)}</span>`]);
+  if (ask.zones.length) rows.push(['つらい場所', placeLabels().map((l) => `<span class="tag tag-place">${esc(l)}</span>`).join('')]);
+  if (r.picked?.senses.length) rows.push(['どのように', r.picked.senses.map((x) => `<span class="tag tag-said">${esc(x)}</span>`).join('')]);
+  if (r.picked?.chips.length) rows.push(['一覧で選んだ', r.picked.chips.map((x) => `<span class="tag tag-said">${esc(x)}</span>`).join('')]);
+  return rows.map(([k, v]) => `<div class="sum-row"><span class="sum-label">${k}</span><div>${v}</div></div>`).join('');
 }
 
 function renderResult(r) {
@@ -319,8 +335,8 @@ function renderResult(r) {
       <div class="sum-head"><h2>${r.fallback ? '基本の19か所を探査しましょう' : '調べた結果'}</h2>
         <button type="button" class="speak-b" id="speak-result" aria-pressed="false"><span aria-hidden="true">🔊</span>読み上げ</button></div>
       ${r.fallback ? `<p>${askText || r.safety.length ? '入力から当てはまる症状の流れが見つかりませんでした。' : ''}頭部4か所、頸部6か所、肩2か所、背部4か所、腎臓部3か所を、番号の順にまんべんなく探査してみましょう。</p><p class="cite">根拠：岡田式浄化療法の実際 p130-131（基本的な探査箇所と探査の順序）</p>`
-        : `<div class="sum-row"><span class="sum-label">読み取った症状</span><div>${r.categories.map((c) => `<span class="tag">${esc(c.label)}</span>`).join('')}</div></div>
-      ${ask.zones.length ? `<div class="sum-row"><span class="sum-label">つらい場所</span><div>${placeLabels().map((l) => `<span class="tag tag-place">${esc(l)}</span>`).join('')}</div></div>` : ''}
+        : `${askedHTML(r)}
+      <div class="sum-row"><span class="sum-label">読み取った症状</span><div>${r.categories.map((c) => `<span class="tag">${esc(c.label)}</span>`).join('')}</div></div>
       ${r.side ? `<p class="small">「${SIDE_TEXT[r.side]}」の訴えがあります。探査では${SIDE_TEXT[r.side]}を特によく見つめましょう。</p>` : ''}
       <div class="sum-row"><span class="sum-label">見つめる箇所</span><div class="sum-points">${r.points.map((p) => `<span class="sum-pt${p.key ? ' key' : ''}"><b>${p.no}</b>${esc(p.name)}</span>`).join('')}</div></div>
       ${fl0 ? `<div class="sum-row"><span class="sum-label">毒素の流れ</span>${stationsText(fl0)}</div>` : ''}`}
@@ -462,9 +478,12 @@ function renderResult(r) {
 
 // ---- 症状の入力（場所 → 感じ → ことば） ----
 const STORE_ASK = 'joka.lastAsk';
-const ask = Object.assign({ zones: [], senses: [], pins: [] }, store.get(STORE_ASK, {}));
+// 症状の入力は、アプリを開いている間だけ覚える。前に開いた時の入力（文章・場所・感じ・図の印）は持ち越さない
+// （前の人・前の日の訴えが、本日の症状に混ざらないように）
+store.del(STORE_ASK);
+store.del(STORE_INPUT);
 // 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
-ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
+const ask = { zones: [], senses: [], pins: [] };
 let zoneBoundsCache = null;
 let askPicker = null;
 
@@ -517,7 +536,7 @@ function renderTodayForm() {
         <button type="submit" class="primary big">探査する箇所を調べる</button>
         <button type="button" id="clear-btn" class="ghost">やり直す</button>
       </div>
-      <details class="chips-box"><summary>症状の一覧から選ぶ（くわしい方向け）</summary><div id="chips"></div></details>
+      <details class="chips-box"><summary>症状の一覧から選ぶ（くわしい方向け）<span id="chips-count" class="chips-count"></span></summary><div id="chips"></div></details>
     </form>`;
   renderChips();
   wireStepBar($('#today-form'));
@@ -540,17 +559,27 @@ function renderTodayForm() {
     ta.value = '';
     ask.zones = [];
     ask.senses = [];
-    // 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
-ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
-let zoneBoundsCache = null;
+    ask.pins = [];
     askPicker?.clearPins();
     $$('#chips .chip').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+    markChips();
     $('#result').innerHTML = '';
     lastAnalysis = null;
     store.del(STORE_INPUT);
     store.del(STORE_ASK);
     markAsk();
   });
+  markAsk();
+}
+
+// 場所・感じ・図の印・一覧で選んだ症状を空にする（文章はそのまま）
+function resetAsk() {
+  ask.zones = [];
+  ask.senses = [];
+  ask.pins = [];
+  askPicker?.clearPins();
+  $$('#chips .chip').forEach((b) => b.setAttribute('aria-pressed', 'false'));
+  markChips();
   markAsk();
 }
 
@@ -587,9 +616,7 @@ function undoPin() {
 function clearPinZones() {
   if (!ask.pins.length) return;
   const zones = new Set(ask.pins.map((x) => x.zone));
-  // 図でさした印：{ zone, p:{x,y,z}, d: zoneDetail }。座標と細かい場所（左右・上中下）を残す
-ask.pins = (ask.pins || []).filter((x) => x && x.p && x.d);
-let zoneBoundsCache = null;
+  ask.pins = [];
   askPicker?.clearPins();
   ask.zones = ask.zones.filter((z) => !zones.has(z));
   toast('図の印を消しました');
@@ -679,6 +706,8 @@ function runAsk() {
   store.set(STORE_INPUT, text);
   const r = analyze(db, full, chips);
   r.askText = text;
+  // 何をもとに読み取ったか（結果に示す）
+  r.picked = { senses: ask.senses.map((id) => SENSATIONS.find((x) => x.id === id)?.name).filter(Boolean), chips: selectedChips().map((id) => db.categories.find((c) => c.id === id)?.label).filter(Boolean) };
   renderResult(r);
 }
 
@@ -1962,9 +1991,7 @@ function renderKenkaiTab() {
     $('#kk-go-today', box)?.addEventListener('click', () => {
       showTab('today');
       $('#symptom-text').value = q;
-      ask.zones = [];
-      ask.senses = [];
-      markAsk();
+      resetAsk();
       store.set(STORE_INPUT, q);
       renderResult(analyze(db, q));
     });

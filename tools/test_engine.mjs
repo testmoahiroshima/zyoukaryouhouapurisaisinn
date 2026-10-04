@@ -271,6 +271,27 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (!good) fail++;
 }
 
+// 指定した場所・感じだけから読み取る（場所から別の症状を推し量って足さない）
+{
+  const { phrasesFor, catsFor } = await import('../app/zones.js');
+  const read = (zones, senses) => analyze(db, phrasesFor(zones, senses).join('。'), catsFor(zones)).categories.map((c) => c.id);
+  for (const [zones, senses, mustNot] of [
+    [['atama_top'], ['kayui'], ['headache', 'k:zutsuu']],
+    [['hitai'], ['kayui'], ['headache', 'k:zutsuu']],
+    [['komekami'], ['kayui'], ['headache', 'k:zutsuu']],
+    [['mune'], ['itai'], ['lungs', 'heart', 'k:waki']],
+    [['mune'], ['kayui'], ['lungs', 'heart']],
+    [['kubi_ushiro'], ['itai'], ['occipital']],
+    [['shitabara'], ['itai'], ['k:fujin']],
+    [['zenshin'], ['kayui'], ['fatigue']],
+  ]) {
+    const got = read(zones, senses);
+    const bad = mustNot.filter((id) => got.includes(id));
+    console.log(`${bad.length ? 'NG' : 'ok'}  指定だけから読む ${phrasesFor(zones, senses).join('・')} → ${got.join(',')}`);
+    if (bad.length) fail++;
+  }
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }

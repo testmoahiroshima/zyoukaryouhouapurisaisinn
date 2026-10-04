@@ -3,8 +3,8 @@
 
 // word：判断に使う言い方（「〜が痛い」の「〜」）、cats：symptoms.json の分類
 export const ZONES = [
-  { id: 'atama_top', name: '頭のてっぺん', word: '頭頂部', cats: ['top', 'headache'] },
-  { id: 'hitai', name: '額・頭の前', word: '額', cats: ['frontal', 'headache'] },
+  { id: 'atama_top', name: '頭のてっぺん', word: '頭頂部', cats: ['top'] },
+  { id: 'hitai', name: '額・頭の前', word: '額', cats: ['frontal'] },
   { id: 'koutou', name: '後頭部', word: '後頭部', cats: ['occipital'] },
   { id: 'komekami', name: 'こめかみ・頭の横', word: 'こめかみ', cats: ['temple'] },
   { id: 'me', name: '目', word: '目', cats: ['eyes'] },
@@ -14,9 +14,9 @@ export const ZONES = [
   { id: 'kao', name: '顔・頬', word: '顔', cats: ['face'] },
   { id: 'nodo', name: 'のど', word: 'のど', cats: ['throat'] },
   { id: 'kubi', name: '首', word: '首', cats: ['neck'] },
-  { id: 'kubi_ushiro', name: '首の後ろ', word: '首の後ろ', cats: ['neck', 'occipital'] },
+  { id: 'kubi_ushiro', name: '首の後ろ', word: '首の後ろ', cats: ['neck'] },
   { id: 'kata', name: '肩', word: '肩', cats: ['katakori'] },
-  { id: 'mune', name: '胸', word: '胸', cats: ['lungs', 'heart'] },
+  { id: 'mune', name: '胸', word: '胸', cats: [] },
   { id: 'waki', name: '脇・脇腹', word: '脇腹', cats: ['ribs'] },
   { id: 'mizoochi', name: 'みぞおち・胃', word: '胃', cats: ['stomach', 'diaphragm'] },
   { id: 'migi_hara', name: '右の脇腹（肝臓のあたり）', word: '右脇腹', cats: ['liver'] },
@@ -36,7 +36,7 @@ export const ZONES = [
   { id: 'fukurahagi', name: 'ふくらはぎ', word: 'ふくらはぎ', cats: ['legs'] },
   { id: 'ashikubi', name: '足首', word: '足首', cats: ['legs'] },
   { id: 'ashi', name: '足・足の裏', word: '足の裏', cats: ['legs'] },
-  { id: 'zenshin', name: '全身', word: '全身', cats: ['fatigue'] },
+  { id: 'zenshin', name: '全身', word: '全身', cats: [] },
 ];
 export const zoneById = Object.fromEntries(ZONES.map((z) => [z.id, z]));
 
