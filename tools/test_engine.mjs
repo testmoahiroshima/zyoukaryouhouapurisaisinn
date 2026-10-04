@@ -181,9 +181,10 @@ const plan = planSession(db, {
 const sum = plan.probe + plan.check + plan.items.reduce((s, i) => s + i.minutes, 0);
 console.log(`${sum === 45 ? 'ok' : 'NG'}  plan 45分: 探査${plan.probe} ` + plan.items.map((i) => `${i.name}${i.minutes}`).join(' ') + ` 確認${plan.check} (合計${sum})`);
 if (sum !== 45) fail++;
-// 上から下の順（背面図での高さ）
-const ys = plan.items.map((i) => db.pointById[i.id].anchor[1]);
-if (ys.some((y, i) => i && y < ys[i - 1])) { console.log('NG order top-down', plan.items.map((i) => i.name)); fail++; }
+// 上から下の順：頭部は前頭部 → 頭頂部 → こめかみ部 → 後頭部の順で先頭に、そのあとは背面図での高さ順
+const HEAD_ORDER = ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'];
+const ys = plan.items.map((i) => (HEAD_ORDER.includes(i.id) ? -1000 + HEAD_ORDER.indexOf(i.id) : db.pointById[i.id].anchor[1]));
+if (plan.items[0].id !== 'zentoubu' || ys.some((y, i) => i && y < ys[i - 1])) { console.log('NG order top-down', plan.items.map((i) => i.name)); fail++; }
 console.log('     順序（上から下）:', plan.items.map((i) => i.name).join(' → '));
 const planT = planSession(db, { kenkoukotsu_ka: { heat: 4, kouketsu: 4 }, kenkoukotsu: { heat: 4, kouketsu: 4 } }, 30, kat, { order: 'text' });
 if (planT.items[0].no > planT.items[1].no) { console.log('NG order text'); fail++; }
@@ -237,7 +238,12 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
     kata: side({ kouketsu: 3, heat: 2 }, { kouketsu: 3, heat: 2 }),
     koutoubu: { heat: 2, kouketsu: 1 },
   };
-  const pl = planSession(db, f, 40, null);
+  // 基本は上から下（前頭部から）。排泄経路が詰まっていても自動では出口を先にしない
+  const pl0 = planSession(db, f, 40, null);
+  const g0 = pl0.order === 'top' && pl0.items[0].id === 'zentoubu' && pl0.notes.some((n) => n.subplan);
+  console.log(`${g0 ? 'ok' : 'NG'}  基本の順序は上から下・前頭部から（出口はサブプランで） → ${pl0.items.map((i) => i.name).join(' → ')}`);
+  if (!g0) fail++;
+  const pl = planSession(db, f, 40, null, { order: 'outlet' });
   const kid = pl.items.find((i) => i.id === 'haimen_jinzo');
   const cho = pl.items.find((i) => i.id === 'choukotsu');
   const idx = (id) => pl.items.findIndex((i) => i.id === id);

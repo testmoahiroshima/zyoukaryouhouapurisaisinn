@@ -406,13 +406,17 @@ const OUTLET_GROUP = (p) => {
   if (p.region === 'kidney') return 2;
   return 3;
 };
+// 頭部は、前頭部から始めて 前頭部 → 頭頂部 → こめかみ部・側頭部 → 後頭部（後頭部から首・脊柱の際へ下りる）
+const HEAD_ORDER = ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'];
 export function orderPoints(db, items, order = 'top') {
   const key = (it) => {
     const p = db.pointById[it.id];
     if (order === 'text') return [p.no, 0, it.side === 'L' ? 1 : 0];
     const a = p.anchor || (p.chart || [[0, 0]])[0];
-    if (order === 'outlet') return [OUTLET_GROUP(p), a[1], p.no];
-    return [a[1], p.no, 0];
+    const h = HEAD_ORDER.indexOf(p.id);
+    const y = h >= 0 ? -1000 + h : a[1];
+    if (order === 'outlet') return [OUTLET_GROUP(p), y, p.no];
+    return [y, p.no, 0];
   };
   return items.slice().sort((x, y) => {
     const a = key(x);
@@ -662,11 +666,12 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   }
 
   const items = chosen.map((c, i) => ({ ...c, minutes: mins[i], share: mins[i] / treat, split: splitSides(c, mins[i]) }));
-  // 施術の順序：既定は上から下（まず頭を清め、首・肩、背、腎臓部、腰へ）。排泄経路が詰まっている時は出口を先に
-  const used = order === 'auto' ? (lowerCongested ? 'outlet' : 'top') : order;
+  // 施術の順序：基本は上から下（前頭部から始めて頭を清め、首・肩、背、腎臓部、腰へ）。
+  // 出口を先に開ける順序（排泄経路を整えるサブプラン）は、選んだ時だけ
+  const used = order === 'auto' ? 'top' : order;
   const ordered = orderPoints(db, items, used);
   const others = cands.filter((c) => !chosen.includes(c));
-  const notes = planNotes(ex, ordered);
+  const notes = planNotes(ex, ordered, used);
   return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
 }
 
@@ -687,10 +692,14 @@ function splitSides(c, minutes) {
 }
 
 // 計画に添える注意（排泄経路・突き上げ・左右）
-function planNotes(ex, items) {
+function planNotes(ex, items, order = 'top') {
   const notes = [];
   if (ex.level === 'blocked') {
-    notes.push({ kind: 'warn', title: '排泄経路が詰まっている可能性', text: `骨盤まわり（出口）の固結が強い${ex.signs.length ? '、または排泄の不調の訴えがある' : ''}ため、先に出口（腸骨の内側・鼠蹊部・腎臓下方部）を開けてから、首・肩を施術する順序にしました。出口が詰まったまま頭や肩を強く施術すると、溶けた毒素が下りきれず、別の所の浄化や吐き気（突き上げ）として出ることがあります。`, ref: 'haisetsu_keiro' });
+    const why = `骨盤まわり（出口）の固結が強い${ex.signs.length ? '、または排泄の不調の訴えがある' : ''}`;
+    const risk = '出口が詰まったまま頭や肩を強く施術すると、溶けた毒素が下りきれず、別の所の浄化や吐き気（突き上げ）として出ることがあります。';
+    notes.push(order === 'outlet'
+      ? { kind: 'warn', title: '排泄経路を整えるプラン（サブプラン）', text: `${why}ため、先に出口（腸骨の内側・鼠蹊部・腎臓下方部）を開けてから、首・肩を施術する順序にしています。${risk}`, ref: 'haisetsu_keiro', subplan: true }
+      : { kind: 'warn', title: '排泄経路が詰まっている可能性', text: `${why}ようです。基本の順序（上から下）のままでも出口の箇所は計画に入れてありますが、下の「排泄経路を整える（サブプラン）」に切り替えると、先に出口を開けてから上を施術する順序になります。${risk}`, ref: 'haisetsu_keiro', subplan: true });
   } else if (ex.level === 'some') {
     notes.push({ kind: 'info', title: '排泄経路も見ておきましょう', text: ex.painted ? '骨盤まわりにやや固結があります。施術の後に、お腹の張りや吐き気が出ないか見ておき、出る時は腸骨の内側・鼠蹊部・みぞおちの辺りを施術します。' : '排泄の不調の訴えがあります。腸骨の内側・鼠蹊部・腰（自己探査）も確かめてもらいましょう。', ref: 'kotsuban_naibu' });
   } else if (!ex.painted) {
