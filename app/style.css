@@ -837,3 +837,6 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
   :root:not([data-theme="light"]) .tag.tag-must { background: #3a2a1c; color: #f5c899; border-color: #6b4a22; }
 }
 :root[data-theme="dark"] .tag.tag-must { background: #3a2a1c; color: #f5c899; border-color: #6b4a22; }
+/* 入力したこと（読み取りの元） */
+.tag.tag-said { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
+.chips-count { margin-left: 4px; color: var(--accent); font-weight: 700; }
