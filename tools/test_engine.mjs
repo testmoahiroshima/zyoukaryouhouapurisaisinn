@@ -487,6 +487,20 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   ok(db.pointById.enzui.split && db.pointById.koukeibu.split, '延髄部・後頸部は左右に分けて読む箇所');
 }
 
+// 時間：探査は含めず、最後の約6分の1が仕上げ（60分＝施術50分＋仕上げ10分）。仕上げでは求める所、無ければ排泄経路の辛くない所
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  const f = { koukeibu: side({ kouketsu: 3 }, { kouketsu: 2 }), kata: side({ kouketsu: 3 }, { kouketsu: 2 }), haimen_jinzo: side({ kouketsu: 3 }, { kouketsu: 3 }), choukotsu: side({ kouketsu: 1 }, { kouketsu: 3 }), biteikotsu: { kouketsu: 2 } };
+  const p1 = planSession(db, f, 60, analyze(db, '首がかゆい'));
+  const treat = p1.items.reduce((s, i) => s + i.minutes, 0);
+  ok(p1.probe === 0 && p1.check === 10 && treat === 50 && p1.total === 60, `60分 → 施術${treat}分＋仕上げ${p1.check}分（探査${p1.probe}分）`);
+  ok(p1.finish.said.some((x) => x.id === 'koukeibu') && p1.finish.outlets[0].id === 'choukotsu' && p1.finish.outlets[0].side === 'R' && p1.finish.outlets.some((x) => x.id === 'biteikotsu'),
+    `仕上げ：求める所 ${p1.finish.said.map((x) => x.name).join('・')}／排泄経路 ${p1.finish.outlets.map((x) => x.name + (x.side || '')).join('・')}`);
+  const p2 = planSession(db, { kata: { kouketsu: 3 } }, 30, null);
+  ok(p2.check === 5 && p2.items.reduce((s, i) => s + i.minutes, 0) === 25 && !p2.finish.said.length && p2.finish.outlets[0].id === 'biteikotsu', `30分 → 施術25分＋仕上げ5分、訴えも骨盤の所見も無い時は尾てい骨部・仙骨から（${p2.finish.outlets.map((x) => x.name).join('・')}）`);
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }

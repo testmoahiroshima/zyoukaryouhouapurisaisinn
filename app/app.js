@@ -1270,7 +1270,7 @@ function criteriaCard() {
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
       <li><b>各論</b>：本日の症状について岡田先生が説かれた急所を重く。</li>
-      <li><b>時間</b>：はじめに探査（全体の約15%）、最後に確認（約10%）。残りを、所見のある箇所は最低3分、所見の無い重要施術部位は2〜3分確保したうえで、優先度に比例して配る。所見から選ぶ箇所は時間8分あたり1か所（2〜5か所。頭部と骨盤まわりの「必ず入れる」所はこの数に入れない）。施術中は5分ごとに、熱・固結の変化を確かめる声かけをする。</li>
+      <li><b>時間</b>：探査は施術の前に済ませるので時間に含めない。最後の約6分の1（60分で10分、30分で5分）は<b>仕上げ</b>：全体を今一度探査し、受け手が求める所（自分への施術なら気になる所）を施術する。求める所が無ければ、排泄経路に関わり浄化を促しても辛くない所（尾てい骨部・仙骨、仙腸関節付近、腸骨の内側、鼠蹊部）を、探査で所見のある所・骨盤まわりの強い側から示す。残り（60分で50分）を、所見のある箇所は最低3分、所見の無い重要施術部位は2〜3分確保したうえで、優先度に比例して配る。所見から選ぶ箇所は時間8分あたり1か所（2〜5か所。頭部と骨盤まわりの「必ず入れる」所はこの数に入れない）。施術中は5分ごとに、熱・固結の変化を確かめる声かけをする。</li>
       <li><b>順序</b>：上から下が基本（まず頭を清め、首・肩、背、腎臓部、腰へ）。テキストの探査順にも切り替えられる。</li>
     </ol>
     ${principleCard('jinzo_first')}${principleCard('netsu')}${principleCard('kotsuban')}${principleCard('jikan')}
@@ -1398,7 +1398,8 @@ function renderSessionPlan({ jump = true } = {}) {
         </details>
       </li>`).join('')}</ol>
       <p class="small muted">${plan.order === 'outlet' ? '排泄経路を整えるサブプラン：頭のあと、先に骨盤まわりの出口を開けてから、腎臓部・首・肩・背へ。' : plan.order === 'top' ? '基本の順序：前頭部から始めて、頭 → 首・肩 → 背 → 腎臓部 → 腰と、上から下へ。' : ''}</p>
-      <p class="small muted">合計 <b>${plan.total}</b>分（はじめに探査 ${plan.probe}分、最後に確認 ${plan.check}分）。</p>
+      <p class="small muted">合計 <b>${plan.total}</b>分＝施術 <b>${plan.total - plan.check - plan.probe}</b>分＋仕上げ <b>${plan.check}</b>分${plan.probe ? `（はじめに探査 ${plan.probe}分）` : '（探査は施術の前に済ませるので、時間に含めません）'}。</p>
+      ${finishHTML(plan)}
       ${plan.others.length ? `<p class="small muted">今回は外した箇所：${plan.others.map((o) => esc(o.name)).join('、')}（時間があれば続けて）</p>` : ''}
     </div>
     <details class="card fold before-card"${settings.detail === 'full' ? ' open' : ''}>
@@ -1450,6 +1451,23 @@ function renderSessionPlan({ jump = true } = {}) {
   if (jump) jumpToBody(root, '.plan-card');
 }
 
+// 仕上げ（最後の約6分の1）：全体を今一度探査し、求める所、無ければ排泄経路に関わる辛くない所を施術する
+function finishText(x) {
+  return `${x.name}${x.side ? `（${SIDE_JA[x.side]}）` : ''}`;
+}
+function finishHTML(plan, { run = false } = {}) {
+  const f = plan.finish;
+  if (!f) return '';
+  return `<div class="finish-box${run ? ' run' : ''}">
+    ${run ? '' : `<b>仕上げ（最後の${f.minutes}分）</b>`}
+    <ol class="finish-steps">
+      <li>全体を今一度探査する（熱が冷めたか、固結がゆるんだか、新しく熱の出た所はないか）。</li>
+      <li>受け手が求める所（自分への施術なら、気になる所）を施術する。${f.said.length ? `<span class="small">本日の訴えの所：${f.said.map((x) => esc(finishText(x))).join('、')}</span>` : ''}</li>
+      <li>求める所が無ければ、排泄経路に関わり、浄化を促しても辛くない所を施術する。<ul class="finish-outlets">${f.outlets.map((x) => `<li><b>${esc(finishText(x))}</b><span class="small muted">${esc(x.why)}</span></li>`).join('')}</ul></li>
+    </ol>
+  </div>`;
+}
+
 function speechName(id) {
   const p = db.pointById[id];
   return p?.reading || p?.name || '';
@@ -1458,7 +1476,8 @@ function speechName(id) {
 function startRun() {
   unlockAudio();
   const plan = session.plan;
-  const phases = [{ type: 'probe', label: '探査', sec: plan.probe * 60 }];
+  // 探査は施術の前に済ませているので、施術から始める（古い計画で探査の時間がある時だけ入れる）
+  const phases = plan.probe ? [{ type: 'probe', label: '探査', sec: plan.probe * 60 }] : [];
   // 左右がある箇所は、強い側から先に、左右を分けて施術する
   plan.items.forEach((it, i) => {
     const parts = it.split && it.split.length ? it.split : [{ side: it.side || null, minutes: it.minutes }];
@@ -1466,7 +1485,7 @@ function startRun() {
       phases.push({ type: 'treat', id: it.id, side: x.side, key: `${it.id}:${x.side || ''}`, label: `${it.name}${x.side ? `（${SIDE_JA[x.side]}）` : ''}`, sec: x.minutes * 60, n: i + 1 });
     }
   });
-  phases.push({ type: 'check', label: '確認（再探査）', sec: plan.check * 60 });
+  phases.push({ type: 'check', label: '仕上げ（再探査と、求める所・排泄経路）', sec: plan.check * 60 });
   session.run = { phases, i: 0, left: phases[0].sec, paused: false, tick: null, wake: null, checkShow: 0 };
   session.state = 'run';
   renderSession();
@@ -1482,7 +1501,11 @@ function releaseWake() { try { session.run?.wake?.release(); } catch { /* 何も
 
 function phaseMessage(ph) {
   if (ph.type === 'probe') return '探査を始めます。発熱、固結、圧痛の順に確かめましょう。';
-  if (ph.type === 'check') return '最後に、施術した箇所をもう一度探査して、熱が冷めたか、固結がゆるんだかを確かめましょう。';
+  if (ph.type === 'check') {
+    const f = session.plan.finish;
+    const out = f?.outlets.map((x) => `${x.side ? (x.side === 'R' ? 'みぎの' : 'ひだりの') : ''}${speechName(x.id)}`).join('、') || '';
+    return `仕上げです。全体をもう一度探査して、熱が冷めたか、固結がゆるんだかを確かめましょう。そのあと、受け手が求める所を施術します。求める所が無ければ、${out || '排泄経路に関わる所'}を施術しましょう。`;
+  }
   return `${ph.n}番目、${ph.side ? (ph.side === 'R' ? 'みぎの' : 'ひだりの') : ''}${speechName(ph.id)}です。${Math.round(ph.sec / 60)}分。力を抜いて、軽い気持ちで。`;
 }
 
@@ -1570,12 +1593,12 @@ function renderRun() {
     ${stepBar(3)}
     <div class="card run-card">
       <div class="run-phase">${ph.type === 'treat' ? `施術 ${ph.n}/${session.plan.items.length}` : esc(ph.label)}</div>
-      <div class="run-name">${ph.type === 'treat' ? esc(ph.label) : (ph.type === 'probe' ? '発熱・固結・圧痛を確かめる' : '熱が冷めたか、固結がゆるんだか')}</div>
+      <div class="run-name">${ph.type === 'treat' ? esc(ph.label) : (ph.type === 'probe' ? '発熱・固結・圧痛を確かめる' : '全体を再探査し、求める所・排泄経路の所へ')}</div>
       <div class="run-clock" id="run-clock">${mmss(run.left)}</div>
       <div class="run-progress"><i id="run-bar" style="width:0%"></i></div>
-      ${ph.type === 'treat' ? recordLineHTML(ph) : ''}
+      ${ph.type === 'treat' ? recordLineHTML(ph) : ph.type === 'check' ? finishHTML(session.plan, { run: true }) : ''}
       <div class="b3-stage guide-stage run-stage"><div class="b3-wrap" id="run-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rg')}</div>
-      <p class="small muted run-guide-note">${ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所（探査で塗った記録の、熱・固結・圧痛がいちばん強い所）です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番。探査で塗った記録の、いちばん強い所に置いています）。'}</p>
+      <p class="small muted run-guide-note">${ph.type === 'check' ? '<b class="c-now">橙</b>と<b>緑の丸</b>は、求める所が無い時に施術する排泄経路の所です（探査の記録の強い所に置いています）。' : ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所（探査で塗った記録の、熱・固結・圧痛がいちばん強い所）です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番。探査で塗った記録の、いちばん強い所に置いています）。'}</p>
       <p class="run-check" id="run-check"${run.checkShow > 0 ? '' : ' hidden'}>${esc(CHECK_VOICE)}</p>
       <p class="small muted">${next ? `次：${esc(next.label)}（${Math.round(next.sec / 60)}分）` : '最後の段階です'}</p>
       <div class="run-controls">
@@ -1590,7 +1613,8 @@ function renderRun() {
     <ol class="card phase-list">${run.phases.map((p, i) => `<li class="${i === run.i ? 'now' : i < run.i ? 'done' : ''}">${esc(p.label)}<span>${Math.round(p.sec / 60)}分</span></li>`).join('')}</ol>`;
   updateRunClock();
   wireStepBar($('#tab-session'));
-  mountGuide($('#run-3d'), { items: planGuideItems(session.plan, ph.type === 'treat' ? ph.key : null, doneKeys), focus: ph.type === 'treat' }, { ratio: 0.9, maxH: 0.45 });
+  const finishItems = () => (session.plan.finish?.outlets || []).map((x, i) => ({ id: x.id, side: x.side, order: i + 1, emphasis: true, current: i === 0, done: false }));
+  mountGuide($('#run-3d'), { items: ph.type === 'check' && session.plan.finish ? finishItems() : planGuideItems(session.plan, ph.type === 'treat' ? ph.key : null, doneKeys), focus: ph.type !== 'probe' }, { ratio: 0.9, maxH: 0.45 });
   wireZoom($('#tab-session'), 'rg', () => guide.b3);
   $('#run-pause').addEventListener('click', () => { run.paused = !run.paused; renderRun(); });
   $('#run-plus').addEventListener('click', () => { run.left += 60; ph.sec += 60; updateRunClock(); });
@@ -1741,6 +1765,7 @@ function buildRecord() {
     next_advice: nextAdvice(db, session.findings, session.after, session.plan.items).map(({ kind, text }) => ({ kind, text })),
     previous_session: session.prev?.session_id || undefined,
     plan_minutes: { probe: session.plan.probe, check: session.plan.check },
+    ...(session.plan.finish ? { finish_suggestions: { said: session.plan.finish.said.map(finishText), outlets: session.plan.finish.outlets.map(finishText) } } : {}),
   };
 }
 
