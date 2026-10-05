@@ -136,7 +136,7 @@ export function completeStations(db, stations) {
       const present = new Set(out.flatMap((s) => s.points || []));
       const pre = [];
       for (let l = 0; l < l0; l++) {
-        if (fill[l] && !fill[l].every((id) => present.has(id))) pre.push(fillStation(db, fill[l]));
+        if (fill[l] && !fill[l].every((id) => present.has(id))) pre.push({ ...fillStation(db, fill[l]), pre: true });
       }
       out = [...pre, ...out];
     }
@@ -144,12 +144,17 @@ export function completeStations(db, stations) {
   return out;
 }
 
-// 駅ごとの役割：最初＝楽屋、最後の探査部位（その後に経由地が無い時）＝舞台、他＝経路
+// 駅ごとの役割：テキストの流れの最初＝楽屋、最後の探査部位（その後に経由地が無い時）＝舞台、他＝経路。
+// 基本経路で手前に補った段（腎臓部など）は、楽屋のさらに元へ続く経路とする（例：頸の廻りの固まりは肩が楽屋）
 function stationRoles(stations) {
   const lastPointIdx = stations.length - 1 >= 0 && stations[stations.length - 1].points ? stations.length - 1 : -1;
+  // テキストの流れが一段だけ（舞台のみ）の時は、補った最初の段（腎臓部）を楽屋とする
+  let first = stations.findIndex((s) => !s.pre);
+  if (first === lastPointIdx) first = 0;
   return stations.map((s, i) => {
     if (!s.points) return null;
-    if (i === 0 && stations.length > 1) return 'rakuya';
+    if (s.pre && i !== first) return 'keiro';
+    if (i === first && stations.length > 1 && i !== lastPointIdx) return 'rakuya';
     if (i === lastPointIdx) return 'butai';
     return 'keiro';
   });
@@ -837,6 +842,32 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       let left2 = surplus;
       for (const [i, v] of share) { const m = Math.floor(v); mins[i] += m; left2 -= m; }
       share.sort((a, b) => (b[1] % 1) - (a[1] % 1)).forEach(([i]) => { if (left2 > 0) { mins[i]++; left2--; } });
+    }
+  }
+
+  // 肩は重要施術部位で、首の周り・頭・腕の楽屋（肩の凝りが溶けて首・頭・胸へ移る。肩より上を施術すると一番よく効く）。
+  // 所見があれば、左右合わせて残りの1割5分ほど（60分で7分）、本日の訴えの楽屋・元にあたる時は2割ほど（60分で9分）を確保する。
+  // 足りない分は、優先度の低い箇所から1分ずつ回す（各箇所の最低時間は割らない）
+  const ki = chosen.findIndex((c) => c.id === 'kata' && !c.stub);
+  if (ki >= 0) {
+    const kata = chosen[ki];
+    const root = kata.reasons.some((r) => r.text.startsWith('楽屋') || r.text.startsWith('本日の訴え'));
+    const floor = Math.min(Math.round(avail * 0.3), Math.max(4, Math.round(avail * (root ? 0.2 : 0.15))));
+    let need = floor - mins[ki];
+    if (need > 0) {
+      const donors = chosen.map((c, i) => [c, i]).filter(([, i]) => i !== ki).sort((x, y) => (x[0].P || 0) - (y[0].P || 0));
+      // まず各箇所の最低時間まで、それでも足りなければ（時間の短い時）所見のある所を2分まで縮める
+      for (const low of [(c) => minOf(c), (c) => (c.stub ? minOf(c) : Math.min(minOf(c), 2))]) {
+        while (need > 0) {
+          let took = false;
+          for (const [c, i] of donors) {
+            if (need <= 0) break;
+            if (mins[i] > low(c)) { mins[i]--; mins[ki]++; need--; took = true; }
+          }
+          if (!took) break;
+        }
+      }
+      kata.reasons.push({ text: `肩は首の周り・頭・腕の楽屋（肩より上の施術が一番よく効く）：${root ? '本日の訴えの元にあたるので、' : ''}左右合わせて${mins[ki]}分ほどを確保`, ref: 'kata_gauge' });
     }
   }
 

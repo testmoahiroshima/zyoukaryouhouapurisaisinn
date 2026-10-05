@@ -447,6 +447,30 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   ok(!bad.length, `関係表 ${db.relations.length}件の整合${bad.length ? '：' + bad.map((r) => r.id).join(',') : ''}`);
 }
 
+// 肩：首の周りの楽屋。所見があれば時間を確保（60分で7分ほど、訴えの楽屋・元なら9分ほど）
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  const a = analyze(db, '首がかゆい');
+  ok(a.points.find((p) => p.id === 'kata')?.roles.includes('rakuya'), '首の訴え → 肩が楽屋（いったん肩に固まった物が頸へ行く）');
+  const f = {
+    zentoubu: { heat: 2 }, koutoubu: { heat: 1, kouketsu: 2 }, koukeibu: { kouketsu: 3, atsutsuu: 2 }, enzui: { kouketsu: 2 },
+    jikasen: { kouketsu: 3, heat: 2 }, keibu_lymph: side({ kouketsu: 3 }, { kouketsu: 2 }), kata: side({ kouketsu: 1.5 }, { kouketsu: 1 }),
+    kenkoukan: side({ kouketsu: 3 }, { kouketsu: 2 }), kenkoukotsu: side({ kouketsu: 3 }, { kouketsu: 3 }),
+    haimen_jinzo: side({ kouketsu: 4 }, { kouketsu: 3 }), jinzo_kahou: side({ kouketsu: 3 }, { kouketsu: 3 }),
+    choukotsu: side({ kouketsu: 2 }, { kouketsu: 2 }), sokeibu: side({ kouketsu: 2 }, {}), youkotsu: { kouketsu: 3 },
+  };
+  const p1 = planSession(db, f, 60, a);
+  const k1 = p1.items.find((i) => i.id === 'kata');
+  ok(k1.minutes >= 9 && p1.total === 60, `首の訴え・肩の所見は軽くても、肩は左右で${k1.minutes}分（${k1.split.map((x) => x.side + x.minutes).join('/')}）`);
+  const p2 = planSession(db, f, 60, null);
+  const k2 = p2.items.find((i) => i.id === 'kata');
+  ok(k2.minutes >= 7 && p2.total === 60, `訴えが無くても、所見のある肩は${k2.minutes}分`);
+  const p3 = planSession(db, f, 30, a);
+  const k3 = p3.items.find((i) => i.id === 'kata');
+  ok(k3.minutes >= 4 && p3.total === 30, `30分でも肩は${k3.minutes}分`);
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }
