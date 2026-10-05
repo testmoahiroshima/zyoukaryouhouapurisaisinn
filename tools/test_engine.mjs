@@ -229,6 +229,24 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (thin.items.some((i) => i.must)) { console.log('NG 薄い所見まで必ず入れている'); fail++; }
 }
 
+// 実際の記録から（首のかゆみ・60分）：訴えの首の所見（後頸部・頸髄部）を外さず、頭部は1か所3〜4分まで、
+// 骨盤まわり（腰骨部・腸骨の内側）の固結も入れる。頸髄部は熱の強い左を重点に
+{
+  const f = {"youkotsu":{"heat":0,"kouketsu":5,"atsutsuu":0},"jinzo_kahou":{"heat":1.9,"kouketsu":5,"atsutsuu":0,"sides":{"L":{"heat":1.9,"kouketsu":5,"atsutsuu":0},"R":{"heat":1.5,"kouketsu":5,"atsutsuu":0}}},"kenkoukan":{"heat":2.8,"kouketsu":5,"atsutsuu":1.9,"sides":{"L":{"heat":0,"kouketsu":3.5,"atsutsuu":0},"R":{"heat":2.8,"kouketsu":5,"atsutsuu":1.9}}},"kenkoukotsu_ka":{"heat":1.5,"kouketsu":2,"atsutsuu":0,"sides":{"R":{"heat":1.5,"kouketsu":2,"atsutsuu":0}}},"sekichuu":{"heat":0,"kouketsu":2.1,"atsutsuu":0},"kenkoukotsu":{"heat":1.8,"kouketsu":2,"atsutsuu":1,"sides":{"L":{"heat":0,"kouketsu":2,"atsutsuu":0},"R":{"heat":1.8,"kouketsu":1.9,"atsutsuu":1}}},"koutoubu":{"heat":4,"kouketsu":3,"atsutsuu":0},"haimen_jinzo":{"heat":1.7,"kouketsu":5,"atsutsuu":0,"sides":{"L":{"heat":1.7,"kouketsu":5,"atsutsuu":0},"R":{"heat":0,"kouketsu":2,"atsutsuu":0}}},"koukeibu":{"heat":5,"kouketsu":3.3,"atsutsuu":1.8},"keizui":{"heat":4.8,"kouketsu":4,"atsutsuu":1,"sides":{"L":{"heat":4.8,"kouketsu":4,"atsutsuu":0},"R":{"heat":3.1,"kouketsu":2.8,"atsutsuu":1}}},"jinzo_kahou_side":{"heat":0,"kouketsu":3.1,"atsutsuu":0,"sides":{"L":{"heat":0,"kouketsu":3.1,"atsutsuu":0},"R":{"heat":0,"kouketsu":1,"atsutsuu":0}}},"kata":{"heat":0,"kouketsu":2.9,"atsutsuu":0,"sides":{"R":{"heat":0,"kouketsu":2.9,"atsutsuu":0}}},"touchoubu":{"heat":3,"kouketsu":0,"atsutsuu":0},"sokutoubu":{"heat":3,"kouketsu":0,"atsutsuu":0,"sides":{"L":{"heat":3,"kouketsu":0,"atsutsuu":0},"R":{"heat":3,"kouketsu":0,"atsutsuu":0}}},"choukotsu":{"heat":0,"kouketsu":3.4,"atsutsuu":0,"sides":{"L":{"heat":0,"kouketsu":2.3,"atsutsuu":0},"R":{"heat":0,"kouketsu":3.4,"atsutsuu":0}}},"zentoubu":{"heat":1.8,"kouketsu":0,"atsutsuu":0}};
+  const a = analyze(db, '首が痛い。首がかゆい。首が重い。熱っぽい', []);
+  for (const t of [60, 45, 30, 15]) {
+    const pl = planSession(db, f, t, a);
+    const ids = pl.items.map((i) => i.id);
+    const sum = pl.probe + pl.check + pl.items.reduce((s, i) => s + i.minutes, 0);
+    const head = pl.items.filter((i) => db.pointById[i.id].region === 'head');
+    const kz = pl.items.find((i) => i.id === 'keizui');
+    const good = sum === t && ids[0] === 'zentoubu' && ids.includes('koukeibu') && ids.includes('youkotsu')
+      && head.every((i) => i.minutes <= 4) && (t < 30 || ids.includes('choukotsu')) && (t < 45 || (ids.includes('keizui') && ids.includes('kenkoukan') && kz.split[0].side === 'L'));
+    console.log(`${good ? 'ok' : 'NG'}  記録（首のかゆみ）${t}分：` + pl.items.map((i) => `${i.name}${i.minutes}`).join(' '));
+    if (!good) fail++;
+  }
+}
+
 // 左右と排泄経路：右の腎臓部が強く、右の腸骨の内側にも固結 → 右の腎臓部を重点・出口を先に
 {
   const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
