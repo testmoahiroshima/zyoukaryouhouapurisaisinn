@@ -386,8 +386,13 @@ const REQUIRED = [
 
 // 鼠蹊部・恥骨部（腰部・骨盤周辺の自己探査）は、張り・痛み・熱があれば、時間が短くても必ず施術に入れる。
 // 排泄の出口であり（腸骨内側〜鼠蹊部の凝りは恥骨へ続く）、所見の強い箇所に押し出されて外れやすいため
+// 骨盤まわりの自己探査（腰骨部・尾てい骨部・鼠蹊部・腸骨の内側・仙腸関節付近・恥骨部）も、張り・痛みがはっきりしていれば入れる
+// （鼠蹊部・恥骨部は 1 以上、ほかは 2 以上。強い順に3か所まで。排泄経路が詰まっていて入れた出口もこの数に含める）
 export const PELVIC_MUST = ['sokeibu', 'chikotsu'];
-const PELVIC_MIN = 1; // 熱・固結・圧痛のどれかがこの値（0〜5）以上なら入れる
+const PELVIC_SELF = ['youkotsu', 'biteikotsu', 'sokeibu', 'choukotsu', 'senchou', 'chikotsu'];
+const PELVIC_MIN = 1; // 熱・固結・圧痛のどれかがこの値（0〜5）以上なら入れる（鼠蹊部・恥骨部）
+const PELVIC_MIN_OTHER = 2; // ほかの骨盤まわりの所
+const PELVIC_MAX = 3;
 
 // 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加え、重なる所（急所）をさらに重くする
 export function findingScore(f) {
@@ -439,6 +444,10 @@ export function sideFocus(f) {
   const hi = Math.max(l, r);
   const lo = Math.min(l, r);
   if (hi - lo >= 1 && hi >= lo * 1.3) return { side: l > r ? 'L' : 'R', strong: hi, weak: lo, only: false };
+  // 合計の差が小さくても、熱（浄化の中心）にはっきり差があれば、熱の強い側を重点に
+  const hl = s.L?.heat || 0;
+  const hr = s.R?.heat || 0;
+  if (Math.abs(hl - hr) >= 1.5) return { side: hl > hr ? 'L' : 'R', strong: hi, weak: lo, only: false, byHeat: true };
   return { side: null, strong: hi, weak: lo, only: false, both: true };
 }
 // からだ全体の左右の傾向：左右がある箇所の所見を左右で足し合わせ、訴えの左右（「右の肩が…」）も加える。
@@ -554,7 +563,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     const sf = sideFocus(f);
     let side = sf?.side || null;
     if (sf?.side) {
-      reasons.push({ text: `${SIDE_NAME[sf.side]}が強い${sf.only ? '（塗られたのは' + SIDE_NAME[sf.side] + 'のみ）' : ''}：${SIDE_NAME[sf.side]}を重点に`, ref: 'sayuu' });
+      reasons.push({ text: `${SIDE_NAME[sf.side]}が強い${sf.only ? '（塗られたのは' + SIDE_NAME[sf.side] + 'のみ）' : sf.byHeat ? '（熱が' + SIDE_NAME[sf.side] + 'に強い）' : ''}：${SIDE_NAME[sf.side]}を重点に`, ref: 'sayuu' });
     }
     if (pSide && (p.region === 'kidney' || OUTLET_POINTS.includes(id)) && (!side || side === pSide) && (f.sides?.[pSide])) {
       side = pSide;
@@ -590,24 +599,35 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   if (lowerCongested) {
     const o = cands.find((c) => OUTLET_POINTS.includes(c.id));
     if (o && !required.includes(o)) {
-      o.reasons.push({ text: '排泄経路が詰まっている：先に出口（骨盤まわり）を開けてから上を施術する', ref: 'haisetsu_keiro' });
+      o.reasons.push({ text: '排泄経路が詰まっている：出口（骨盤まわり）を必ず施術に入れる', ref: 'haisetsu_keiro' });
+      o.must = true;
       required.push(o);
     }
   }
   // 頭・肩・腎臓部（重要施術部位）。所見の有無にかかわらず印をつける
   for (const c of required.slice(0, REQUIRED.length)) c.key = true;
-  // 3) 鼠蹊部・恥骨部（自己探査）に張り・痛み・熱があれば、幾分かでも必ず入れる
-  for (const id of PELVIC_MUST) {
-    const c = cands.find((x) => x.id === id);
-    if (!c || required.includes(c)) continue;
-    const f = c.finding;
-    if (Math.max(f.heat, f.kouketsu, f.atsutsuu) < PELVIC_MIN) continue;
+  // 3) 骨盤まわり（自己探査）に張り・痛み・熱があれば、幾分かでも必ず入れる（強い順に3か所まで）
+  // 鼠蹊部・恥骨部は 1 以上なら必ず。ほかの骨盤まわりは 2 以上を、強い順に（時間が短い時は数を減らす）
+  const pelvicIn = required.filter((c) => PELVIC_SELF.includes(c.id)).length;
+  const strong = (c) => Math.max(c.finding.heat, c.finding.kouketsu, c.finding.atsutsuu);
+  const pelvicFront = cands.filter((c) => PELVIC_MUST.includes(c.id) && !required.includes(c) && strong(c) >= PELVIC_MIN);
+  const pelvicOther = cands.filter((c) => PELVIC_SELF.includes(c.id) && !PELVIC_MUST.includes(c.id) && !required.includes(c) && strong(c) >= PELVIC_MIN_OTHER)
+    .slice(0, Math.max(0, (total < 30 ? 1 : total < 45 ? 2 : PELVIC_MAX) - pelvicIn - pelvicFront.length));
+  const pelvic = [...pelvicFront, ...pelvicOther];
+  for (const c of pelvic) {
     c.must = true;
-    c.reasons.push({ text: `${id === 'sokeibu' ? '鼠蹊部' : '恥骨部'}（自己探査）に張り・痛み・熱がある：排泄の出口なので、短くても必ず施術に入れる（場所が場所だけに、本人と相談して行う）`, ref: 'kotsuban_naibu' });
+    c.reasons.push({ text: `${c.name}（自己探査）に張り・痛み・熱がある：排泄の出口・骨盤まわりなので、短くても必ず施術に入れる${['sokeibu', 'chikotsu'].includes(c.id) ? '（場所が場所だけに、本人と相談して行う）' : ''}`, ref: 'kotsuban_naibu' });
     required.push(c);
   }
-  // 4) 残りは優先度の高い順に（所見のある重要施術部位も数に入れて maxN か所まで）
-  const realReq = required.filter((c) => !c.stub && !c.must).length;
+  // 4) 訴えの場所（舞台）に所見があれば、その一番強い所を必ず入れる（例：首がかゆい → 首の所見）
+  const stage = hasAnalysis ? cands.find((c) => !required.includes(c) && c.region !== 'head' && roleOf[c.id]?.roles.includes('butai')) : null;
+  if (stage) {
+    stage.reasons.push({ text: '訴えの場所（舞台）に所見がある：必ず組み入れ', ref: 'kyuusho' });
+    required.push(stage);
+  }
+  // 5) 残りは優先度の高い順に。頭部（前頭部・頭頂部・後頭部は必ず入る）と骨盤まわりの「必ず入れる」所はこの数に入れず、
+  //    肩・腎臓部・訴えの場所など、所見から選んだ所と合わせて maxN か所まで
+  const realReq = required.filter((c) => !c.stub && !c.must && c.region !== 'head').length;
   const extras = cands.filter((c) => !required.includes(c)).slice(0, Math.max(0, maxN - realReq));
 
   const probe = Math.max(3, Math.round(total * 0.15));
@@ -617,13 +637,15 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   // 頭の所見なしの最低時間：60分で3分ほど、短い時は1分
   const headMin = Math.max(1, Math.min(3, Math.round(avail / 15)));
   let realMin = 3;
-  let mustMin = 3; // 鼠蹊部・恥骨部（必ず入れる自己探査の所）。時間が足りない時は1分まで縮める
-  const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : c.must ? mustMin : realMin);
+  let mustMin = 3; // 骨盤まわり（必ず入れる自己探査の所）。時間が足りない時は1分まで縮める
+  let headRealMin = 3; // 所見のある頭部
+  const minOf = (c) => (c.headStub ? headMin : c.stub ? stubMin : c.must ? mustMin : c.region === 'head' ? headRealMin : realMin);
   const need = () => [...required, ...extras].reduce((s, c) => s + minOf(c), 0);
-  // 時間が足りない時は、優先度の低い箇所から外し（重要施術部位は外さない）、それでも足りなければ最低時間を2分に
+  // 時間が足りない時は、優先度の低い箇所から外し（必ず入れる所は外さない）、それでも足りなければ最低時間を2分、1分と縮める
   while (extras.length && need() > avail) extras.pop();
-  if (need() > avail) { realMin = 2; mustMin = 2; }
-  if (need() > avail) mustMin = 1;
+  if (need() > avail) { realMin = 2; mustMin = 2; headRealMin = 2; }
+  if (need() > avail) { mustMin = 1; headRealMin = 1; }
+  if (need() > avail) realMin = 1;
   const chosen = [...required, ...extras];
   for (const c of required) {
     if (!c.stub && !cands.slice(0, maxN).includes(c)) {
@@ -645,10 +667,15 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0]).forEach(([, i]) => { if (left > 0) { mins[i]++; left--; } });
 
   // 頭部は一か所あたり数分まで（頭部が特に大事と読み取れる時だけ長めに）。余った時間はほかの箇所へ
-  const headImportant = (analysis?.categories || []).some((c) => HEAD_CATS.has(c.id)) || chosen.some((c) => c.region === 'head' && (c.finding?.heat || 0) >= 4);
-  const headCap = headImportant ? Math.max(4, Math.round(avail * 0.12)) : 3;
+  // 頭部の各所は3分まで。その所に強い熱（4以上）がある時だけ4分、頭痛など頭部の訴えがあって強い熱がある時は残りの1割ほど（60分で5分）まで
+  const headSaid = (analysis?.categories || []).some((c) => HEAD_CATS.has(c.id));
+  const headCapOf = (c) => {
+    const h = c.finding?.heat || 0;
+    if (h >= 4) return headSaid ? Math.max(4, Math.round(avail * 0.1)) : 4;
+    return 3;
+  };
   let surplus = 0;
-  chosen.forEach((c, i) => { if (c.region === 'head' && mins[i] > headCap) { surplus += mins[i] - headCap; mins[i] = headCap; } });
+  chosen.forEach((c, i) => { if (c.region === 'head' && mins[i] > headCapOf(c)) { surplus += mins[i] - headCapOf(c); mins[i] = headCapOf(c); } });
   if (surplus) {
     const others = chosen.map((c, i) => [c, i]).filter(([c]) => c.region !== 'head');
     const real2 = others.filter(([c]) => !c.stub);
