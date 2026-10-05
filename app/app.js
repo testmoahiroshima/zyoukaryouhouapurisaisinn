@@ -1093,6 +1093,24 @@ function jumpToBody(root, sel = '.dim-switch') {
   });
 }
 
+// 頭部の熱の浅い・深い（探査の結果の欄で選ぶ。session.heatDepth に { 箇所: 'shallow' | 'deep' }）
+const HEAD_IDS = ['zentoubu', 'touchoubu', 'sokutoubu', 'koutoubu'];
+function withDepth(findings) {
+  for (const id of HEAD_IDS) {
+    if (!findings[id]) continue;
+    const d = session.heatDepth?.[id];
+    if (d && (findings[id].heat || 0) > 0) findings[id].depth = d; else delete findings[id].depth;
+  }
+  return findings;
+}
+function depthHTML(id, f) {
+  if (!HEAD_IDS.includes(id) || !(f.heat > 0)) return '';
+  const cur = f.depth || '';
+  return `<div class="depth-row" role="group" aria-label="熱の深さ"><span class="small">熱の深さ</span>
+    <button type="button" class="chip" data-depth="${id}:shallow" aria-pressed="${cur === 'shallow'}">浅い（表面）</button>
+    <button type="button" class="chip" data-depth="${id}:deep" aria-pressed="${cur === 'deep'}">深い（奥）</button></div>`;
+}
+
 function readoutHTML(findings, highlightIds = new Set()) {
   const rows = db.pointList.filter((p) => findings[p.id]);
   if (!rows.length) return '<p class="small muted">まだ入っていません。番号の丸を押して熱・固結・圧痛を選ぶか、なぞって塗ってください。</p>';
@@ -1104,7 +1122,7 @@ function readoutHTML(findings, highlightIds = new Set()) {
   };
   return `<ul class="readout">${rows.map((p) => {
     const f = findings[p.id];
-    return `<li${highlightIds.has(p.id) ? ' class="hl"' : ''}><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${f.sides?.L && f.sides?.R ? sideRows(f) : shadeBars(f) + sideRows(f)}</li>`;
+    return `<li${highlightIds.has(p.id) ? ' class="hl"' : ''}><span class="no">${p.no}</span><span class="name">${esc(p.name)}</span>${f.sides?.L && f.sides?.R ? sideRows(f) : shadeBars(f) + sideRows(f)}${depthHTML(p.id, f)}</li>`;
   }).join('')}</ul>`;
 }
 
@@ -1186,6 +1204,10 @@ function renderSessionInput() {
     <div class="card">
       <h2>入った探査の結果</h2>
       <p class="small muted">箇所ごとに5段階で読み取ります。塗った時は、一番近い探査箇所にだけ数え、少しはみ出しただけの所は数えません。</p>
+      <details class="depth-help small"><summary>頭部の熱は「浅い・深い」も選べます</summary>
+        <p>頭部（前頭部・頭頂部・こめかみ部・後頭部）に熱がある時は、熱の深さも選んでください。<b>浅い熱（表面）</b>はほかから響いている熱で、元（頸部淋巴腺・耳下腺、陰部、後頭部なら延髄部の辺り）を探って施術します。<b>深い熱（奥）</b>は頭部そのものが元で、頭部を長めに施術します。</p>
+        <p>見分ける手がかり：額に触れて熱い時は、まず額を少し施術してみて、熱が下がれば額の奥（頭部）が元、下がらなければ耳下腺・後頭部・肩が元とされます。頭の奥の毒が溶ける時は割れるように痛み、外側の時はそうでもないとされます（岡田先生 昭和23年12月・昭和28年9月）。</p>
+      </details>
       <div id="readout">${readoutHTML(session.findings, sugIds)}</div>
     </div>
     <div class="card">
@@ -1200,9 +1222,18 @@ function renderSessionInput() {
   wireStepBar(root);
   jumpToBody(root, '.prev-bar, .dim-switch');
   const refreshPb = () => {
-    session.findings = padSample(pad);
+    session.findings = withDepth(padSample(pad));
     $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
   };
+  // 頭部の熱の浅い・深い（もう一度押すと外す）
+  $('#readout', root).addEventListener('click', (e) => {
+    const b = e.target.closest('[data-depth]');
+    if (!b) return;
+    const [id, d] = b.dataset.depth.split(':');
+    session.heatDepth = { ...(session.heatDepth || {}) };
+    if (session.heatDepth[id] === d) delete session.heatDepth[id]; else session.heatDepth[id] = d;
+    refreshPb();
+  });
   wirePainter(root, 'pb', pad, refreshPb);
   wirePrevBar(root, pad, refreshPb);
   $$('.time-chip').forEach((b) => b.addEventListener('click', () => {
@@ -1211,7 +1242,7 @@ function renderSessionInput() {
     $$('.time-chip').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
   }));
   $('#make-plan').addEventListener('click', () => {
-    session.findings = padSample(pad);
+    session.findings = withDepth(padSample(pad));
     const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order, prev: session.prev });
     if (!plan.ok) {
       const m = $('#plan-msg');
@@ -1229,7 +1260,7 @@ function criteriaCard() {
   return `<details class="card criteria"><summary><h2>優先順位と時間配分の考え方</h2></summary>
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
-      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加える。熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4。第二浄化作用が進んでいる所）。</li><li><b>4つのポイントの加点</b>：重要施術部位（腎臓部＋3、頭・肩＋2、背部＋1.5）、各論（＋2.5）、楽屋と舞台（楽屋＋3、舞台・経路＋1.5）、毒素集溜と排泄の経路（出口＋1.5、詰まっている時＋3、腎臓部から骨盤の内側への固結の柱＋2）。ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部に＋3して浄化力の高まりを目指す。前回の終わりにも残っていた所は＋1.5（続けて溶かす）。頭痛の時は、元（頭部の毒血・首の固結の圧迫・頸部淋巴腺や延髄部の浄化熱）に＋3。加点は計画の「なぜここを？」に出る。</li>
+      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加える。熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4。第二浄化作用が進んでいる所）。</li><li><b>4つのポイントの加点</b>：重要施術部位（腎臓部＋3、頭・肩＋2、背部＋1.5）、各論（＋2.5）、楽屋と舞台（楽屋＋3、舞台・経路＋1.5）、毒素集溜と排泄の経路（出口＋1.5、詰まっている時＋3、腎臓部から骨盤の内側への固結の柱＋2）。ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部に＋3して浄化力の高まりを目指す。前回の終わりにも残っていた所は＋1.5（続けて溶かす）。頭痛の時は、元（頭部の毒血・首の固結の圧迫・頸部淋巴腺や延髄部の浄化熱）に＋3。頭部の熱は浅い・深いを選べ、深い熱（頭の奥）は頭部が元として＋2・頭部を長めに、浅い熱（表面）はほかから響く熱として元（頸部淋巴腺・耳下腺・陰部、後頭部なら延髄部の辺り）に＋2。加点は計画の「なぜここを？」に出る。</li>
       <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。骨盤まわり（自己探査）に張り・痛み・熱があれば、短くても必ず入れる（排泄の出口。鼠蹊部・恥骨部は少しでもあれば、腰骨部・腸骨の内側などははっきりしていれば。時間に応じて1〜3か所）。訴えの場所（舞台）に所見があれば、その一番強い所も必ず入れる。頭部は一か所あたり3分まで（その所に強い熱がある時は4分、頭痛など頭部の訴えもある時だけさらに長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（熱に差があれば熱の強い側を。差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
@@ -1673,7 +1704,7 @@ function renderDone() {
   });
   $('#new-session').addEventListener('click', () => {
     releasePads();
-    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, order: 'top', state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
+    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, heatDepth: {}, order: 'top', state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
     renderSession();
   });
 }
@@ -1681,7 +1712,7 @@ function renderDone() {
 const r1 = (v) => Math.round((v || 0) * 10) / 10;
 function buildRecord() {
   const one = (v) => ({ heat: r1(v.heat), kouketsu: r1(v.kouketsu), atsutsuu: r1(v.atsutsuu) });
-  const toList = (f) => Object.entries(f).map(([point_id, v]) => ({ point_id, ...one(v), ...(v.sides ? { sides: Object.fromEntries(Object.entries(v.sides).map(([k, x]) => [k, one(x)])) } : {}) }));
+  const toList = (f) => Object.entries(f).map(([point_id, v]) => ({ point_id, ...one(v), ...(v.depth ? { depth: v.depth } : {}), ...(v.sides ? { sides: Object.fromEntries(Object.entries(v.sides).map(([k, x]) => [k, one(x)])) } : {}) }));
   const complaints = [];
   if (lastAnalysis?.input?.trim()) complaints.push(lastAnalysis.input.trim());
   for (const c of lastAnalysis?.categories || []) complaints.push(c.label);

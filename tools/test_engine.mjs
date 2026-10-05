@@ -284,6 +284,28 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   if (!none.notes.some((n) => n.title === '頭痛の元を探りましょう')) { console.log('NG 頭痛で所見が無い時の案内'); fail++; }
 }
 
+// 頭部の熱の浅い・深い：深い熱は頭部が元（頭部を長めに）、浅い熱はほかから（首の淋巴腺・耳下腺・陰部、後頭部は延髄部の辺り）
+{
+  const base = { zentoubu: { heat: 3 }, keibu_lymph: { kouketsu: 2 }, chikotsu: { kouketsu: 1.5 }, kata: { kouketsu: 3 }, haimen_jinzo: { kouketsu: 3 } };
+  const deep = planSession(db, { ...base, zentoubu: { heat: 3, depth: 'deep' } }, 60, null);
+  const shallow = planSession(db, { ...base, zentoubu: { heat: 3, depth: 'shallow' } }, 60, null);
+  const m = (p, id) => p.items.find((i) => i.id === id)?.minutes || 0;
+  const P = (p, id) => p.items.find((i) => i.id === id)?.P || 0;
+  const good = m(deep, 'zentoubu') > m(shallow, 'zentoubu') && P(shallow, 'keibu_lymph') > P(deep, 'keibu_lymph') && P(shallow, 'chikotsu') > P(deep, 'chikotsu')
+    && shallow.notes.some((n) => n.title === '頭部の熱の浅い・深い') && deep.notes.some((n) => n.title === '頭部の熱の浅い・深い');
+  console.log(`${good ? 'ok' : 'NG'}  熱の深さ：深い→前頭部${m(deep, 'zentoubu')}分、浅い→前頭部${m(shallow, 'zentoubu')}分・頸部淋巴腺部${m(shallow, 'keibu_lymph')}分・恥骨部${m(shallow, 'chikotsu')}分`);
+  if (!good) fail++;
+  const back = planSession(db, { koutoubu: { heat: 3, depth: 'shallow' }, enzui: { kouketsu: 2 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 2 } }, 30, null);
+  const g2 = back.items.find((i) => i.id === 'enzui')?.reasons.some((r) => r.ref === 'netsu_fukasa');
+  console.log(`${g2 ? 'ok' : 'NG'}  後頭部の浅い熱 → 延髄部の辺りを元として重く`);
+  if (!g2) fail++;
+  // 頭痛：浅い熱は頭部の毒血とみない
+  const hp = planSession(db, { zentoubu: { heat: 4, depth: 'shallow' }, keibu_lymph: { kouketsu: 3 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 2 } }, 30, analyze(db, '頭が痛い', []));
+  const g3 = !hp.items.find((i) => i.id === 'zentoubu').reasons.some((r) => r.text.includes('毒血'));
+  console.log(`${g3 ? 'ok' : 'NG'}  頭痛で浅い熱は、頭部の毒血とみない`);
+  if (!g3) fail++;
+}
+
 // 排泄経路：骨盤まわりの強い圧痛・熱も詰まりとみる（固結より軽く）
 {
   const lv = (f) => excretionCheck(db, f, null).level;

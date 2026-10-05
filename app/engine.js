@@ -373,7 +373,13 @@ const REGION_FACTOR = {
   head: { pts: 2, why: '重要施術部位：頭は四肢五体の根元', ref: 'atama_first' },
   shoulder: { pts: 2, why: '重要施術部位：肩（肩の硬軟は健康の目安）', ref: 'kata_gauge' },
 };
-const PTS = { rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5 };
+// ---- 頭部の熱の浅い・深い ----
+// 深い熱（頭の奥）：頭部そのものの毒が溶けている＝頭部が元。浅い熱（表面）：ほかから響いている熱で、元を探る。
+// 前頭部・頭頂部・こめかみ部の浅い熱の元は、頸部淋巴腺・耳下腺の浄化熱か、陰部（前は前頭部に関係）。後頭部の浅い熱の元は延髄部の辺り
+const HEAD_FRONT = ['zentoubu', 'touchoubu', 'sokutoubu'];
+const SHALLOW_SRC_FRONT = ['jikasen', 'keibu_lymph', 'hentousen', 'chikotsu', 'sokeibu'];
+const SHALLOW_SRC_BACK = ['enzui', 'koukeibu', 'keizui'];
+const PTS = { depthDeep: 2, depthSrc: 2, rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5 };
 
 // ---- 頭痛の元 ----
 // 頭痛の訴えがある時、探査の結果から元を見分ける。
@@ -392,7 +398,8 @@ export function headacheTypes(cands, analysis) {
   const neckHeat = cands.some((c) => [...NECK_LYMPH, ...NECK_ENZUI].includes(c.id) && c.finding.heat > 0);
   for (const c of cands) {
     const f = c.finding;
-    if (c.region === 'head' && f.heat > 0 && (f.heat >= 2 || !neckHeat)) { types.add('doku'); byPoint[c.id] = '頭痛の元：ここに溜まった毒血の浄化（手を当てると熱い）'; continue; }
+    // 浅い熱はほかから来ている熱（元は首や陰部）。深い熱は頭部そのものの毒
+    if (c.region === 'head' && f.heat > 0 && f.depth !== 'shallow' && (f.depth === 'deep' || f.heat >= 2 || !neckHeat)) { types.add('doku'); byPoint[c.id] = '頭痛の元：ここに溜まった毒血の浄化（手を当てると熱い）'; continue; }
     if (NECK_LYMPH.includes(c.id) && f.heat > 0) { types.add('lymph'); byPoint[c.id] = '前頭部の頭痛の元：頸部淋巴腺（耳下腺から淋巴腺）の浄化熱'; continue; }
     if (NECK_ENZUI.includes(c.id) && f.heat > 0) { types.add('enzui'); byPoint[c.id] = '後頭部の頭痛の元：延髄部の浄化熱（その根原は腎臓）'; continue; }
     if ([...NECK_LYMPH, ...NECK_ENZUI].includes(c.id) && f.kouketsu > 0) { types.add('hinketsu'); byPoint[c.id] = '頭痛の元：首の周りの固結が頭へ血を送る血管を圧迫（脳貧血）'; }
@@ -656,7 +663,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     }
     const paired = (p.p3 || []).length > 1;
     if (paired && !side) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
-    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, B, P: F + B, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
+    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, B, P: F + B, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides, ...(f.depth ? { depth: f.depth } : {}) } });
   }
   if (!cands.length) return { ok: false, message: '探査で熱・固結・圧痛のあった箇所を入力してください。' };
   const bump = (c, pts, text, ref) => { c.B += pts; c.P += pts; c.reasons.push({ text, ref, pts }); };
@@ -664,6 +671,23 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const hist = historyHints(prev);
   if (hist) {
     for (const c of cands) if (hist.remain.has(c.id)) bump(c, PTS.history, `前回（${hist.date}）の終わりにも残っていた：続けて施術して溶かす`, 'tansa_tsuzuku');
+  }
+  // 頭部の熱の浅い・深い
+  const depthNote = [];
+  for (const c of cands.filter((x) => x.region === 'head' && (x.finding.heat || 0) > 0 && x.finding.depth)) {
+    if (c.finding.depth === 'deep') {
+      bump(c, PTS.depthDeep, '深い熱（頭の奥）：頭部そのものの毒が溶けている。ここが元', 'netsu_fukasa');
+      depthNote.push(`${c.name}は深い熱：頭部そのものが元とみて、ここを長めに施術します。`);
+    } else {
+      c.reasons.push({ text: '浅い熱（表面）：ほかから響いている熱。元（首・陰部）も施術する', ref: 'netsu_fukasa' });
+      const src = HEAD_FRONT.includes(c.id) ? SHALLOW_SRC_FRONT : SHALLOW_SRC_BACK;
+      const found = cands.filter((x) => src.includes(x.id));
+      for (const x of found) {
+        if (x.reasons.some((r) => r.ref === 'netsu_fukasa')) continue;
+        bump(x, PTS.depthSrc, `${c.name}の浅い熱の元になりうる所（${['chikotsu', 'sokeibu'].includes(x.id) ? '陰部：前は前頭部に関係' : '首の浄化熱が頭に響く'}）`, 'netsu_fukasa');
+      }
+      depthNote.push(`${c.name}は浅い熱：ほかから響いている熱とみて、${HEAD_FRONT.includes(c.id) ? '頸部淋巴腺・耳下腺、陰部（恥骨部・鼠蹊部）' : '延髄部・後頸部・頸髄部'}を探査し、所見のある所を施術します${found.length ? '' : '（まだ所見が入っていません）'}。`);
+    }
   }
   // 頭痛の元を見分ける（岡田先生：①頭部の毒血の浄化 ②首の固結の圧迫による脳貧血 ③頸部淋巴腺・延髄部の浄化熱。延髄部の根原は腎臓）
   const headache = headacheTypes(cands, analysis);
@@ -780,7 +804,9 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const headSaid = (analysis?.categories || []).some((c) => HEAD_CATS.has(c.id));
   const headCapOf = (c) => {
     const h = c.finding?.heat || 0;
-    if ((headache?.types.includes('doku') && h >= 2) || (headSaid && h >= 4)) return Math.max(4, Math.round(avail * 0.1));
+    // 浅い熱の頭部は3分まで（元の方に時間を回す）。深い熱は頭部そのものが元なので長めに
+    if (c.finding?.depth === 'shallow') return 3;
+    if (c.finding?.depth === 'deep' || (headache?.types.includes('doku') && h >= 2) || (headSaid && h >= 4)) return Math.max(4, Math.round(avail * 0.1));
     if (h >= 4) return 4;
     return 3;
   };
@@ -809,6 +835,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const ordered = orderPoints(db, items, used);
   const others = cands.filter((c) => !chosen.includes(c));
   const notes = planNotes(ex, ordered, used);
+  if (depthNote.length) notes.unshift({ kind: 'info', title: '頭部の熱の浅い・深い', text: depthNote.join(''), ref: 'netsu_fukasa' });
   if (hist && (hist.unchanged.size || hist.improved.size)) {
     const nm = (set) => [...set].map((id) => db.pointById[id]?.name || id).join('、');
     notes.unshift({ kind: 'info', title: `前回（${hist.date}）の施術から`, text: `${hist.unchanged.size ? `施術しても変化が少なかった所：${nm(hist.unchanged)}。急所が外れていないか、周りや元も探ってみましょう。` : ''}${hist.improved.size ? `よく変化した所：${nm(hist.improved)}。今日も残っていれば続けて施術します。` : ''}`, ref: 'minaoshi' });

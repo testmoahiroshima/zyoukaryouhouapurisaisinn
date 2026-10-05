@@ -891,3 +891,8 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 .progress td.treated { background: var(--accent-soft); }
 .progress .arrow { color: var(--muted); font-size: .75rem; }
 .progress .pv { display: inline-block; margin-right: 4px; padding: 0 3px; border-left: 3px solid var(--c); }
+/* 頭部の熱の浅い・深い */
+.readout .depth-row, .depth-row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 4px; width: 100%; }
+.depth-row .chip { min-height: 40px; }
+.depth-help { margin-top: 6px; }
+.depth-help p { margin: 6px 0; }
