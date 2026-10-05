@@ -1,6 +1,6 @@
 // 一度開けば電波が無くても使えるように、アプリの部品を端末に保存する（外へは何も送らない）。
 // アプリの部品を変えた時は VERSION を上げる。
-const VERSION = 'joka-v12';
+const VERSION = 'joka-v13';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'app/style.css', 'app/app.js', 'app/engine.js', 'app/paint.js', 'app/body3d.js', 'app/zones.js', 'app/audio.js', 'app/records.js',

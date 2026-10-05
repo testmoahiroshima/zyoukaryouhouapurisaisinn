@@ -840,3 +840,12 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 /* 入力したこと（読み取りの元） */
 .tag.tag-said { background: var(--surface); border: 1px solid var(--line); color: var(--text); }
 .chips-count { margin-left: 4px; color: var(--accent); font-weight: 700; }
+/* 施術中：時計のすぐ下に3Dの図と、探査の記録 */
+.run-stage { margin: 8px 0 4px; }
+.run-guide-note { text-align: left; }
+.run-record { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; margin: 6px 0 0; }
+.run-record .rec-v { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; }
+.run-record .rec-v i { width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+/* 計画・施術中の図（小さめ）では、▲▼ を右上に置いて、右下のボタンと重ならないように */
+.guide-stage .b3-updown { top: 8px; transform: none; display: flex; gap: 6px; }
+.guide-stage .b3-updown button { width: 44px; height: 44px; }

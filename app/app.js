@@ -767,7 +767,7 @@ function printSection(cls) {
 }
 
 // ---- 探査と施術（塗って入力 → 時間配分 → タイマー） ----
-const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'auto', pads: {}, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
+const session = { state: 'input', findings: {}, after: {}, plan: null, run: null, order: 'top', pads: {}, receiver: store.get('joka.lastReceiver', ''), ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null };
 
 // 塗る板：3D人体図と平面図の両方を持ち、道具・色・筆は共通。読み取りは両方の濃い方を使う
 let bodyMeshP = null;
@@ -1072,9 +1072,10 @@ function startView() {
 }
 
 // 探査の場面に入ったら、すぐ人体図の所へ移る（上の帯に隠れないように）
-function jumpToBody(root) {
+// 探査・施術の場面が進むたびに、画面の上の方（3Dの人体図のあたり）へ移る。sel：その場面で上端に合わせる所
+function jumpToBody(root, sel = '.dim-switch') {
   const go = () => {
-    const el = $('.dim-switch', root);
+    const el = $(sel, root);
     if (!el || root.hidden || !el.isConnected) return;
     const head = $('header.top')?.offsetHeight || 0;
     window.scrollTo({ top: Math.max(0, el.getBoundingClientRect().top + window.scrollY - head - 8) });
@@ -1167,7 +1168,6 @@ function renderSessionInput() {
     session.plan = plan;
     session.state = 'plan';
     renderSession();
-    window.scrollTo({ top: 0 });
   });
 }
 
@@ -1229,7 +1229,12 @@ async function mountGuide(el, spec, { onSelect = null, ratio = 1.05, maxH = 0.5 
     g.maxH = maxH;
     // 探査で塗った色も重ねて見せる
     const painted = session.pads.pb?.b3;
-    if (painted) g.values = painted.values;
+    // （3Dで塗っていない時は、前の方の塗りが残らないよう空にする）
+    if (painted) { g.values = painted.values; g.top = painted.top; }
+    else if (g.values.heat.some((v) => v > 0) || g.values.kouketsu.some((v) => v > 0) || g.values.atsutsuu.some((v) => v > 0)) {
+      g.values = Object.fromEntries(LAYERS.map((l) => [l.id, new Float32Array(g.nv)]));
+      g.top = new Uint8Array(g.nv);
+    }
     g.onSelectTarget = onSelect;
     g.guide = spec;
     if (!g.attach(el)) throw new Error('webgl');
@@ -1273,7 +1278,7 @@ function reSplit(it) {
   }).filter((x) => x.minutes > 0);
 }
 
-function renderSessionPlan() {
+function renderSessionPlan({ jump = true } = {}) {
   const plan = session.plan;
   const ref = (r) => {
     const k = r.ref && db.principleById[r.ref];
@@ -1281,7 +1286,7 @@ function renderSessionPlan() {
     const c = k.cites?.length ? citeText(k.cites[0]) : k.t2 ? `2級テキスト実践編 ${k.t2.split(',')[0]}` : k.textbook ? `3級テキスト ${k.textbook}` : '';
     return c ? ` <span class="ref">${esc(c)}</span>` : '';
   };
-  const ORDER_NAME = { outlet: '出口を先に', top: '上から下', text: 'テキストの探査順' };
+  const ORDER_NAME = { top: '上から下（基本・前頭部から）', outlet: '排泄経路を整える（サブプラン）', text: 'テキストの探査順' };
   $('#tab-session').innerHTML = `
     ${stepBar(3)}
     <div class="card plan-card">
@@ -1291,7 +1296,7 @@ function renderSessionPlan() {
       ${plan.notes.map((n) => `<div class="plan-note ${n.kind}"><b>${esc(n.title)}</b><p>${esc(n.text)}${ref(n)}</p></div>`).join('')}
       <div class="order-row" role="group" aria-label="施術の順序">
         <span class="tool-l">順番</span>
-        ${['outlet', 'top', 'text'].map((o) => `<button type="button" class="chip order-chip" data-order="${o}" aria-pressed="${plan.order === o}">${ORDER_NAME[o]}${o === 'outlet' && plan.excretion.level === 'blocked' ? '（おすすめ）' : o === 'top' && plan.excretion.level !== 'blocked' ? '（基本）' : ''}</button>`).join('')}
+        ${['top', 'outlet', 'text'].map((o) => `<button type="button" class="chip order-chip" data-order="${o}" aria-pressed="${plan.order === o}">${ORDER_NAME[o]}</button>`).join('')}
       </div>
       <ol class="plan-list">${plan.items.map((it, i) => `<li class="plan-item" data-focus="${i}">
         <div class="plan-head"><span class="ord">${i + 1}</span><span class="name"><span class="no">${it.no}</span>${esc(it.name)}${it.side ? ` <span class="tag tag-side">${SIDE_JA[it.side]}重点</span>` : ''}${it.key ? ' <span class="tag">重要施術部位</span>' : ''}${it.must ? ' <span class="tag tag-must">自己探査・必ず入れる</span>' : ''}${OUTLET_POINTS.includes(it.id) ? ' <span class="tag tag-outlet">出口</span>' : ''}</span>
@@ -1302,6 +1307,7 @@ function renderSessionPlan() {
           <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
         </details>
       </li>`).join('')}</ol>
+      <p class="small muted">${plan.order === 'outlet' ? '排泄経路を整えるサブプラン：頭のあと、先に骨盤まわりの出口を開けてから、腎臓部・首・肩・背へ。' : plan.order === 'top' ? '基本の順序：前頭部から始めて、頭 → 首・肩 → 背 → 腎臓部 → 腰と、上から下へ。' : ''}</p>
       <p class="small muted">合計 <b>${plan.total}</b>分（はじめに探査 ${plan.probe}分、最後に確認 ${plan.check}分）。</p>
       ${plan.others.length ? `<p class="small muted">今回は外した箇所：${plan.others.map((o) => esc(o.name)).join('、')}（時間があれば続けて）</p>` : ''}
     </div>
@@ -1339,7 +1345,7 @@ function renderSessionPlan() {
     it.minutes = Math.max(1, it.minutes + Number(b.dataset.adj));
     reSplit(it);
     plan.total = plan.probe + plan.check + plan.items.reduce((s, x) => s + x.minutes, 0);
-    renderSessionPlan();
+    renderSessionPlan({ jump: false });
   }));
   $$('.order-chip').forEach((b) => b.addEventListener('click', () => {
     session.order = b.dataset.order;
@@ -1351,6 +1357,7 @@ function renderSessionPlan() {
   }));
   $('#back-input').addEventListener('click', () => { session.state = 'input'; renderSession(); });
   $('#start-run').addEventListener('click', startRun);
+  if (jump) jumpToBody(root, '.plan-card');
 }
 
 function speechName(id) {
@@ -1373,7 +1380,6 @@ function startRun() {
   session.run = { phases, i: 0, left: phases[0].sec, paused: false, tick: null, wake: null, checkShow: 0 };
   session.state = 'run';
   renderSession();
-  window.scrollTo({ top: 0 });
   startMusic();
   enterPhase();
   requestWake();
@@ -1399,6 +1405,8 @@ function enterPhase() {
   clearInterval(run.tick);
   run.tick = setInterval(tick, 1000);
   renderRun();
+  // 次の箇所に移るたびに、画面の上（時計と3Dの図）へ
+  jumpToBody($('#tab-session'), '.run-card');
 }
 
 // 施術中の確認の声かけ：5分ごと。5分に満たない箇所は、その箇所の施術が終わる時に
@@ -1454,6 +1462,15 @@ function updateRunClock() {
   $('#run-bar').style.width = `${Math.round(((ph.sec - run.left) / ph.sec) * 100)}%`;
 }
 
+// 今施術する所の、探査の記録（熱・固結・圧痛。左右がある所はその側の値）
+function recordLineHTML(ph) {
+  const it = session.plan.items.find((x) => x.id === ph.id);
+  const f = (ph.side && it?.finding?.sides?.[ph.side]) || it?.finding;
+  if (!f) return '';
+  const parts = LAYERS.map((l) => [l, Math.round((f[l.id] || 0) * 10) / 10]).filter(([, v]) => v > 0);
+  return `<p class="run-record small">探査の記録：${parts.length ? parts.map(([l, v]) => `<span class="rec-v" style="--c:rgb(${l.rgb.join(',')})"><i></i>${esc(l.name.split('・')[0])} ${v}</span>`).join('') : '<span class="muted">所見なし（重要施術部位として）</span>'}</p>`;
+}
+
 function renderRun() {
   const run = session.run;
   const ph = run.phases[run.i];
@@ -1466,6 +1483,9 @@ function renderRun() {
       <div class="run-name">${ph.type === 'treat' ? esc(ph.label) : (ph.type === 'probe' ? '発熱・固結・圧痛を確かめる' : '熱が冷めたか、固結がゆるんだか')}</div>
       <div class="run-clock" id="run-clock">${mmss(run.left)}</div>
       <div class="run-progress"><i id="run-bar" style="width:0%"></i></div>
+      ${ph.type === 'treat' ? recordLineHTML(ph) : ''}
+      <div class="b3-stage guide-stage run-stage"><div class="b3-wrap" id="run-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rg')}</div>
+      <p class="small muted run-guide-note">${ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所（探査で塗った記録の、熱・固結・圧痛がいちばん強い所）です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番。探査で塗った記録の、いちばん強い所に置いています）。'}</p>
       <p class="run-check" id="run-check"${run.checkShow > 0 ? '' : ' hidden'}>${esc(CHECK_VOICE)}</p>
       <p class="small muted">${next ? `次：${esc(next.label)}（${Math.round(next.sec / 60)}分）` : '最後の段階です'}</p>
       <div class="run-controls">
@@ -1475,10 +1495,6 @@ function renderRun() {
         <button type="button" id="run-stop" class="ghost">■ 終了</button>
       </div>
       <p class="small hint">${ph.type === 'treat' ? '力を抜いて、軽い気持ちで。施術中は話さずに。' : '額や首の周りに手を当てて熱い所を探し、固結・圧痛を確かめます。頸部は三指で強く押さずに。'}</p>
-    </div>
-    <div class="card guide-card">
-      <div class="b3-stage guide-stage"><div class="b3-wrap" id="run-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rg')}</div>
-      <p class="small muted">${ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番）。'}</p>
     </div>
     ${musicBarHTML()}
     <ol class="card phase-list">${run.phases.map((p, i) => `<li class="${i === run.i ? 'now' : i < run.i ? 'done' : ''}">${esc(p.label)}<span>${Math.round(p.sec / 60)}分</span></li>`).join('')}</ol>`;
@@ -1594,7 +1610,7 @@ function renderDone() {
   });
   $('#new-session').addEventListener('click', () => {
     releasePads();
-    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, order: 'auto', state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
+    Object.assign(session, { findings: {}, after: {}, plan: null, pads: {}, order: 'top', state: 'input', ratingBefore: 5, ratingAfter: 5, changes: [], memo: '', savedId: null });
     renderSession();
   });
 }
@@ -1631,7 +1647,7 @@ function renderSession() {
   releasePads();
   if (!(session.state === 'plan' || session.state === 'run')) releaseGuide();
   if (session.state === 'plan' && session.plan) return renderSessionPlan();
-  if (session.state === 'run' && session.run) return renderRun();
+  if (session.state === 'run' && session.run) { renderRun(); jumpToBody($('#tab-session'), '.run-card'); return; }
   if (session.state === 'done' && session.plan) return renderDone();
   return renderSessionInput();
 }

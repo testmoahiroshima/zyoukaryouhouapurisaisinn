@@ -677,12 +677,49 @@ export class Body3D {
   }
 
   // 箇所へ寄る（面の正面から見る）。r は寄る距離
+  // 探査で塗った記録から、その箇所（一番近い探査箇所がその箇所の所）の中で、熱・固結・圧痛が一番強い所。
+  // 熱を重く（1.5倍）数え、一番強い所の8割以上の所の真ん中にいちばん近い頂点を返す。塗られていなければ null
+  hotSpot(k, R = 0.07) {
+    const H = this.values.heat;
+    const K = this.values.kouketsu;
+    const A = this.values.atsutsuu;
+    const P = this.mesh.positions;
+    const cand = [];
+    let best = 0;
+    for (let i = 0; i < this.nv; i++) {
+      if (this.owner[i] !== k || this.ownerDist[i] > R) continue;
+      const sc = 1.5 * H[i] + K[i] + A[i];
+      if (sc < 1) continue;
+      cand.push([i, sc]);
+      if (sc > best) best = sc;
+    }
+    if (!cand.length) return null;
+    const top = cand.filter(([, sc]) => sc >= best * 0.8);
+    let cx = 0, cy = 0, cz = 0, w = 0;
+    for (const [i, sc] of top) { cx += P[i * 3] * sc; cy += P[i * 3 + 1] * sc; cz += P[i * 3 + 2] * sc; w += sc; }
+    cx /= w; cy /= w; cz /= w;
+    let v = top[0][0], bd = Infinity;
+    for (const [i] of top) {
+      const d = (P[i * 3] - cx) ** 2 + (P[i * 3 + 1] - cy) ** 2 + (P[i * 3 + 2] - cz) ** 2;
+      if (d < bd) { bd = d; v = i; }
+    }
+    return { v, score: best };
+  }
+
+  // 箇所を示す位置：塗った記録があれば一番強い所、なければ探査箇所の位置
+  spotOf(k) {
+    const h = this.hotSpot(k);
+    const v = h ? h.v : this.targets[k].v;
+    const P = this.mesh.positions;
+    return { v, x: P[v * 3], y: P[v * 3 + 1], z: P[v * 3 + 2], hot: !!h };
+  }
+
   focusTargets(ks, r = 0.75) {
     if (!ks.length || !this.camera) return;
     const c = new THREE.Vector3();
     const n = new THREE.Vector3();
     for (const k of ks) {
-      const t = this.targets[k];
+      const t = this.spotOf(k);
       c.add(new THREE.Vector3(t.x, t.y, t.z));
       n.add(new THREE.Vector3(...this.vertexNormal(t.v)));
     }
@@ -736,8 +773,9 @@ export class Body3D {
     const G = (this.guideGroup = new THREE.Group());
     this.pulse = [];
     const up = new THREE.Vector3(0, 1, 0);
-    const posOf = (k, lift = 0) => {
-      const t = this.targets[k];
+    // 施術の印と矢印は、探査で塗った記録の一番強い所に置く（塗られていなければ探査箇所の位置）
+    const posOf = (k, lift = 0, hot = true) => {
+      const t = hot ? this.spotOf(k) : this.targets[k];
       const n = new THREE.Vector3(...this.vertexNormal(t.v));
       return { p: new THREE.Vector3(t.x, t.y, t.z).addScaledVector(n, lift), n };
     };
@@ -802,7 +840,7 @@ export class Body3D {
         if (!ks.length) continue;
         const c = new THREE.Vector3();
         const n = new THREE.Vector3();
-        for (const k of ks) { const q = posOf(k); c.add(q.p); n.add(q.n); }
+        for (const k of ks) { const q = posOf(k, 0, false); c.add(q.p); n.add(q.n); }
         c.divideScalar(ks.length);
         n.normalize();
         pts.push(c.addScaledVector(n, 0.03));
