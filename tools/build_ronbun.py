@@ -44,7 +44,7 @@ MEDNOTE = '〔注：昭和当時の見解です。病気やけがの時は医療
 CANCER_BAD = re.compile(r'治|全快|消散|心配|誤|ではなく|擬似|疑似|手術|ラジウム|廃め|廃止|恐るべき|発生しない|経血|塊り|切開|焼|悪化|好結果|判|区別|差別|筈|菜食|野菜|影響')
 CANCERNOTE = '〔注：がん（癌）は必ず医療機関で診断・治療を受けてください。浄化療法はがんの治療の代わりにはなりません〕'
 # 治ると約束する文・医療を受けないよう勧める文も載せない（施術は治療の約束をしない）
-PROMISE = re.compile(r'必ず治|必ず全快|百パーセント|１００パーセント|治癒率|必ず全治|全治する|全治した|完全に治|確実.{0,4}全治|容易に全治|医療を停止|医療を受けず|医療を廃|薬を廃め|医者にかからず|医師にかからず')
+PROMISE = re.compile(r'完全に全快|請け?合って治|十人が十人|確実に治|確実に全|綺麗に治|きれいに治|驚く程.{0,6}治|驚くほど.{0,6}治|[0-9０-９一二三四五六七八九十]+回(位|くらい)?で.{0,8}(治|全快|全治)|速かに治|速やかに治|奇蹟的|わけなく治|訳なく治|きっと治|すっかり治|簡単に治|容易に治|一遍で治|必ず治|必ず全快|百パーセント|１００パーセント|治癒率|必ず全治|全治する|全治した|完全に治|確実.{0,4}全治|容易に全治|医療を停止|医療を受けず|医療を廃|薬を廃め|医者にかからず|医師にかからず')
 def promise_ok(s):
     return not PROMISE.search(s)
 def cancer_ok(s):
@@ -85,7 +85,7 @@ def body_of(i):
         lines = lines[1:]
     out = []
     for l in lines:
-        if re.match(r'^\s*#[TK]', l) or '全集' in l or re.match(r'^[『「].*[』」].*\d{8}', l):
+        if re.match(r'^\s*#[TK]', l) or '全集' in l or re.match(r'^[『「].*[』」].*\d{8}', l) or l.startswith('キーワード') or '───' in l:
             continue
         out.append(l)
     b = '\n'.join(out).strip()
@@ -131,10 +131,92 @@ def library():
         out[i] = {'date': d}
     return out
 
+# ---- 自動で取り込む論述（健康・施術に関わり、精神面・宗教面の文を外しても意味が通るもの） ----
+# 精神面・宗教面の話題・文化や時事の話題の文（この語を含む文は外し、多い記事は取り込まない）
+AUTO_EXTRA = re.compile(r'稲荷|蛇|墓|仏壇|寺|先祖|供養|法要|位牌|幽|お道|教会|奉仕|瑞雲郷|地上天国|聖地|おかげ|お蔭|御蔭|献金|参拝|讃歌|美術|骨董|選挙|政治|共産|戦争|原子|宣伝|新聞社|本部|事業|建築|茶碗|屏風|ノーベル')
+# 医療をやめる・受けないよう勧める文
+AUTO_ANTIDIR = re.compile(r'西洋医学を.{0,12}なく|医学を(廃|なく)|医学は.{0,6}(不要|要らない)|手当など(する|しない)|医療を(受け|やめ|止め)|医(者|師)に(かか|診せ|見せ)(らない|ず|ぬ|らず)|入院させ(ない|ず)|手術を(受け|せ)(ない|ず|ぬ)|薬を(服|の|飲)ま(ない|ず|せない|せず)|注射を(し|打|受け)(ない|ず)|医療は(不要|要らない)|医者は(不要|要らない)')
+# 題名で外す：重い病気・小児・医療批判が中心の論述、宗教・文化の話題
+AUTO_TITLE_X = re.compile(r'文明|三災|生気説|恐怖時代|グロ|南洋|国民|答申|学理|沢村|低脳|癌|小児|乳幼児|子供|児童|疫痢|赤痢|伝染|天然痘|種痘|ジフテ|脳膜|脳炎|肺炎|チフス|窒扶斯|コレラ|結核|精神病|癲癇|狂|堕胎|産児|死|自殺|農|美術|芸術|政治|経済|宗教|信仰|教団|本教|神|仏|霊|観音|救世|天国|地獄|夜昼|奇蹟|奇跡|御歌|和歌|詩|小説|序|はしがき|目次|跋|おかげ|お蔭|インフルエンザ|流行|ペスト|梅毒|淋病|花柳|医学|医術|医療|医者|医師|医家|手術|注射|薬|予防|黴菌|病院|ツベルクリン|ワクチン|抗毒素|錯覚|誤謬|誤診|誤療|療法|迷信|科学|人口|栄養|食|スポーツ|衛生|文化|社会|日本|米国|アメリカ|西洋|東洋|漢方|鍼|灸|按摩|電気|切開|腫物|殺菌|熱帯|麻疹|百日咳|喀血|血沈|結論|丹毒|寸言|ホルモン|坊ちゃん|寿命')
+# 本文で外す：急を要すること・重い病気・妊娠と出産・小児（施術で対応してよいと読めないように）
+AUTO_DANGER = re.compile(r'犯罪|生命がない|命がない|火傷|負傷|怪我|脳溢血|中風|狭心症|内出血|盲腸|虫様|レントゲン|ラジウム|ガス|窒息|心臓麻痺|狂犬|蝮|まむし|毒蛇|噛まれ|骨折|溺れ|感電|中毒死|喀血|吐血|大出血|危篤|臨終|妊娠|お産|分娩|流産|堕胎|赤ん坊|赤子|乳児|幼児|小児|子供|嬰児|結核|肺病|癌|チフス|赤痢|伝染|コレラ|疫痢|ジフテ|脳膜炎|肺炎|梅毒|淋病|精神病|癲癇|発狂|自殺|麻薬|阿片|コカイン')
+AUTO_HEALTH = re.compile(r'浄化|毒素|毒結|固結|熱|肩|腎臓|頭|首|頸|胃|腹|咳|痰|下痢|便|痛|凝り|健康|病気|症状|施術|治療|血|膿|浮腫|眠|食欲')
+TOPICS = [('頭痛', r'頭痛|頭が痛'), ('頭', r'頭|前頭部|後頭部'), ('首', r'首|頸|延髄|淋巴腺'), ('肩', r'肩'), ('腎臓', r'腎臓'), ('胃', r'胃'),
+          ('お腹', r'腹|腸|下痢|便秘'), ('咳・痰', r'咳|痰'), ('眼', r'眼|目'), ('耳', r'耳'), ('鼻', r'鼻'), ('歯', r'歯'), ('のど', r'咽喉|喉|扁桃'),
+          ('腰', r'腰'), ('脚', r'足|脚|膝'), ('手', r'手|腕|指'), ('婦人', r'婦人|子宮|月経'), ('痔', r'痔|肛門'), ('熱', r'熱'), ('眠り', r'眠|不眠'),
+          ('むくみ', r'浮腫|むくみ'), ('皮膚', r'皮膚|湿疹|発疹|痒'), ('心臓', r'心臓|動悸'), ('施術のしかた', r'浄化療法|施術|力を抜')]
+def article_date(i):
+    t, b = ARTS[i]
+    m = re.search(r'(19[1-5]\d)(\d\d)(\d\d)', b[:600])
+    if m and 1 <= int(m.group(2)) <= 12: return m.group(1) + m.group(2)
+    if m: return m.group(1)
+    m = re.search(r'S(\d\d)/(\d\d?)/', t)
+    if m: return f'{1925 + int(m.group(1))}{int(m.group(2)):02d}'
+    m = re.search(r'昭和([一二三四五六七八九十]+)年', t + b[:600])
+    return str(1925 + kanji_int(m.group(1))) if m else None
+def topic_title(text, qa):
+    hits = [(len(re.findall(rx, text)), name) for name, rx in TOPICS]
+    names = [n for c, n in sorted(hits, key=lambda x: -x[0]) if c >= 2][:3]
+    return f"{'問答' if qa else '講話'}：{'・'.join(names) if names else '浄化療法について'}"
+# 自然に任せれば治る・手当をしない方がよいと読める所（読み物として載せる論述では、その段落・問答ごと外す）
+AUTO_NATURAL = re.compile(r'ほったらかし|ほうっておけ|打っちゃって|放置|放任|放って|すてておけ|捨てておけ|自然に(任|委|まか)|手当(も|を)?(せず|しない)|何等の?手当|薬を(全廃|廃)|薬剤を廃|停止療法|止めようと|止めては')
+def auto_units(text):
+    # 講話は「問と答え」のひとまとまり、ほかは段落を単位にする
+    paras = [p.strip() for p in text.split('\n') if p.strip()]
+    us, cur = [], []
+    for p in paras:
+        if p.startswith('問：') and cur:
+            us.append(cur); cur = []
+        cur.append(p)
+        if not any(x.startswith('問：') for x in cur):
+            us.append(cur); cur = []
+    if cur: us.append(cur)
+    return us
+def auto_clean(unit):
+    # 精神面・宗教面・急を要すること・重い病気・医療をやめる勧めを含むまとまりは丸ごと外す（意味が切れないように）
+    out = []
+    for p in unit:
+        ss = [s for s in split_sents(p) if s.strip()]
+        if any(SPIRIT.search(s) or AUTO_EXTRA.search(s) or AUTO_DANGER.search(s) or AUTO_ANTIDIR.search(s) or AUTO_NATURAL.search(s) for s in ss): return None
+        k = ''.join(s for s in ss if cancer_ok(s) and promise_ok(s)).strip()
+        if k: out.append(k)
+    t = ''.join(out)
+    if not t or out[-1].startswith('問：') or len(AUTO_HEALTH.findall(t)) / len(t) * 1000 < 15: return None
+    return out
+def auto_library(taken, forced=()):
+    # forced：tools/ronbun_library.json で選んだ論述（題名では外さないが、同じ安全の基準で段落・問答を選ぶ）
+    out = {}
+    seen_titles = set()
+    for i, (t, b) in ARTS.items():
+        if i in taken and i not in forced: continue
+        kowa = i.startswith('kowa')
+        title = clean_title(t)
+        if i not in forced and not kowa and (SPIRIT.search(t) or AUTO_EXTRA.search(title) or AUTO_TITLE_X.search(title)): continue
+        text = speakers(jorei(body_of(i)))
+        paras = []
+        for u in auto_units(text):
+            cu = auto_clean(u)
+            if cu: paras += cu
+        body = ''.join(paras)
+        if len(body) < 200: continue
+        if kowa: title = topic_title(body, any(p.startswith('問：') for p in paras))
+        else:
+            key = re.sub(r'[\s　（）()「」『』]|明日の医術第[一二]篇ヨリ|病患と医学の誤謬|^[一二三四五六七八九〇十]+、', '', title)
+            if key in seen_titles: continue
+            seen_titles.add(key)
+        # 講話の答えに話し手の印がない段落は「岡田先生：」とする
+        if kowa and any(p.startswith('問：') for p in paras):
+            paras = [p if p.startswith(('問：', '岡田先生：')) else '岡田先生：' + p for p in paras]
+        out[i] = {'date': article_date(i), 'auto': True, 'title': title, 'paras': paras}
+    return out
+
 def build():
     edits = json.load(open(R + 'tools/ronbun_edits.json', encoding='utf-8'))
     ids = cited()
-    for i, meta in library().items():
+    basis = set(ids)
+    lib = {i: m for i, m in library().items() if i not in basis}
+    for i, meta in auto_library(set(ids), forced=set(lib)).items():
+        if i in lib: meta = {**meta, 'date': lib[i]['date'] or meta['date']}
         ids.setdefault(i, meta)
     out = []
     problems = []
@@ -142,9 +224,9 @@ def build():
         if i not in ARTS:
             problems.append(f'{i}: 本文が見つからない'); continue
         e = edits.get(i, {})
-        title = e.get('title') or clean_title(ARTS[i][0])
-        if e.get('paras'):
-            paras = [p for p in e['paras']]
+        title = e.get('title') or meta.get('title') or clean_title(ARTS[i][0])
+        if e.get('paras') or meta.get('paras'):
+            paras = [p for p in (e.get('paras') or meta['paras'])]
             excerpt = True
         else:
             text = speakers(jorei(body_of(i)))
@@ -176,6 +258,7 @@ def build():
                     if SPIRIT.search(s): continue
                     if not cancer_ok(s): continue
                     if not promise_ok(s): continue
+                    if meta.get('auto') and (AUTO_EXTRA.search(s) or AUTO_ANTIDIR.search(s)): continue
                     keep.append(s)
                 p = ''.join(keep).strip()
                 if p and not re.fullmatch(r'[\s　…。]*', p): paras.append(p)
@@ -195,7 +278,7 @@ def build():
             problems.append(f'{i}: 本文が空'); continue
         kind = 'kowa' if i.startswith('kowa') else 'chojutsu'
         if SPIRIT.search(title): problems.append(f'{i}: 題名に残っている：{title}')
-        out.append({'id': i, 'title': jorei(title), 'date': e.get('date') or meta['date'], 'kind': kind, 'excerpt': excerpt or bool(e.get('excerpt')), 'paras': paras})
+        out.append({'id': i, 'title': jorei(title), 'date': e.get('date') or meta['date'], 'kind': kind, 'excerpt': excerpt or bool(e.get('excerpt')), 'basis': i in basis, 'paras': paras})
     out.sort(key=lambda x: (x['date'] or '9999', x['id']))
     return out, problems
 

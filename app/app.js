@@ -2178,8 +2178,9 @@ async function loadRonbun() {
   if (!ronbunList) ronbunList = (await (await fetch('data/ronbun.json')).json()).articles;
   return ronbunList;
 }
-const RONBUN_NOTE = 'このアプリの判断の根拠にしている、岡田先生の論述・講話（昭和10〜28年）です。精神面・宗教面の部分は外して意味が通るように整え、施術の呼び名は「浄化療法」にそろえています。言い回しや病名は当時のままです。薬・手術・病気の見方についての記述は当時の考えで、現在の医療の判断とは異なります。病気やけがの時は医療機関にかかり、服薬や治療は自己判断でやめないでください。';
+const RONBUN_NOTE = 'このアプリの判断の根拠と、施術の参考になる岡田先生の論述・講話（昭和10〜29年）です。施術に関わる部分を中心に、意味が通るように整え（「抜粋」の印がある記事は一部分）、施術の呼び名は「浄化療法」にそろえています。言い回しや病名は当時のままです。薬・手術・病気の見方についての記述は当時の考えで、現在の医療の判断とは異なります。病気やけがの時は医療機関にかかり、服薬や治療は自己判断でやめないでください。';
 const ronbunState = { q: '', kind: 'all', open: null };
+const RB_KINDS = [['all', 'すべて'], ['basis', '判断の根拠'], ['chojutsu', '著述'], ['kowa', '講話']];
 function ronbunParaHTML(p) {
   const note = (t) => esc(t).replace(/〔注：(.*?)〕/g, '<span class="med-note">注：$1</span>');
   if (p.startsWith('問：')) return `<p class="qa-q"><b>問</b>${note(p.slice(2))}</p>`;
@@ -2223,7 +2224,7 @@ async function renderRonbun() {
     return;
   }
   const nq = normalize(st.q.trim());
-  const hits = list.filter((a) => (st.kind === 'all' || a.kind === st.kind) && (!nq || normalize(`${a.title}${a.paras.join('')}`).includes(nq)));
+  const hits = list.filter((a) => (st.kind === 'all' || (st.kind === 'basis' ? a.basis : a.kind === st.kind)) && (!nq || normalize(`${a.title}${a.paras.join('')}`).includes(nq)));
   const byYear = new Map();
   for (const a of hits) {
     const y = Number(String(a.date || '').slice(0, 4));
@@ -2236,10 +2237,10 @@ async function renderRonbun() {
       <h2>岡田先生の論文を読む</h2>
       <p class="small">${esc(RONBUN_NOTE)}</p>
       <form class="kk-form" id="rb-form" role="search"><input id="rb-q" type="search" value="${esc(st.q)}" placeholder="例：肩、腎臓、力を抜く" aria-label="論文を言葉で探す"><button type="submit" class="primary">探す</button></form>
-      <div class="region-chips" role="group" aria-label="種類">${[['all', 'すべて'], ['chojutsu', '著述'], ['kowa', '講話']].map(([k, n]) => `<button type="button" class="chip" data-rb-kind="${k}" aria-pressed="${st.kind === k}">${n}</button>`).join('')}</div>
+      <div class="region-chips" role="group" aria-label="種類">${RB_KINDS.map(([k, n]) => `<button type="button" class="chip" data-rb-kind="${k}" aria-pressed="${st.kind === k}">${n}</button>`).join('')}</div>
       <p class="small muted">${hits.length}件${st.q ? `（「${esc(st.q)}」で探した結果）` : ''}</p>
     </div>
-    ${[...byYear].map(([y, as]) => `<div class="card"><h2>${esc(y)}</h2><ul class="rb-list">${as.map((a) => `<li><button type="button" class="rb-item" data-rb-open="${esc(a.id)}"><span class="rb-t">${esc(a.title)}</span><span class="small muted">${esc(dateText(a))}${a.kind === 'kowa' ? '・講話' : ''}${a.excerpt ? '・抜粋' : ''}</span><span class="small rb-snip">${esc(a.paras[0].slice(0, 46))}…</span></button></li>`).join('')}</ul></div>`).join('')}
+    ${[...byYear].map(([y, as]) => `<div class="card"><h2>${esc(y)}</h2><ul class="rb-list">${as.map((a) => `<li><button type="button" class="rb-item" data-rb-open="${esc(a.id)}"><span class="rb-t">${esc(a.title)}</span><span class="small muted">${esc(dateText(a))}${a.kind === 'kowa' ? '・講話' : ''}${a.excerpt ? '・抜粋' : ''}${a.basis ? '・判断の根拠' : ''}</span><span class="small rb-snip">${esc(a.paras[0].slice(0, 46))}…</span></button></li>`).join('')}</ul></div>`).join('')}
     ${!hits.length ? '<div class="card"><p>見つかりませんでした。別の言葉で探してみてください。</p></div>' : ''}`;
   $('#rb-form', box).addEventListener('submit', (e) => { e.preventDefault(); st.q = $('#rb-q', box).value; renderRonbun(); });
   $$('[data-rb-kind]', box).forEach((b) => b.addEventListener('click', () => { st.kind = b.dataset.rbKind; renderRonbun(); }));

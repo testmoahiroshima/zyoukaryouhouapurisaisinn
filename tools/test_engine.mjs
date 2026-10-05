@@ -502,6 +502,10 @@ for (const f of db.raw.flows.flows) if (!usedF.has(f.id)) console.log('flow not 
   const missing = [...cited].filter((id) => !have.has(id));
   const bad = rb.filter((a) => /霊|浄霊|全集|観音|明主|信者|御守|神様|百パーセント|治癒率|必ず全治|必ず治/.test(a.title + a.paras.join('')) || a.paras.some((p) => p.split('。').some((x) => x.includes('癌') && !x.includes('注：') && /治|全快|消散|誤|擬似|手術/.test(x))));
   const good = !missing.length && !bad.length && rb.length >= cited.size;
+  // 画面の説明文にも「宗教」「霊」の語を出さない（外していることの説明も含めて）
+  const appSrc = readFileSync(new URL('../app/app.js', import.meta.url), 'utf8');
+  const note = (appSrc.match(/const RONBUN_NOTE = '([^']*)'/) || [])[1] || '';
+  if (!note || /宗教|霊|精神面/.test(note)) { console.log('NG  論文の説明文に宗教の語'); fail++; }
   console.log(`${good ? 'ok' : 'NG'}  論文の本文 ${rb.length}件（根拠 ${cited.size}件）${missing.length ? ' 足りない：' + missing.join(',') : ''}${bad.length ? ' 禁止語：' + bad.map((a) => a.id).join(',') : ''}`);
   if (!good) fail++;
 }
