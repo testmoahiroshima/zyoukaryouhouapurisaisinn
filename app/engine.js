@@ -366,11 +366,44 @@ export function analyze(db, text, selected = []) {
 // findings: { pointId: { heat, kouketsu, atsutsuu } }（各 0〜5）
 // total: 全体の分数、analysis: analyze() の結果（無くてもよい）
 
+// 施術の大事なポイント4つ（重要施術部位・各論・楽屋と舞台・毒素集溜と排泄の経路）は、探査の値に加点する（pts）
 const REGION_FACTOR = {
-  kidney: { f: 1.3, why: '重要施術部位：腎臓部は第一（全身の浄化作用を強める）', ref: 'jinzo_first' },
-  back: { f: 1.15, why: '背部・肩甲骨部は第二の順位（前面の症状は背部から）', ref: 'senaka_main' },
-  head: { f: 1.2, why: '重要施術部位：頭は四肢五体の根元', ref: 'atama_first' },
-  shoulder: { f: 1.2, why: '重要施術部位：肩（肩の硬軟は健康の目安）', ref: 'kata_gauge' },
+  kidney: { pts: 3, why: '重要施術部位：腎臓部は第一（全身の浄化作用を強める）', ref: 'jinzo_first' },
+  back: { pts: 1.5, why: '背部・肩甲骨部は第二の順位（前面の症状は背部から）', ref: 'senaka_main' },
+  head: { pts: 2, why: '重要施術部位：頭は四肢五体の根元', ref: 'atama_first' },
+  shoulder: { pts: 2, why: '重要施術部位：肩（肩の硬軟は健康の目安）', ref: 'kata_gauge' },
+};
+const PTS = { rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5 };
+
+// ---- 頭痛の元 ----
+// 頭痛の訴えがある時、探査の結果から元を見分ける。
+//  doku：頭部（前頭部・頭頂部・こめかみ部・後頭部）に熱＝溜まった毒血の浄化（手を当てると熱い）
+//  hinketsu：首の周りに固結＝頭へ血を送る血管を圧迫（脳貧血。額は冷たい）
+//  lymph：耳下腺・頸部淋巴腺・扁桃腺付近に熱＝前頭部の頭痛の元
+//  enzui：延髄部・後頸部・頸髄部に熱＝後頭部の頭痛の元（その根原は腎臓）
+const HEADACHE_CATS = new Set(['headache', 'frontal', 'occipital', 'temple', 'k:zutsuu']);
+const NECK_LYMPH = ['jikasen', 'keibu_lymph', 'hentousen'];
+const NECK_ENZUI = ['enzui', 'koukeibu', 'keizui'];
+export function headacheTypes(cands, analysis) {
+  if (!(analysis?.categories || []).some((c) => HEADACHE_CATS.has(c.id))) return null;
+  const types = new Set();
+  const byPoint = {};
+  // 首に浄化熱がある時、頭部の弱い熱（2未満）は首から移ったものとみる
+  const neckHeat = cands.some((c) => [...NECK_LYMPH, ...NECK_ENZUI].includes(c.id) && c.finding.heat > 0);
+  for (const c of cands) {
+    const f = c.finding;
+    if (c.region === 'head' && f.heat > 0 && (f.heat >= 2 || !neckHeat)) { types.add('doku'); byPoint[c.id] = '頭痛の元：ここに溜まった毒血の浄化（手を当てると熱い）'; continue; }
+    if (NECK_LYMPH.includes(c.id) && f.heat > 0) { types.add('lymph'); byPoint[c.id] = '前頭部の頭痛の元：頸部淋巴腺（耳下腺から淋巴腺）の浄化熱'; continue; }
+    if (NECK_ENZUI.includes(c.id) && f.heat > 0) { types.add('enzui'); byPoint[c.id] = '後頭部の頭痛の元：延髄部の浄化熱（その根原は腎臓）'; continue; }
+    if ([...NECK_LYMPH, ...NECK_ENZUI].includes(c.id) && f.kouketsu > 0) { types.add('hinketsu'); byPoint[c.id] = '頭痛の元：首の周りの固結が頭へ血を送る血管を圧迫（脳貧血）'; }
+  }
+  return { types: [...types], byPoint };
+}
+const HEADACHE_TEXT = {
+  doku: '頭部に熱がある：前額部・前頭部・こめかみに溜まった毒血の浄化による頭痛とみて、熱のある所を長めに施術します。',
+  hinketsu: '首の周りに固結がある：その固結が頭へ血を送る血管を圧迫する脳貧血による頭痛とみて、首の周りを施術します（この時、額は冷たいことが多い）。',
+  lymph: '耳下腺・頸部淋巴腺に熱がある：前頭部の頭痛は、頸部淋巴腺の浄化熱が元とされます。前頭部だけでなく、首の横を施術します。',
+  enzui: '延髄部の辺りに熱がある：後頭部の頭痛は延髄部の浄化熱が元で、その根原は腎臓とされます。延髄部と腎臓部を施術します。',
 };
 
 // 重要施術部位（頭・肩・腎臓部）は、探査で所見がなくても必ず少しでも施術に入れる。
@@ -394,13 +427,17 @@ const PELVIC_MIN = 1; // 熱・固結・圧痛のどれかがこの値（0〜5�
 const PELVIC_MIN_OTHER = 2; // ほかの骨盤まわりの所
 const PELVIC_MAX = 3;
 
-// 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加え、重なる所（急所）をさらに重くする
+// 探査の値は 0〜5（塗りの濃さ）。熱を最も重く、固結（張り）・圧痛を加える。
+// 熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4）。
+// 熱があって固結や圧痛と重なる所は、第二浄化作用（溶けて排泄に向かう働き）が進んでいる所
+export const OVERLAP_PTS = { 2: 2, 3: 4 };
+export function overlapCount(f) {
+  return f ? [f.heat, f.kouketsu, f.atsutsuu].filter((v) => (v || 0) > 0).length : 0;
+}
 export function findingScore(f) {
   if (!f) return 0;
-  const h = (f.heat || 0) * 0.6;
-  const k = (f.kouketsu || 0) * 0.6;
-  const a = (f.atsutsuu || 0) * 0.6;
-  return 1.5 * h + k + a + (h && k ? 1 : 0) + (h && k && a ? 1 : 0);
+  const base = 0.6 * (1.5 * (f.heat || 0) + (f.kouketsu || 0) + (f.atsutsuu || 0));
+  return base + (OVERLAP_PTS[overlapCount(f)] || 0);
 }
 
 // 施術の順序。'top'＝体の上から下（背面図での高さ順）、'text'＝テキストの探査順、
@@ -467,30 +504,33 @@ export function overallSide(findings, analysis = null) {
   return { side: 'R', why: 'none', L, R };
 }
 
-// 骨盤まわり（出口）の左右：腸骨の内側・鼠蹊部・仙腸関節・腎臓下方部の固結の強い側
+// 骨盤まわり（出口）の左右：腸骨の内側・鼠蹊部・仙腸関節・腎臓下方部の固結（圧痛・熱も軽めに）の強い側
 function pelvicSide(findings) {
   let L = 0;
   let R = 0;
   for (const id of ['choukotsu', 'sokeibu', 'senchou', 'jinzo_kahou', 'jinzo_kahou_side']) {
     const s = findings[id]?.sides;
     if (!s) continue;
-    L = Math.max(L, s.L?.kouketsu || 0);
-    R = Math.max(R, s.R?.kouketsu || 0);
+    const load = (x) => Math.max(x?.kouketsu || 0, (x?.atsutsuu || 0) * 0.7, (x?.heat || 0) * 0.6);
+    L = Math.max(L, load(s.L));
+    R = Math.max(R, load(s.R));
   }
   if (Math.abs(L - R) < 1) return null;
   return L > R ? 'L' : 'R';
 }
 
 // ---- 排泄経路は整っているか ----
-// 骨盤まわり（出口）の固結と、排泄の不調の訴えから、出口の詰まり具合をみる
+// 骨盤まわり（出口）の固結・圧痛・熱と、排泄の不調の訴えから、出口の詰まり具合をみる
 const EXCRETION_KENKAI = new Set(['benpi', 'mukumi', 'hara', 'geri', 'fujin']);
 const EXCRETION_CATS = new Set(['abdomen', 'urinary', 'women', 'anus']);
 export function excretionCheck(db, findings, analysis = null) {
   const outlet = OUTLET_POINTS.concat(['jinzo_kahou']);
   let max = 0;
   const hard = [];
+  // 固結を主に、圧痛・熱も軽めに数える（圧痛は7割、熱は6割の重さ）。強い圧痛や熱も、出口の詰まりの表れとみる
   for (const id of outlet) {
-    const k = findings[id]?.kouketsu || 0;
+    const f = findings[id];
+    const k = Math.max(f?.kouketsu || 0, (f?.atsutsuu || 0) * 0.7, (f?.heat || 0) * 0.6);
     max = Math.max(max, k);
     if (k >= 2.5) hard.push(id);
   }
@@ -507,7 +547,51 @@ export function excretionCheck(db, findings, analysis = null) {
   return { level, max, hard, signs: [...new Set(signs)], nausea, side: pelvicSide(findings), painted };
 }
 
-export function planSession(db, findings, total, analysis = null, { order = 'auto' } = {}) {
+// ---- 前回の記録から ----
+// 記録の findings / findings_after（[{ point_id, heat, kouketsu, atsutsuu }]）を { id: 値 } に
+export function findingsMap(list) {
+  return Object.fromEntries((list || []).map((f) => [f.point_id, f]));
+}
+const any = (f) => !!f && ((f.heat || 0) > 0 || (f.kouketsu || 0) > 0 || (f.atsutsuu || 0) > 0);
+const dropped = (b, a) => ['heat', 'kouketsu', 'atsutsuu'].some((k) => (b?.[k] || 0) - (a?.[k] || 0) >= 0.5);
+const rose = (b, a) => ['heat', 'kouketsu', 'atsutsuu'].some((k) => (a?.[k] || 0) - (b?.[k] || 0) >= 0.5);
+// 前回（同じ受け手）の施術で、終わりにも残っていた所・施術しても変わらなかった所・よく変化した所
+export function historyHints(prev) {
+  if (!prev) return null;
+  const before = findingsMap(prev.findings);
+  const after = findingsMap(prev.findings_after);
+  const treated = new Set((prev.treatments || []).map((t) => t.point_id));
+  const remain = new Set(Object.keys(after).filter((id) => any(after[id]) && findingScore(after[id]) >= 2));
+  const unchanged = new Set([...treated].filter((id) => any(before[id]) && after[id] && !dropped(before[id], after[id])));
+  const improved = new Set([...treated].filter((id) => any(before[id]) && dropped(before[id], after[id])));
+  return { date: prev.date, remain, unchanged, improved, next: prev.next_advice || [] };
+}
+
+// 施術の前後の探査から、次回の施術のあり方を提案する（施術後の画面と記録に残す）
+// before/after: { id: { heat, kouketsu, atsutsuu } }、items: 今回の計画の箇所
+export function nextAdvice(db, before, after, items = []) {
+  const name = (ids) => ids.map((id) => db.pointById[id]?.name || id).join('、');
+  const treated = new Set(items.map((it) => it.id));
+  const ids = [...new Set([...Object.keys(before || {}), ...Object.keys(after || {})])].filter((id) => db.pointById[id]);
+  const by = (fn) => ids.filter(fn).sort((x, y) => (db.pointById[x].no - db.pointById[y].no));
+  const improved = by((id) => treated.has(id) && any(before[id]) && dropped(before[id], after[id]));
+  const unchanged = by((id) => treated.has(id) && any(before[id]) && !dropped(before[id], after[id]) && !rose(before[id], after[id]));
+  const heatUp = by((id) => (after[id]?.heat || 0) - (before[id]?.heat || 0) >= 0.5);
+  const appeared = by((id) => !any(before[id]) && any(after[id]));
+  const untreated = by((id) => !treated.has(id) && any(before[id]) && any(after[id]) && findingScore(after[id]) >= 1);
+  const out = [];
+  if (improved.length) out.push({ kind: 'good', ids: improved, text: `熱が冷めた・固結がゆるんだ所：${name(improved)}。次回も探査して、残っていれば続けて施術します。` });
+  if (heatUp.length) out.push({ kind: 'up', ids: heatUp, text: `熱が出てきた所：${name(heatUp)}。固結が溶け始めた（第二浄化作用が進んでいる）しるしです。次回はここを中心に施術します。` });
+  if (appeared.length) out.push({ kind: 'move', ids: appeared, text: `新しく出てきた所：${name(appeared)}。溶けた毒素が移った（平均浄化）こともあります。次回はここも探査して施術に入れます。` });
+  if (unchanged.length) out.push({ kind: 'same', ids: unchanged, text: `施術しても変化が少なかった所：${name(unchanged)}。急所が外れていないか、周りや元（楽屋）を探り直し、次回は時間を長めにします。` });
+  if (untreated.length) out.push({ kind: 'todo', ids: untreated, text: `今回施術しなかった所見のある所：${name(untreated)}。次回は施術に組み入れます。` });
+  const heatLeft = ids.some((id) => (after[id]?.heat || 0) > 0 && db.pointById[id].region !== 'kidney');
+  if (!heatLeft && ids.some((id) => db.pointById[id].region === 'kidney' && any(after[id]))) out.push({ kind: 'kidney', ids: [], text: '熱のある所が無く、腎臓部に固結が残っています。次回は腎臓部を長めに施術して、浄化力の高まりを目指します。' });
+  if (!out.length) out.push({ kind: 'none', ids: [], text: '大きな変化は入っていません。次回も同じ所から探査を始めて、変化を見つめます。' });
+  return out;
+}
+
+export function planSession(db, findings, total, analysis = null, { order = 'auto', prev = null } = {}) {
   const roleOf = Object.fromEntries((analysis?.points || []).map((p) => [p.id, p]));
   const hasAnalysis = !!analysis && !analysis.fallback;
   const ex = excretionCheck(db, findings, analysis);
@@ -527,38 +611,39 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     const p = db.pointById[id];
     const F = findingScore(f);
     if (!p || F <= 0) continue;
-    let W = 1;
+    let B = 0; // 4つのポイントの加点
     const reasons = [];
+    const add = (pts, text, ref) => { B += pts; reasons.push({ text, ref, pts }); };
     const h = f.heat || 0;
     const k = f.kouketsu || 0;
     const a = f.atsutsuu || 0;
-    if (h && k && a) reasons.push({ text: '熱・固結・圧痛が重なる所（急所）', ref: 'netsu' });
-    else if (h && k) reasons.push({ text: '熱と固結が重なる所', ref: 'netsu' });
+    // 0. 熱・固結・圧痛の重なり（探査の値に含めて数える。薄くても重なっていれば）
+    const ov = overlapCount(f);
+    if (ov === 3) reasons.push({ text: '熱・固結・圧痛が重なる所（急所。第二浄化作用が進んでいる）', ref: 'netsu', pts: OVERLAP_PTS[3] });
+    else if (ov === 2 && h) reasons.push({ text: `熱と${k ? '固結' : '圧痛'}が重なる所（第二浄化作用が進んでいる）`, ref: 'netsu', pts: OVERLAP_PTS[2] });
+    else if (ov === 2) reasons.push({ text: '固結と圧痛が重なる所', ref: 'netsu', pts: OVERLAP_PTS[2] });
     else if (h) reasons.push({ text: '熱がある＝溶けて排泄に向かっている（第二浄化作用）', ref: 'netsu' });
     // 1. 重要施術部位
     const rf = REGION_FACTOR[p.region];
-    if (rf) { W *= rf.f; reasons.push({ text: rf.why, ref: rf.ref }); }
+    if (rf) add(rf.pts, rf.why, rf.ref);
     // 2. 楽屋と舞台
     const r = roleOf[id];
     if (hasAnalysis) {
       if (r?.roles.includes('rakuya')) {
-        W *= 1.3;
         const down = p.region === 'head' && (analysis.categories || []).some((c) => (c.flows || []).some((fl) => fl.src.id === 'head_down'));
-        reasons.push(down ? { text: '楽屋：頭の毒が脊柱の際（首・肩・肩甲間部・腎臓部）を下りて腰に溜まる流れの元', ref: 'atama_kudari' } : { text: '楽屋（本日の症状の元）', ref: 'kyuusho' });
+        add(PTS.rakuya, down ? '楽屋：頭の毒が脊柱の際（首・肩・肩甲間部・腎臓部）を下りて腰に溜まる流れの元' : '楽屋（本日の症状の根本の固結）', down ? 'atama_kudari' : 'kyuusho');
       }
-      else if (r?.roles.includes('keiro')) { W *= 1.1; reasons.push({ text: '毒素の流れの経路上', ref: 'joushou' }); }
-      else if (r?.roles.includes('butai')) { reasons.push({ text: '舞台（症状が出ている所）', ref: 'kyuusho' }); }
-      else if (!r) { W *= 0.85; }
+      else if (r?.roles.includes('keiro')) add(PTS.keiro, '毒素の流れの経路上（溶けた毒素が通って排泄へ向かう道）', 'joushou');
+      else if (r?.roles.includes('butai')) add(PTS.butai, '舞台（症状が出ている所）', 'kyuusho');
     }
-    // 頭部の中では、熱のある所を重く（熱は上で重みづけ済み）。後頭部は頭の毒素の出入り口
-    if (id === 'koutoubu') { W *= 1.1; reasons.push({ text: '後頭部は頭部の毒素の出入り口（延髄部・首へつながる）', ref: 'atama_first' }); }
-    // 3. 毒素集溜と排泄の順序
+    // 後頭部は頭部の毒素の出入り口
+    if (id === 'koutoubu') add(PTS.koutoubu, '後頭部は頭部の毒素の出入り口（延髄部・首へつながる）', 'atama_first');
+    // 3. 毒素集溜と排泄の経路
     if (OUTLET_POINTS.includes(id) || id === 'jinzo_kahou_side') {
-      W *= lowerCongested ? 1.3 : 1.15;
-      reasons.push({ text: lowerCongested ? '骨盤周辺の固結が強い：出口を開けて排泄の道をつくる' : '排泄の出口（骨盤周辺）', ref: 'kotsuban' });
+      add(lowerCongested ? PTS.outletBlocked : PTS.outlet, lowerCongested ? '骨盤周辺が詰まっている：出口を開けて排泄の道をつくる' : '排泄の出口（骨盤周辺）', 'kotsuban');
     }
     // 4. 各論
-    if (r?.roles.includes('kakuron')) { W *= 1.25; reasons.push({ text: '各論：本日の症状について説かれた急所', ref: null }); }
+    if (r?.roles.includes('kakuron')) add(PTS.kakuron, '各論：本日の症状について説かれた急所', null);
     // 5. 左右：強い側を重点に。腎臓部と骨盤の内側が同じ側で強ければ、その側の固結の柱をさらに重く
     const sf = sideFocus(f);
     let side = sf?.side || null;
@@ -567,14 +652,36 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     }
     if (pSide && (p.region === 'kidney' || OUTLET_POINTS.includes(id)) && (!side || side === pSide) && (f.sides?.[pSide])) {
       side = pSide;
-      W *= 1.25;
-      reasons.push({ text: `${SIDE_NAME[pSide]}の腎臓部から${SIDE_NAME[pSide]}の骨盤の内側へ固結が続いている：${SIDE_NAME[pSide]}の固結の柱を重点に（排泄の道を開く）`, ref: 'kotsuban_naibu' });
+      add(PTS.column, `${SIDE_NAME[pSide]}の腎臓部から${SIDE_NAME[pSide]}の骨盤の内側へ固結が続いている：${SIDE_NAME[pSide]}の固結の柱を重点に（排泄の道を開く）`, 'kotsuban_naibu');
     }
     const paired = (p.p3 || []).length > 1;
     if (paired && !side) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
-    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, W, P: F * W, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
+    cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, B, P: F + B, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides } });
   }
   if (!cands.length) return { ok: false, message: '探査で熱・固結・圧痛のあった箇所を入力してください。' };
+  const bump = (c, pts, text, ref) => { c.B += pts; c.P += pts; c.reasons.push({ text, ref, pts }); };
+  // 前回の記録（同じ受け手）：前回の終わりにも残っていた所は、続けて施術して溶かす
+  const hist = historyHints(prev);
+  if (hist) {
+    for (const c of cands) if (hist.remain.has(c.id)) bump(c, PTS.history, `前回（${hist.date}）の終わりにも残っていた：続けて施術して溶かす`, 'tansa_tsuzuku');
+  }
+  // 頭痛の元を見分ける（岡田先生：①頭部の毒血の浄化 ②首の固結の圧迫による脳貧血 ③頸部淋巴腺・延髄部の浄化熱。延髄部の根原は腎臓）
+  const headache = headacheTypes(cands, analysis);
+  if (headache) {
+    for (const c of cands) {
+      const t = headache.byPoint[c.id];
+      if (t) bump(c, PTS.headache, t, 'zutsuu_moto');
+    }
+    if (headache.types.includes('enzui')) {
+      const kid = cands.find((x) => x.region === 'kidney');
+      if (kid) bump(kid, PTS.headache / 2, '後頭部の頭痛の根原：延髄部の浄化熱の元は腎臓', 'zutsuu_moto');
+    }
+  }
+  // ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部を施術して浄化力の高まりを目指す
+  const heatElsewhere = cands.some((c) => c.region !== 'kidney' && c.region !== 'head' && (c.finding.heat || 0) > 0);
+  if (!heatElsewhere) {
+    for (const c of cands.filter((x) => x.region === 'kidney')) bump(c, PTS.kidneyBoost, 'ほかの固結に熱が無い（第二浄化作用がまだ起きていない）：腎臓部を施術して浄化力を高める', 'jinzo_first');
+  }
 
   cands.sort((x, y) => y.P - x.P);
   const maxN = Math.max(2, Math.min(5, Math.round(total / 8)));
@@ -590,7 +697,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     let side = null;
     if (paired) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
     return {
-      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, W: 1, P: 0, stub: true, headStub: !!g.head, paired, side,
+      id: p.id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F: 0, B: 0, P: 0, stub: true, headStub: !!g.head, paired, side,
       reasons,
       finding: { heat: 0, kouketsu: 0, atsutsuu: 0 },
     };
@@ -668,10 +775,13 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
 
   // 頭部は一か所あたり数分まで（頭部が特に大事と読み取れる時だけ長めに）。余った時間はほかの箇所へ
   // 頭部の各所は3分まで。その所に強い熱（4以上）がある時だけ4分、頭痛など頭部の訴えがあって強い熱がある時は残りの1割ほど（60分で5分）まで
+  // 頭部の各所は3分まで。その所に強い熱（4以上）がある時は4分。
+  // 頭痛で頭部そのものの浄化（毒血。その所に熱2以上）と見た時や、頭部の訴えがあって強い熱がある時は、残りの1割ほど（60分で5分）まで
   const headSaid = (analysis?.categories || []).some((c) => HEAD_CATS.has(c.id));
   const headCapOf = (c) => {
     const h = c.finding?.heat || 0;
-    if (h >= 4) return headSaid ? Math.max(4, Math.round(avail * 0.1)) : 4;
+    if ((headache?.types.includes('doku') && h >= 2) || (headSaid && h >= 4)) return Math.max(4, Math.round(avail * 0.1));
+    if (h >= 4) return 4;
     return 3;
   };
   let surplus = 0;
@@ -699,6 +809,15 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const ordered = orderPoints(db, items, used);
   const others = cands.filter((c) => !chosen.includes(c));
   const notes = planNotes(ex, ordered, used);
+  if (hist && (hist.unchanged.size || hist.improved.size)) {
+    const nm = (set) => [...set].map((id) => db.pointById[id]?.name || id).join('、');
+    notes.unshift({ kind: 'info', title: `前回（${hist.date}）の施術から`, text: `${hist.unchanged.size ? `施術しても変化が少なかった所：${nm(hist.unchanged)}。急所が外れていないか、周りや元も探ってみましょう。` : ''}${hist.improved.size ? `よく変化した所：${nm(hist.improved)}。今日も残っていれば続けて施術します。` : ''}`, ref: 'minaoshi' });
+  }
+  if (headache) {
+    notes.unshift(headache.types.length
+      ? { kind: 'info', title: '頭痛の元の見立て', text: headache.types.map((t) => HEADACHE_TEXT[t]).join(''), ref: 'zutsuu_moto' }
+      : { kind: 'info', title: '頭痛の元を探りましょう', text: '頭部にも首の周りにも所見が入っていません。額に手を当てて熱いか冷たいかを確かめ、首の周り（耳下腺・頸部淋巴腺・延髄部）の固結と熱を探ってください。額が熱ければ毒血の浄化、冷たくて首に固結があれば脳貧血（首の固結の圧迫）による頭痛とされます。', ref: 'zutsuu_moto' });
+  }
   return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
 }
 

@@ -208,6 +208,25 @@
      "label"
     ]
    }
+  },
+  "next_advice": {
+   "type": "array",
+   "description": "施術の前後の探査から出した、次回の施術のあり方の提案（engine.js の nextAdvice）",
+   "items": {
+    "type": "object",
+    "properties": {
+     "kind": {
+      "type": "string"
+     },
+     "text": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "previous_session": {
+   "type": "string",
+   "description": "続きとして始めた前回の記録の session_id（同じ受け手）"
   }
  }
 }

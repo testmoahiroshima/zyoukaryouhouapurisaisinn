@@ -1,4 +1,5 @@
-import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS } from './engine.js';
+import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS, nextAdvice, findingsMap } from './engine.js';
+import { saveMap, loadMap, hasMap, deleteMap } from './history.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
 import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
 import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zoneBounds, zoneDetail, phrasesForDetails } from './zones.js';
@@ -1122,6 +1123,52 @@ function wireStepBar(root) {
   }));
 }
 
+// ---- 前回の続き（同じ受け手の、この端末の記録から） ----
+// 受け手ごとの記録を古い順に。今の施術の記録（上書き保存したもの）は除く
+function recordsOf(code) {
+  return loadRecords().filter((r) => code && r.receiver_code === code && r.session_id !== session.savedId)
+    .sort((a, b) => (a.date + a.session_id).localeCompare(b.date + b.session_id));
+}
+function adviceHTML(list) {
+  const ICON = { good: '◎', up: '🔥', move: '↪', same: '△', todo: '＋', kidney: '◆', none: '・' };
+  return `<ul class="advice">${list.map((x) => `<li class="adv-${esc(x.kind || 'none')}"><span class="adv-i" aria-hidden="true">${ICON[x.kind] || '・'}</span>${esc(x.text || x)}</li>`).join('')}</ul>`;
+}
+function prevBarHTML() {
+  const codes = [...new Set(loadRecords().map((r) => r.receiver_code))].sort();
+  return `<div class="prev-bar">
+      <label class="prev-code">受け手コード
+        <input id="pb-code" list="pb-codes" value="${esc(session.receiver)}" placeholder="例：A-01" maxlength="20" autocomplete="off">
+        <datalist id="pb-codes">${codes.map((c) => `<option value="${esc(c)}">`).join('')}</datalist>
+      </label>
+      <div id="prev-info" class="prev-info"></div>
+    </div>`;
+}
+function wirePrevBar(root, pad, refresh) {
+  const info = $('#prev-info', root);
+  const show = async () => {
+    const list = recordsOf(session.receiver);
+    session.prev = list[list.length - 1] || null;
+    const p = session.prev;
+    if (!session.receiver) { info.innerHTML = '<p class="small muted">受け手コードを入れると、この方の前回の記録の続きから始められます。</p>'; return; }
+    if (!p) { info.innerHTML = `<p class="small muted">「${esc(session.receiver)}」さんの記録はまだありません（初回）。終わりに記録を保存すると、次回は今日の続きから始められます。</p>`; return; }
+    const map = await hasMap(p.session_id);
+    const adv = p.next_advice || [];
+    info.innerHTML = `<p class="small"><b>前回 ${esc(p.date)}</b>（${list.length}回の記録があります。今日は${list.length + 1}回目）</p>
+      ${map ? '<button type="button" class="primary wide" id="prev-load">前回の終わりの図から始める</button>' : '<p class="small muted">前回の終わりの3D人体図は残っていません（3D人体図で塗って保存した記録から始められます）。</p>'}
+      ${adv.length ? `<details class="prev-adv" open><summary class="small"><b>前回の終わりに出した、今回の施術のあり方</b></summary>${adviceHTML(adv)}</details>` : ''}
+      <p class="small muted">前回の終わりにも残っていた所は、施術の順番を出す時に続けて施術するよう重くします。</p>`;
+    $('#prev-load', info)?.addEventListener('click', async () => {
+      const m = await loadMap(p.session_id);
+      if (!m) { toast('前回の図を読み込めませんでした'); return; }
+      if (pad.b3) { pad.b3.copyFrom(m); pad.b3.render(); } else pad.seed = m;
+      refresh();
+      toast(`前回（${p.date}）の終わりの図を入れました。今日の探査に合わせて、薄く・濃くしてください`);
+    });
+  };
+  $('#pb-code', root).addEventListener('change', (e) => { session.receiver = e.target.value.trim(); store.set('joka.lastReceiver', session.receiver); show(); });
+  show();
+}
+
 function renderSessionInput() {
   const pad = getPad('pb');
   const suggested = lastAnalysis && !lastAnalysis.fallback ? lastAnalysis.points : [];
@@ -1133,6 +1180,7 @@ function renderSessionInput() {
       <p class="small">探査して感じたことを入れます。<b class="c-heat">熱は赤</b>、<b class="c-kou">固結・張りは青</b>、<b class="c-atsu">圧痛は紫</b>。<b>左右で違う時は、それぞれに入れてください</b>（強い側を重点にした施術をお示しします）。</p>
       ${suggested.length ? `<p class="small">本日の症状から見つめる箇所：${suggested.map((p) => `<span class="tag">${p.no} ${esc(p.name)}</span>`).join('')}</p>` : ''}
       <p class="small">骨盤まわり（20〜25：腰骨部・尾てい骨部・鼠蹊部・腸骨の内側・仙腸関節付近・恥骨部）は本人に確かめてもらい、<b>排泄経路は整っているか</b>も入れておきましょう。</p>
+      ${prevBarHTML()}
       ${painterHTML('pb')}
     </div>
     <div class="card">
@@ -1150,11 +1198,13 @@ function renderSessionInput() {
     ${criteriaCard()}`;
   const root = $('#tab-session');
   wireStepBar(root);
-  jumpToBody(root);
-  wirePainter(root, 'pb', pad, () => {
+  jumpToBody(root, '.prev-bar, .dim-switch');
+  const refreshPb = () => {
     session.findings = padSample(pad);
     $('#readout').innerHTML = readoutHTML(session.findings, sugIds);
-  });
+  };
+  wirePainter(root, 'pb', pad, refreshPb);
+  wirePrevBar(root, pad, refreshPb);
   $$('.time-chip').forEach((b) => b.addEventListener('click', () => {
     settings.minutes = Number(b.dataset.m);
     saveSettings();
@@ -1162,7 +1212,7 @@ function renderSessionInput() {
   }));
   $('#make-plan').addEventListener('click', () => {
     session.findings = padSample(pad);
-    const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
+    const plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order, prev: session.prev });
     if (!plan.ok) {
       const m = $('#plan-msg');
       m.textContent = '探査で熱・固結・圧痛を感じた所を、番号を押して入れるか、人体図に塗ってください。';
@@ -1179,7 +1229,7 @@ function criteriaCard() {
   return `<details class="card criteria"><summary><h2>優先順位と時間配分の考え方</h2></summary>
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
-      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加え、重なる所（急所）をさらに重くする。</li>
+      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加える。熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4。第二浄化作用が進んでいる所）。</li><li><b>4つのポイントの加点</b>：重要施術部位（腎臓部＋3、頭・肩＋2、背部＋1.5）、各論（＋2.5）、楽屋と舞台（楽屋＋3、舞台・経路＋1.5）、毒素集溜と排泄の経路（出口＋1.5、詰まっている時＋3、腎臓部から骨盤の内側への固結の柱＋2）。ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部に＋3して浄化力の高まりを目指す。前回の終わりにも残っていた所は＋1.5（続けて溶かす）。頭痛の時は、元（頭部の毒血・首の固結の圧迫・頸部淋巴腺や延髄部の浄化熱）に＋3。加点は計画の「なぜここを？」に出る。</li>
       <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。骨盤まわり（自己探査）に張り・痛み・熱があれば、短くても必ず入れる（排泄の出口。鼠蹊部・恥骨部は少しでもあれば、腰骨部・腸骨の内側などははっきりしていれば。時間に応じて1〜3か所）。訴えの場所（舞台）に所見があれば、その一番強い所も必ず入れる。頭部は一か所あたり3分まで（その所に強い熱がある時は4分、頭痛など頭部の訴えもある時だけさらに長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（熱に差があれば熱の強い側を。差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
@@ -1308,7 +1358,7 @@ function renderSessionPlan({ jump = true } = {}) {
         ${splitText(it) ? `<div class="split">${esc(splitText(it))}</div>` : ''}
         <details class="why"><summary>なぜここを？</summary>
           <div class="small">${shadeBars(it.finding)}</div>
-          <ul class="reasons">${it.reasons.map((r) => `<li>${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
+          <ul class="reasons">${it.reasons.map((r) => `<li>${r.pts ? `<span class="pts">＋${r.pts}</span>` : ''}${esc(r.text)}${ref(r)}</li>`).join('')}</ul>
         </details>
       </li>`).join('')}</ol>
       <p class="small muted">${plan.order === 'outlet' ? '排泄経路を整えるサブプラン：頭のあと、先に骨盤まわりの出口を開けてから、腎臓部・首・肩・背へ。' : plan.order === 'top' ? '基本の順序：前頭部から始めて、頭 → 首・肩 → 背 → 腎臓部 → 腰と、上から下へ。' : ''}</p>
@@ -1354,7 +1404,7 @@ function renderSessionPlan({ jump = true } = {}) {
   $$('.order-chip').forEach((b) => b.addEventListener('click', () => {
     session.order = b.dataset.order;
     const keep = Object.fromEntries(plan.items.map((it) => [it.id, it.minutes]));
-    session.plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order });
+    session.plan = planSession(db, session.findings, settings.minutes, lastAnalysis, { order: session.order, prev: session.prev });
     for (const it of session.plan.items) if (keep[it.id]) { it.minutes = keep[it.id]; reSplit(it); }
     session.plan.total = session.plan.probe + session.plan.check + session.plan.items.reduce((s, x) => s + x.minutes, 0);
     renderSessionPlan();
@@ -1565,6 +1615,11 @@ function renderDone() {
       <div id="compare">${compareHTML(items)}</div>
     </div>
     <div class="card">
+      <h2>次回の施術のあり方（提案）</h2>
+      <div id="next-advice">${adviceHTML(nextAdvice(db, session.findings, session.after, items))}</div>
+      <p class="small muted">施術後の図を塗り直すと変わります。記録を保存すると、次回この方の探査で「前回の続き」として出て、今日の終わりの図から始められます。</p>
+    </div>
+    <div class="card">
       <h2>記録する</h2>
       ${receiverHTML()}
       ${ratingHTML('after', '施術後のつらさ', session.ratingAfter)}
@@ -1586,6 +1641,7 @@ function renderDone() {
   const afterChange = () => {
     session.after = padSample(pad);
     $('#compare').innerHTML = compareHTML(items);
+    $('#next-advice').innerHTML = adviceHTML(nextAdvice(db, session.findings, session.after, items));
   };
   wirePainter(root, 'pa', pad, afterChange);
   jumpToBody(root);
@@ -1607,6 +1663,9 @@ function renderDone() {
     const rec = buildRecord();
     const ok = session.savedId ? updateRecord(session.savedId, rec) : addRecord(rec);
     if (ok) session.savedId = rec.session_id;
+    // 終わりの3D人体図を残す（次回「前回の終わりの図から始める」に使う）
+    const endMap = pad.b3 || session.pads.pb?.b3;
+    if (ok && endMap) saveMap(rec.session_id, rec.receiver_code, rec.date, endMap);
     msg.innerHTML = ok ? '保存しました。<button type="button" class="ghost small-btn" id="go-records">記録を見る →</button>' : '保存できませんでした（この端末では保存が使えない設定のようです）。';
     msg.hidden = false;
     $('#save-record', root).textContent = '記録を上書き保存';
@@ -1643,6 +1702,8 @@ function buildRecord() {
       ...ask.zones.filter((z) => !ask.pins.some((x) => x.zone === z)).map((z) => ({ zone: z, label: placeName(z) })),
     ] : undefined,
     follow_up: '',
+    next_advice: nextAdvice(db, session.findings, session.after, session.plan.items).map(({ kind, text }) => ({ kind, text })),
+    previous_session: session.prev?.session_id || undefined,
     plan_minutes: { probe: session.plan.probe, check: session.plan.check },
   };
 }
@@ -1821,14 +1882,14 @@ function changeTableHTML(change) {
   }).join('')}</table><p class="small muted">値は塗りの濃さ（0〜5）の平均です。</p>`;
 }
 
-function recordItemHTML(r) {
+function recordItemHTML(r, nth = 0) {
   const name = (id) => db.pointById[id]?.name || id;
   const minutes = (r.treatments || []).reduce((s, t) => s + (t.minutes || 0), 0);
   const fb = Object.fromEntries((r.findings || []).map((x) => [x.point_id, x]));
   const fa = Object.fromEntries((r.findings_after || []).map((x) => [x.point_id, x]));
   const changes = (r.changes_observed || []).map((id) => db.raw.changes.patterns.find((c) => c.id === id)?.trigger.split('（')[0] || id);
   return `<details class="rec-item">
-    <summary><span class="rec-date">${esc(r.date)}</span> <span class="tag">${esc(r.receiver_code)}</span>
+    <summary><span class="rec-date">${esc(r.date)}</span> <span class="tag">${esc(r.receiver_code)}</span>${nth ? ` <span class="small">第${nth}回</span>` : ''}
       <span class="small muted">${minutes}分・つらさ ${r.self_rating_before?.つらさ ?? '−'}→${r.self_rating_after?.つらさ ?? '−'}</span></summary>
     ${(r.complaints || []).length ? `<p class="small">症状：${r.complaints.map(esc).join('、')}</p>` : ''}
     ${(r.places || []).length ? `<p class="small">つらい場所：${r.places.map((x) => esc(x.label)).join('、')}</p>` : ''}
@@ -1837,11 +1898,33 @@ function recordItemHTML(r) {
       <div class="cmp"><span class="cmp-l">後</span>${shadeBars(fa[t.point_id])}</div></li>`).join('')}</ul>
     ${changes.length ? `<p class="small">変化：${changes.map(esc).join('、')}</p>` : ''}
     ${r.memo ? `<p class="small">メモ：${esc(r.memo)}</p>` : ''}
+    ${(r.next_advice || []).length ? `<div class="small"><b>次回の施術のあり方（この時の提案）</b>${adviceHTML(r.next_advice)}</div>` : ''}
     <label class="field-label small">翌日以降の変化（排泄・平均浄化・再浄化など）</label>
     <textarea rows="2" data-follow="${esc(r.session_id)}">${esc(r.follow_up || '')}</textarea>
     <div class="actions"><button type="button" class="ghost small-btn" data-follow-save="${esc(r.session_id)}">保存</button>
       <button type="button" class="ghost small-btn" data-del="${esc(r.session_id)}">この記録を消す</button></div>
   </details>`;
+}
+
+// 受け手ごとの経過：回ごとに、箇所の熱・固結・圧痛（施術の前→後）を並べる。回を重ねて積み上がる
+function progressHTML(list) {
+  const ids = [...new Set(list.flatMap((r) => [...(r.findings || []), ...(r.findings_after || [])].map((f) => f.point_id)))]
+    .filter((id) => db.pointById[id]).sort((a, b) => db.pointById[a].no - db.pointById[b].no);
+  const cell = (f) => {
+    if (!f) return '<span class="muted">−</span>';
+    const parts = LAYERS.map((l) => [l, Math.round((f[l.id] || 0) * 10) / 10]).filter(([, v]) => v > 0);
+    return parts.length ? parts.map(([l, v]) => `<span class="pv" style="--c:rgb(${l.rgb.join(',')})">${esc(l.name.split('・')[0])}${v}</span>`).join('') : '<span class="muted">0</span>';
+  };
+  return `<div class="progress-wrap"><table class="progress">
+    <thead><tr><th>箇所</th>${list.map((r, i) => `<th>第${i + 1}回<br><span class="small muted">${esc(r.date.slice(5))}</span></th>`).join('')}</tr></thead>
+    <tbody>${ids.map((id) => `<tr><th>${db.pointById[id].no} ${esc(db.pointById[id].name)}</th>${list.map((r) => {
+      const b = findingsMap(r.findings)[id];
+      const a = findingsMap(r.findings_after)[id];
+      const t = (r.treatments || []).find((x) => x.point_id === id);
+      return `<td${t ? ' class="treated"' : ''}><div>${cell(b)}</div><div class="arrow">↓${t ? ` ${t.minutes}分` : ''}</div><div>${cell(a)}</div></td>`;
+    }).join('')}</tr>`).join('')}</tbody>
+  </table></div>
+  <p class="small muted">各回の上が施術前、下が施術後の探査です（緑の欄は施術した箇所）。</p>`;
 }
 
 function renderRecordsTab() {
@@ -1866,8 +1949,9 @@ function renderRecordsTab() {
     <div class="card"><h2>つらさの前と後</h2>${dumbbellSVG(list)}</div>
     <div class="card"><h2>箇所ごとの施術時間</h2>${minutesBarsHTML(sum.minutes)}</div>
     <div class="card"><h2>箇所ごとの変化</h2>${changeTableHTML(sum.change)}</div>
+    ${recFilter !== 'all' && list.length ? `<div class="card"><h2>経過（${esc(recFilter)}さん・${list.length}回）</h2>${progressHTML(list)}</div>` : ''}
     <div class="card"><h2>記録の一覧</h2>
-      ${list.length ? list.slice().reverse().map(recordItemHTML).join('') : '<p class="small muted">まだ記録がありません。施術の終わりに「記録を保存」で残せます。</p>'}
+      ${list.length ? list.slice().reverse().map((r) => recordItemHTML(r, all.filter((x) => x.receiver_code === r.receiver_code && (x.date + x.session_id) <= (r.date + r.session_id)).length)).join('') : '<p class="small muted">まだ記録がありません。施術の終わりに「記録を保存」で残せます。</p>'}
     </div>
     <div class="card"><h2>書き出し・読み込み</h2>
       <div class="actions">
@@ -1889,6 +1973,7 @@ function renderRecordsTab() {
   $$('[data-del]', root).forEach((b) => b.addEventListener('click', () => {
     if (!confirm('この記録を消します。元に戻せません。よろしいですか？')) return;
     deleteRecord(b.dataset.del);
+    deleteMap(b.dataset.del);
     renderRecordsTab();
   }));
   const stamp = today();
