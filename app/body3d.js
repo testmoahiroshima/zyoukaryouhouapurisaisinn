@@ -103,6 +103,19 @@ export class Body3D {
           if (d < bd) { bd = d; best = i; }
         }
         const x = P[best * 3];
+        // 中央の1か所でも左右に分けて読む箇所（延髄部・後頸部）は、中心線の左右に分身を置く（受け持つ範囲は中心からの距離のまま）
+        if (p.split) {
+          for (const sd of ['R', 'L']) {
+            const sx = t[0] + (sd === 'L' ? 0.022 : -0.022);
+            let v = best, vd = Infinity;
+            for (let i = 0; i < this.nv; i++) {
+              const d = (P[i * 3] - sx) ** 2 + (P[i * 3 + 1] - t[1]) ** 2 + (P[i * 3 + 2] - t[2]) ** 2;
+              if (d < vd) { vd = d; v = i; }
+            }
+            this.targets.push({ id: p.id, no: p.no, side: sd, split: true, v, x: P[v * 3], y: P[v * 3 + 1], z: P[v * 3 + 2], ox: x, oy: P[best * 3 + 1], oz: P[best * 3 + 2] });
+          }
+          continue;
+        }
         const side = (p.p3 || []).length > 1 ? (x > 0 ? 'L' : 'R') : null;
         this.targets.push({ id: p.id, no: p.no, side, v: best, x, y: P[best * 3 + 1], z: P[best * 3 + 2] });
       }
@@ -113,8 +126,13 @@ export class Body3D {
       let best = -1, bd = Infinity;
       for (let k = 0; k < this.targets.length; k++) {
         const t = this.targets[k];
-        const d = (P[i * 3] - t.x) ** 2 + (P[i * 3 + 1] - t.y) ** 2 + (P[i * 3 + 2] - t.z) ** 2;
+        const d = (P[i * 3] - (t.ox ?? t.x)) ** 2 + (P[i * 3 + 1] - (t.oy ?? t.y)) ** 2 + (P[i * 3 + 2] - (t.oz ?? t.z)) ** 2;
         if (d < bd) { bd = d; best = k; }
+      }
+      // 左右に分けて読む箇所は、頂点が中心線の左（x>0）か右かで、その側の分身に属させる
+      if (best >= 0 && this.targets[best].split) {
+        const want = P[i * 3] > 0 ? 'L' : 'R';
+        if (this.targets[best].side !== want) best = this.targets.findIndex((t) => t.id === this.targets[best].id && t.side === want);
       }
       this.owner[i] = best;
       this.ownerDist[i] = Math.sqrt(bd);

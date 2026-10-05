@@ -392,6 +392,8 @@ const REGION_FACTOR = {
 // 深い熱（頭の奥）：頭部そのものの毒が溶けている＝頭部が元。浅い熱（表面）：ほかから響いている熱で、元を探る。
 // 前頭部・頭頂部・こめかみ部の浅い熱の元は、頸部淋巴腺・耳下腺の浄化熱か、陰部（前は前頭部に関係）。後頭部の浅い熱の元は延髄部の辺り
 const HEAD_FRONT = ['zentoubu', 'touchoubu', 'sokutoubu'];
+// 延髄部・後頸部の左右を決める時に見る楽屋（強い順に探す）
+const NECK_SIDE_SRC = ['kata', 'keibu_lymph', 'jikasen'];
 const SHALLOW_SRC_FRONT = ['jikasen', 'keibu_lymph', 'hentousen', 'chikotsu', 'sokeibu'];
 const SHALLOW_SRC_BACK = ['enzui', 'koukeibu', 'keizui'];
 const PTS = { depthDeep: 2, depthSrc: 2, rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5, relation: 2, relationPoint: 1 };
@@ -676,7 +678,14 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       side = pSide;
       add(PTS.column, `${SIDE_NAME[pSide]}の腎臓部から${SIDE_NAME[pSide]}の骨盤の内側へ固結が続いている：${SIDE_NAME[pSide]}の固結の柱を重点に（排泄の道を開く）`, 'kotsuban_naibu');
     }
-    const paired = (p.p3 || []).length > 1;
+    const paired = (p.p3 || []).length > 1 || !!p.split;
+    // 延髄部・後頸部（中央の1か所を左右に分けて読む所）の左右差がはっきりしない時は、
+    // 楽屋（肩・頸部淋巴腺・耳下腺）の強い側、次に排泄経路（腎臓部〜骨盤の内側の固結の柱）の強い側に合わせる
+    if (paired && !side && p.split) {
+      const src = NECK_SIDE_SRC.map((sid) => [sid, sideFocus(findings[sid] || {})]).find(([, x]) => x?.side);
+      if (src) { side = src[1].side; reasons.push({ text: `左右の差が小さい：楽屋の${db.pointById[src[0]].name}が${SIDE_NAME[side]}に強いので、${SIDE_NAME[side]}を重点に（首の毒は肩から来る）`, ref: 'sayuu' }); }
+      else if (pSide) { side = pSide; reasons.push({ text: `左右の差が小さい：排泄経路（腎臓部から骨盤の内側への固結の柱）が${SIDE_NAME[side]}に強いので、${SIDE_NAME[side]}を重点に（毒素は同じ側を上下する）`, ref: 'jinzo_yoko' }); }
+    }
     if (paired && !side) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
     cands.push({ id, no: p.no, name: p.name, region: p.region, regionName: p.regionName, F, B, P: F + B, reasons, side, paired, sideInfo: sf, finding: { heat: h, kouketsu: k, atsutsuu: a, sides: f.sides, ...(f.depth ? { depth: f.depth } : {}) } });
   }
@@ -733,7 +742,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
     const fromText = g.id ? null : (analysis?.points || []).find((pt) => db.pointById[pt.id]?.region === g.region);
     const p = db.pointById[g.id || fromText?.id || g.def];
     const rf = REGION_FACTOR[p.region];
-    const paired = (p.p3 || []).length > 1;
+    const paired = (p.p3 || []).length > 1 || !!p.split;
     const reasons = [{ text: g.head ? `重要施術部位（${g.name}）：外せない所。所見が無くても1分でも施術する` : `重要施術部位（${g.name}）：探査で目立った所見が無くても、少しでも施術する`, ref: rf?.ref || null }];
     let side = null;
     if (paired) { const ps = pickSide(); side = ps.side; reasons.push(ps.reason); }
