@@ -787,8 +787,9 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const realReq = required.filter((c) => !c.stub && !c.must && c.region !== 'head').length;
   const extras = cands.filter((c) => !required.includes(c)).slice(0, Math.max(0, maxN - realReq));
 
-  const probe = Math.max(3, Math.round(total * 0.15));
-  const check = Math.max(2, Math.round(total * 0.1));
+  // 探査は施術の前に済ませるので、時間に含めない。最後の約6分の1（60分で10分）は仕上げ（全体を再探査して、求める所・排泄経路の所）
+  const probe = 0;
+  const check = finishMinutes(total);
   const avail = Math.max(0, total - probe - check);
   const stubMin = Math.max(2, Math.round(avail * 0.06));
   // 頭の所見なしの最低時間：60分で3分ほど、短い時は1分
@@ -898,7 +899,8 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       ? { kind: 'info', title: '頭痛の元の見立て', text: headache.types.map((t) => HEADACHE_TEXT[t]).join(''), ref: 'zutsuu_moto' }
       : { kind: 'info', title: '頭痛の元を探りましょう', text: '頭部にも首の周りにも所見が入っていません。額に手を当てて熱いか冷たいかを確かめ、首の周り（耳下腺・頸部淋巴腺・延髄部）の固結と熱を探ってください。額が熱ければ毒血の浄化、冷たくて首に固結があれば脳貧血（首の固結の圧迫）による頭痛とされます。', ref: 'zutsuu_moto' });
   }
-  return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
+  const finish = finishPlan(db, findings, analysis, ex, check);
+  return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, finish, items: ordered, others };
 }
 
 // ---- 元をたどる（症状・部位の関係） ----
@@ -957,6 +959,45 @@ function relationNote(db, list) {
   const nm = (id) => db.pointById[id]?.name || id;
   const text = list.map(({ rel, found, missing }) => `${rel.title}：${rel.sources.map(nm).join('・')}。${found.length ? `所見のある${found.map((c) => c.name).join('・')}を加えました。` : ''}${missing.length ? `${missing.map(nm).join('・')}はまだ所見が入っていません。探ってみてください。` : ''}`).join(' ');
   return { kind: 'info', title: '元をたどる（訴えと関係の深い所）', text, ref: list[0].rel.id };
+}
+
+// ---- 仕上げ ----
+// 施術の最後の約6分の1（60分で10分、30分で5分）。全体を今一度探査し、
+//  ① 受け手の求める所（自分への施術なら気になる所）＝本日の訴えの所
+//  ② 求める所が無ければ、排泄経路に関わり、浄化を促しても辛くない所（尾てい骨部・仙骨・腸骨の内側・鼠蹊部）
+// を、その人の所見（固結・圧痛の強い所、骨盤まわりの強い側）に合わせて示す
+export function finishMinutes(total) {
+  return Math.max(2, Math.round(total / 6));
+}
+const FINISH_OUTLETS = [
+  { id: 'biteikotsu', why: '尾てい骨部・仙骨：腰に下りた毒の出口。施術しても辛くなりにくい' },
+  { id: 'senchou', why: '仙腸関節付近：腎臓部から下りた固結の通り道' },
+  { id: 'choukotsu', why: '腸骨の内側：腎臓下方部から骨盤の中へ続く固結の柱（お腹が鳴るなどして張りが取れやすい）' },
+  { id: 'sokeibu', why: '鼠蹊部：脚の付け根の出口（場所が場所だけに、本人と相談して）' },
+];
+export function finishPlan(db, findings, analysis, ex, minutes) {
+  const strong = (f) => Math.max(f?.kouketsu || 0, (f?.atsutsuu || 0) * 0.8, (f?.heat || 0) * 0.8);
+  // ① 本日の訴えの所（舞台）
+  const said = (analysis && !analysis.fallback ? analysis.points : []).filter((p) => p.roles.includes('butai') || p.roles.includes('kakuron'))
+    .filter((p) => !p.selfProbe || findings[p.id])
+    .sort((a, b) => strong(findings[b.id]) - strong(findings[a.id]) || a.no - b.no)
+    .filter((p, i, arr) => strong(findings[p.id]) > 0 || !arr.some((q) => strong(findings[q.id]) > 0))
+    .slice(0, 3)
+    .map((p) => ({ id: p.id, name: p.name, side: sideFocus(findings[p.id] || {})?.side || null, why: '本日の訴えの所' }));
+  // ② 排泄経路の所：所見のある所を強い順に。所見が無ければ、出口が詰まっている時は腸骨の内側・鼠蹊部、ほかは尾てい骨部・仙骨から
+  const side = ex.side || pelvicSide(findings);
+  const withF = FINISH_OUTLETS.filter((o) => strong(findings[o.id]) > 0).sort((a, b) => strong(findings[b.id]) - strong(findings[a.id]));
+  const base = ex.level === 'blocked' ? ['choukotsu', 'sokeibu', 'biteikotsu'] : ['biteikotsu', 'senchou', 'choukotsu'];
+  // 所見のある所を先に、残りは状況に合う順に、3か所まで
+  const rest = base.map((id) => FINISH_OUTLETS.find((o) => o.id === id)).filter((o) => !withF.includes(o));
+  const pick = [...withF, ...rest].slice(0, 3);
+  const outlets = pick.map((o) => {
+    const p = db.pointById[o.id];
+    const paired = (p.p3 || []).length > 1;
+    const sd = paired ? (sideFocus(findings[o.id] || {})?.side || side || null) : null;
+    return { id: o.id, name: p.name, side: sd, why: `${o.why}${strong(findings[o.id]) > 0 ? '（探査で所見あり）' : '（再探査で張り・痛みがあれば）'}` };
+  });
+  return { minutes, said, outlets, side };
 }
 
 // 左右がある箇所の時間の分け方：強い側を先に、長く（約3分の2）。片側だけ塗られていれば、その側を主に、反対側も少し

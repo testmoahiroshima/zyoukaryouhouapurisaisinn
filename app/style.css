@@ -902,3 +902,13 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 input, select, textarea { max-width: 100%; box-sizing: border-box; }
 .prev-code, label.rec-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .prev-code input, .rec-row input { width: 100%; min-width: 0; flex: none; font-size: max(16px, 1rem); }
+
+/* 仕上げ（最後の約6分の1）：再探査と、求める所・排泄経路の所 */
+.finish-box { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--line); }
+.finish-box.run { text-align: left; }
+.finish-steps { margin: 6px 0 0; padding-left: 1.4em; }
+.finish-steps > li { margin: 4px 0; }
+.finish-steps .small { display: block; }
+.finish-outlets { margin: 4px 0 0; padding-left: 1em; }
+.finish-outlets li { margin: 3px 0; }
+.finish-outlets .small { display: block; }
