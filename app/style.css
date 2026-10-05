@@ -849,3 +849,26 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 /* 計画・施術中の図（小さめ）では、▲▼ を右上に置いて、右下のボタンと重ならないように */
 .guide-stage .b3-updown { top: 8px; transform: none; display: flex; gap: 6px; }
 .guide-stage .b3-updown button { width: 44px; height: 44px; }
+
+/* 論文を読む */
+.ronbun-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ronbun-b { min-height: 36px; padding: 4px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--accent); font: inherit; font-size: .82rem; cursor: pointer; }
+.rb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rb-item { display: grid; gap: 2px; width: 100%; text-align: left; padding: 10px 12px; min-height: 48px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.rb-item .rb-t { font-weight: 700; }
+.rb-item .rb-snip { color: var(--muted); }
+.rb-reader .rb-title { margin-top: 10px; }
+.rb-body p { line-height: 1.95; font-size: 1.03rem; margin: 0 0 .9em; text-indent: 1em; }
+.rb-body p.qa-q, .rb-body p.qa-a { text-indent: 0; }
+.rb-body p.qa-q b, .rb-body p.qa-a b { display: inline-block; margin-right: .5em; padding: 0 .5em; border-radius: 6px; font-size: .85rem; }
+.rb-body p.qa-q b { background: var(--accent-soft); color: var(--accent); }
+.rb-body p.qa-a b { background: #f0e6d6; color: #6b4a22; }
+.med-note { display: inline; margin-left: .3em; padding: 0 .4em; border-radius: 6px; background: #fdf0e3; color: #8a4a10; font-size: .85rem; text-indent: 0; }
+.rb-used { margin: 12px 0; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); }
+.rb-used ul { margin: 4px 0 0; padding-left: 1.2em; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .med-note { background: #3a2a1c; color: #f5c899; }
+  :root:not([data-theme="light"]) .rb-body p.qa-a b { background: #3a2a1c; color: #f5c899; }
+}
+:root[data-theme="dark"] .med-note { background: #3a2a1c; color: #f5c899; }
+:root[data-theme="dark"] .rb-body p.qa-a b { background: #3a2a1c; color: #f5c899; }

@@ -104,7 +104,11 @@ function citesHTML(k) {
   if (k.t2) parts.push(`2級テキスト実践編 ${esc(k.t2)}`);
   const dates = [...new Set((k.cites || []).map(dateText))];
   if (dates.length) parts.push(`岡田先生 ${esc(dates.join('・'))}`);
-  return parts.length ? `<div class="cite">根拠：${parts.join('／')}</div>` : '';
+  // 根拠にしている論述の本文を読む（「学ぶ」の「論文を読む」で開く）
+  const seen = new Set();
+  const reads = (k.cites || []).filter((c) => c.id && !seen.has(c.id) && seen.add(c.id))
+    .map((c) => `<button type="button" class="ronbun-b" data-ronbun="${esc(c.id)}">📖 本文を読む（${esc(dateText(c))}）</button>`).join('');
+  return parts.length ? `<div class="cite">根拠：${parts.join('／')}${reads ? `<div class="ronbun-links">${reads}</div>` : ''}</div>` : '';
 }
 
 async function loadZenshu() {
@@ -2045,6 +2049,87 @@ function renderLearnTab() {
   renderGuide();
 }
 
+// ---- 学ぶ：論文を読む ----
+// 判断の根拠にしている岡田先生の論述・講話の本文（data/ronbun.json。tools/build_ronbun.py で作る）。
+// 精神面・宗教面の部分を外して意味が通るように整え、「浄霊」は「浄化療法」に改めている。出典は年月で示す
+let ronbunList = null;
+async function loadRonbun() {
+  if (!ronbunList) ronbunList = (await (await fetch('data/ronbun.json')).json()).articles;
+  return ronbunList;
+}
+const RONBUN_NOTE = 'このアプリの判断の根拠にしている、岡田先生の論述・講話（昭和10〜28年）です。精神面・宗教面の部分は外して意味が通るように整え、施術の呼び名は「浄化療法」にそろえています。言い回しや病名は当時のままです。薬・手術・病気の見方についての記述は当時の考えで、現在の医療の判断とは異なります。病気やけがの時は医療機関にかかり、服薬や治療は自己判断でやめないでください。';
+const ronbunState = { q: '', kind: 'all', open: null };
+function ronbunParaHTML(p) {
+  const note = (t) => esc(t).replace(/〔注：(.*?)〕/g, '<span class="med-note">注：$1</span>');
+  if (p.startsWith('問：')) return `<p class="qa-q"><b>問</b>${note(p.slice(2))}</p>`;
+  if (p.startsWith('岡田先生：')) return `<p class="qa-a"><b>岡田先生</b>${note(p.slice(5))}</p>`;
+  return `<p>${note(p)}</p>`;
+}
+// その論述を根拠にしている知見・見解
+function ronbunUsedBy(id) {
+  const has = (x) => (x.cites || []).some((c) => c.id === id);
+  return [
+    ...db.knowledge.principles.filter(has).map((x) => x.title),
+    ...db.knowledge.kakuron.filter(has).map((x) => x.title),
+    ...db.kenkai.filter(has).map((x) => `${x.label}（岡田先生の見解）`),
+  ];
+}
+async function renderRonbun() {
+  const box = $('#learn-ronbun');
+  if (!box) return;
+  let list;
+  try { list = await loadRonbun(); } catch { box.innerHTML = '<div class="card"><p>論文を読み込めませんでした。電波のある所で、もう一度開いてください。</p></div>'; return; }
+  const st = ronbunState;
+  if (st.open) {
+    const a = list.find((x) => x.id === st.open);
+    if (!a) { st.open = null; return renderRonbun(); }
+    const used = ronbunUsedBy(a.id);
+    box.innerHTML = `
+      <div class="card rb-reader">
+        <button type="button" class="ghost small-btn" id="rb-back">← 論文の一覧へ</button>
+        <h2 class="rb-title">${esc(a.title)}</h2>
+        <p class="cite">岡田先生 ${esc(dateText(a))}${a.kind === 'kowa' ? '（講話）' : ''}${a.excerpt ? ' <span class="tag">抜粋</span>' : ''}</p>
+        <div class="banner notice small">${esc(RONBUN_NOTE)}</div>
+        <div class="rb-body">${a.paras.map(ronbunParaHTML).join('')}</div>
+        ${used.length ? `<div class="rb-used"><div class="small"><b>この論述を根拠にしているもの</b></div><ul class="small">${used.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+        <button type="button" class="ghost wide" id="rb-back2">← 論文の一覧へ</button>
+      </div>`;
+    const back = () => { st.open = null; renderRonbun(); };
+    $('#rb-back', box).addEventListener('click', back);
+    $('#rb-back2', box).addEventListener('click', back);
+    jumpToBody($('#tab-learn'), '#learn-ronbun');
+    return;
+  }
+  const nq = normalize(st.q.trim());
+  const hits = list.filter((a) => (st.kind === 'all' || a.kind === st.kind) && (!nq || normalize(`${a.title}${a.paras.join('')}`).includes(nq)));
+  const byYear = new Map();
+  for (const a of hits) {
+    const y = Number(String(a.date || '').slice(0, 4));
+    const key = y ? eraOf(y) : '年代不詳';
+    if (!byYear.has(key)) byYear.set(key, []);
+    byYear.get(key).push(a);
+  }
+  box.innerHTML = `
+    <div class="card">
+      <h2>岡田先生の論文を読む</h2>
+      <p class="small">${esc(RONBUN_NOTE)}</p>
+      <form class="kk-form" id="rb-form" role="search"><input id="rb-q" type="search" value="${esc(st.q)}" placeholder="例：肩、腎臓、力を抜く" aria-label="論文を言葉で探す"><button type="submit" class="primary">探す</button></form>
+      <div class="region-chips" role="group" aria-label="種類">${[['all', 'すべて'], ['chojutsu', '著述'], ['kowa', '講話']].map(([k, n]) => `<button type="button" class="chip" data-rb-kind="${k}" aria-pressed="${st.kind === k}">${n}</button>`).join('')}</div>
+      <p class="small muted">${hits.length}件${st.q ? `（「${esc(st.q)}」で探した結果）` : ''}</p>
+    </div>
+    ${[...byYear].map(([y, as]) => `<div class="card"><h2>${esc(y)}</h2><ul class="rb-list">${as.map((a) => `<li><button type="button" class="rb-item" data-rb-open="${esc(a.id)}"><span class="rb-t">${esc(a.title)}</span><span class="small muted">${esc(dateText(a))}${a.kind === 'kowa' ? '・講話' : ''}${a.excerpt ? '・抜粋' : ''}</span><span class="small rb-snip">${esc(a.paras[0].slice(0, 46))}…</span></button></li>`).join('')}</ul></div>`).join('')}
+    ${!hits.length ? '<div class="card"><p>見つかりませんでした。別の言葉で探してみてください。</p></div>' : ''}`;
+  $('#rb-form', box).addEventListener('submit', (e) => { e.preventDefault(); st.q = $('#rb-q', box).value; renderRonbun(); });
+  $$('[data-rb-kind]', box).forEach((b) => b.addEventListener('click', () => { st.kind = b.dataset.rbKind; renderRonbun(); }));
+  $$('[data-rb-open]', box).forEach((b) => b.addEventListener('click', () => { st.open = b.dataset.rbOpen; renderRonbun(); }));
+}
+// どの画面からでも、出典の「本文を読む」で論文を開く
+function openRonbun(id) {
+  ronbunState.open = id;
+  showTab('learn');
+  showLearn('ronbun');
+}
+
 // ---- 学ぶ：岡田先生の知見（言葉で絞り込める） ----
 function renderKnowledge(q = '') {
   const k = db.knowledge;
@@ -2160,6 +2245,7 @@ function showLearn(sub) {
   });
   $$('#tab-learn .learn-panel').forEach((el) => { el.hidden = el.id !== (sub === 'points' ? 'tab-points' : sub === 'kenkai' ? 'tab-kenkai' : `learn-${sub}`); });
   store.set('joka.learnSub', sub);
+  if (sub === 'ronbun') renderRonbun();
 }
 
 // ---- ホーム ----
@@ -2310,7 +2396,11 @@ function setupTitle() {
     toast('音楽を流しています');
   });
   $$('.bottom-nav button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
-  $$('#tab-learn .seg button').forEach((b) => b.addEventListener('click', () => showLearn(b.dataset.learn)));
+  $$('#tab-learn .seg button').forEach((b) => b.addEventListener('click', () => { if (b.dataset.learn === 'ronbun') ronbunState.open = null; showLearn(b.dataset.learn); }));
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ronbun]');
+    if (b) { e.preventDefault(); openRonbun(b.dataset.ronbun); }
+  });
 }
 
 async function main() {
