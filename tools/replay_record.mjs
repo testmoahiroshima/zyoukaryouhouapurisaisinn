@@ -6,7 +6,7 @@ const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.
 const db = prepare({
   points: load('body_points'), flows: load('flows'), routes: load('routes'),
   symptoms: load('symptoms'), safety: load('safety'),
-  places: load('places'), knowledge: load('knowledge'), kenkai: load('kenkai'),
+  places: load('places'), knowledge: load('knowledge'), kenkai: load('kenkai'), relations: load('relations'),
 });
 const data = JSON.parse(readFileSync(process.argv[2], 'utf8'));
 for (const rec of data.records || [data]) {

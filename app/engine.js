@@ -79,7 +79,10 @@ export function prepare(raw) {
     _kw: e.keywords.map(normalize),
     _ex: (e.exclude || []).map(normalize),
   }));
-  return { raw, pointList, pointById, flowById, routeByNo, categories, safetyRules, knowledge, principleById, stationNames, kenkai };
+  // 症状・部位の「元」をたどる関係（relations.json）。理由の出典として principleById からも引けるようにする
+  const relations = raw.relations?.relations || [];
+  for (const r of relations) principleById[r.id] = { ...r, element: '元をたどる' };
+  return { raw, pointList, pointById, flowById, routeByNo, categories, safetyRules, knowledge, principleById, stationNames, kenkai, relations };
 }
 
 // ---- 毒素の流れ（経路） ----
@@ -161,7 +164,7 @@ export function buildFlow(db, src, kind) {
 
 // ---- 症状の読み取りと、探査して見つめる箇所 ----
 
-const ROLE_WEIGHT = { rakuya: 1.0, keiro: 0.8, butai: 0.9, look: 0.8, kakuron: 1.0, outlet: 0.6, extra: 0.9 };
+const ROLE_WEIGHT = { rakuya: 1.0, keiro: 0.8, butai: 0.9, look: 0.8, kakuron: 1.0, outlet: 0.6, extra: 0.9, moto: 0.8 };
 const PELVIC_CATS = new Set(['legs', 'breath', 'lowback', 'abdomen', 'urinary', 'women', 'anus', 'lungs', 'fatigue']);
 const OUTLET_POINTS = ['youkotsu', 'biteikotsu', 'sokeibu', 'choukotsu', 'senchou', 'chikotsu'];
 export { OUTLET_POINTS };
@@ -203,6 +206,11 @@ export function findSpiritual(db, text) {
   const sp = db.raw.kenkai?.spiritual;
   if (!sp) return [];
   return findHits(normalize(text), sp.keywords.map(normalize), (sp.exclude || []).map(normalize)).map((h) => h.kw);
+}
+
+// 訴え（症状カテゴリ・見解）につながる「元をたどる」関係
+export function relationsFor(db, catIds, kenkaiIds = []) {
+  return (db.relations || []).filter((r) => !r.points && ((r.categories || []).some((id) => catIds.includes(id) || catIds.includes(`k:${id}`)) || (r.kenkai || []).some((id) => kenkaiIds.includes(id) || catIds.includes(`k:${id}`))));
 }
 
 function detectSide(norm) {
@@ -313,6 +321,8 @@ export function analyze(db, text, selected = []) {
       if (m.fromKenkai && !m.kenkai.some((e) => e.points.length)) for (const id of KIDNEY) add(id, 'look', m.id);
       for (const id of m.extra) add(id, 'extra', m.id);
       if (m.pelvic) for (const id of OUTLET_POINTS) add(id, 'outlet', m.id);
+      // 元をたどる：この訴えの元になりうる所も探査する
+      for (const r of relationsFor(db, [m.id], m.kenkai.map((e) => e.id))) for (const id of r.sources) add(id, 'moto', m.id);
     }
   }
   // 頭部・肩・腎臓部は、それぞれ一まとまりの重要施術部位：一部だけが出たら全体を出し、一部が重点なら全体を重点にする
@@ -379,7 +389,7 @@ const REGION_FACTOR = {
 const HEAD_FRONT = ['zentoubu', 'touchoubu', 'sokutoubu'];
 const SHALLOW_SRC_FRONT = ['jikasen', 'keibu_lymph', 'hentousen', 'chikotsu', 'sokeibu'];
 const SHALLOW_SRC_BACK = ['enzui', 'koukeibu', 'keizui'];
-const PTS = { depthDeep: 2, depthSrc: 2, rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5 };
+const PTS = { depthDeep: 2, depthSrc: 2, rakuya: 3, keiro: 1.5, butai: 1.5, kakuron: 2.5, outlet: 1.5, outletBlocked: 3, column: 2, koutoubu: 1, kidneyBoost: 3, headache: 3, history: 1.5, relation: 2, relationPoint: 1 };
 
 // ---- 頭痛の元 ----
 // 頭痛の訴えがある時、探査の結果から元を見分ける。
@@ -701,6 +711,8 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       if (kid) bump(kid, PTS.headache / 2, '後頭部の頭痛の根原：延髄部の浄化熱の元は腎臓', 'zutsuu_moto');
     }
   }
+  // 元をたどる：訴えの元になりうる所（論述で関係が説かれている所）に所見があれば加点。無ければ探るよう促す
+  const relNotes = traceRelations(db, cands, analysis, hasAnalysis, bump);
   // ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部を施術して浄化力の高まりを目指す
   const heatElsewhere = cands.some((c) => c.region !== 'kidney' && c.region !== 'head' && (c.finding.heat || 0) > 0);
   if (!heatElsewhere) {
@@ -835,6 +847,7 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
   const ordered = orderPoints(db, items, used);
   const others = cands.filter((c) => !chosen.includes(c));
   const notes = planNotes(ex, ordered, used);
+  if (relNotes.length) notes.unshift(relationNote(db, relNotes));
   if (depthNote.length) notes.unshift({ kind: 'info', title: '頭部の熱の浅い・深い', text: depthNote.join(''), ref: 'netsu_fukasa' });
   if (hist && (hist.unchanged.size || hist.improved.size)) {
     const nm = (set) => [...set].map((id) => db.pointById[id]?.name || id).join('、');
@@ -846,6 +859,64 @@ export function planSession(db, findings, total, analysis = null, { order = 'aut
       : { kind: 'info', title: '頭痛の元を探りましょう', text: '頭部にも首の周りにも所見が入っていません。額に手を当てて熱いか冷たいかを確かめ、首の周り（耳下腺・頸部淋巴腺・延髄部）の固結と熱を探ってください。額が熱ければ毒血の浄化、冷たくて首に固結があれば脳貧血（首の固結の圧迫）による頭痛とされます。', ref: 'zutsuu_moto' });
   }
   return { ok: true, order: used, excretion: ex, notes, total: probe + check + ordered.reduce((s, c) => s + c.minutes, 0), probe, check, items: ordered, others };
+}
+
+// ---- 元をたどる（症状・部位の関係） ----
+// 訴え（症状）ごとに、その元になりうる所（例：眼 → 延髄部・後頭部、耳 → 淋巴腺 → 肩 → 腎臓部、痔 → 同じ側の鼠蹊部）を
+// relations.json から引き、所見のある所に加点する（一つの所への加点は、訴えから1回・所見から1回まで）。
+// 所見から元をたどる関係（例：淋巴腺に所見 → 肩・腎臓部）は、訴えが無くても使う
+const SIDE_KEY = { left: 'L', right: 'R' };
+function traceRelations(db, cands, analysis, hasAnalysis, bump) {
+  const catIds = hasAnalysis ? (analysis.categories || []).map((c) => c.id) : [];
+  const kenkaiIds = hasAnalysis ? (analysis.kenkai || []).map((e) => e.id) : [];
+  const said = relationsFor(db, catIds, kenkaiIds);
+  const byPoint = (db.relations || []).filter((r) => r.points && cands.some((c) => r.points.includes(c.id) && (r.when !== 'heat' || c.finding.heat > 0)));
+  const given = new Map(); // 候補 → { said: 理由, point: 理由 }
+  const notes = [];
+  const textSide = SIDE_KEY[analysis?.side] || null;
+  for (const rel of [...said, ...byPoint]) {
+    const kind = rel.points ? 'point' : 'said';
+    const targets = kind === 'point' ? cands.filter((c) => rel.points.includes(c.id) && (rel.when !== 'heat' || c.finding.heat > 0)) : [];
+    const found = [];
+    const missing = [];
+    for (const sid of rel.sources) {
+      if (kind === 'point' && rel.points.includes(sid)) continue;
+      const c = cands.find((x) => x.id === sid);
+      if (!c) { missing.push(sid); continue; }
+      found.push(c);
+      if ((rel.skip || []).some((ref) => c.reasons.some((r) => r.ref === ref))) continue;
+      const g = given.get(c) || {};
+      given.set(c, g);
+      // 元の側：論述で側が説かれている所（例：右の鼠蹊部）、訴えと同じ側を重点にする所（例：痔と鼠蹊部）
+      const hint = rel.side?.[sid] || (rel.same?.includes(sid) ? textSide : null);
+      const sideTxt = hint && c.paired ? `（${SIDE_NAME[hint]}${rel.side?.[sid] ? 'に多い' : '：訴えと同じ側'}）` : '';
+      // 左右の差が見られず全体の傾向で側を決めていた時だけ、元の側に置きかえる
+      const byWhole = c.reasons.findIndex((r) => r.text.startsWith('左右の差'));
+      if (hint && c.paired && !c.sideInfo?.side && byWhole >= 0 && c.finding.sides?.[hint] && findingScore(c.finding.sides[hint]) > 0) {
+        c.side = hint;
+        c.reasons.splice(byWhole, 1);
+      }
+      const base = rel.title.replace(/の元.*$|の出所$/, '');
+      if (g[kind]) {
+        // 二つ目からは理由に訴えの名前を足すだけ（加点は重ねない）
+        if (kind === 'said' && !g.names.includes(base)) { g.names.push(base); g[kind].text = `本日の訴え（${g.names.join('・')}）の元になりうる所${g.sideTxt}`; }
+        continue;
+      }
+      if (kind === 'said') { g.names = [base]; g.sideTxt = sideTxt; }
+      const text = kind === 'said'
+        ? `本日の訴え（${base}）の元になりうる所${sideTxt}`
+        : `${targets.map((t) => t.name).join('・')}に所見がある：${rel.short || rel.title}${sideTxt}`;
+      bump(c, kind === 'said' ? PTS.relation : PTS.relationPoint, text, rel.id);
+      g[kind] = c.reasons[c.reasons.length - 1];
+    }
+    if (kind === 'said') notes.push({ rel, found, missing });
+  }
+  return notes;
+}
+function relationNote(db, list) {
+  const nm = (id) => db.pointById[id]?.name || id;
+  const text = list.map(({ rel, found, missing }) => `${rel.title}：${rel.sources.map(nm).join('・')}。${found.length ? `所見のある${found.map((c) => c.name).join('・')}を加えました。` : ''}${missing.length ? `${missing.map(nm).join('・')}はまだ所見が入っていません。探ってみてください。` : ''}`).join(' ');
+  return { kind: 'info', title: '元をたどる（訴えと関係の深い所）', text, ref: list[0].rel.id };
 }
 
 // 左右がある箇所の時間の分け方：強い側を先に、長く（約3分の2）。片側だけ塗られていれば、その側を主に、反対側も少し

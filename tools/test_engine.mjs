@@ -6,7 +6,7 @@ const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.
 const db = prepare({
   points: load('body_points'), flows: load('flows'), routes: load('routes'),
   symptoms: load('symptoms'), safety: load('safety'),
-  places: load('places'), knowledge: load('knowledge'), kenkai: load('kenkai'),
+  places: load('places'), knowledge: load('knowledge'), kenkai: load('kenkai'), relations: load('relations'),
 });
 
 const cases = [
@@ -407,6 +407,46 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   }
 }
 
+// 元をたどる（症状・部位の関係）：訴えの元になりうる所に所見があれば加点し、無ければ探るよう促す
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  // 眼の訴え：延髄部に所見 → 加点（＋2）。後頭部は所見なし → 探るよう案内
+  const a1 = analyze(db, '目が疲れる');
+  ok(a1.points.some((p) => p.id === 'enzui' && p.roles.includes('moto')), '眼の訴え → 延髄部が「元」として探査箇所に入る');
+  const p1 = planSession(db, { enzui: { kouketsu: 2 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 2 } }, 60, a1);
+  const en = p1.items.find((i) => i.id === 'enzui') || p1.others.find((i) => i.id === 'enzui');
+  const r1 = en?.reasons.find((r) => r.ref === 'rel_eyes');
+  const n1 = p1.notes.find((n) => n.title.startsWith('元をたどる'));
+  ok(!!r1 && r1.pts === 2 && !!n1 && n1.text.includes('後頭部') && n1.text.includes('探ってみてください') && p1.items.some((i) => i.id === 'enzui'), `眼の訴え → 延髄部に加点（${r1?.text}）・後頭部を探るよう案内`);
+  // 眼と鼻の両方：延髄部への加点は1回だけで、理由に両方の名前
+  const p2 = planSession(db, { enzui: { kouketsu: 2 } }, 60, analyze(db, '目が疲れて鼻がつまる'));
+  const en2 = p2.items.find((i) => i.id === 'enzui');
+  const rs2 = en2.reasons.filter((r) => /^rel_/.test(r.ref || '') && r.pts);
+  ok(rs2.length === 1 && rs2[0].text.includes('眼') && rs2[0].text.includes('鼻'), `訴えが二つでも加点は1回（${rs2.map((r) => r.text).join('／')}）`);
+  // 痔：訴えと同じ側の鼠蹊部を重点に
+  const p3 = planSession(db, { sokeibu: side({ kouketsu: 1.5 }, { kouketsu: 1.5 }) }, 60, analyze(db, '左側の痔が痛い'));
+  const so = p3.items.find((i) => i.id === 'sokeibu');
+  ok(so?.side === 'L' && so.reasons.some((r) => r.ref === 'rel_anus'), `痔（左）→ 同じ側の鼠蹊部を重点（${so?.side}）`);
+  // 咳：右の鼠蹊部を重点に（論述で右に多いと説かれる）
+  const p4 = planSession(db, { sokeibu: side({ kouketsu: 1.5 }, { kouketsu: 1.5 }) }, 60, analyze(db, '咳が出る'));
+  const so4 = p4.items.find((i) => i.id === 'sokeibu');
+  ok(so4?.side === 'R' && so4.reasons.some((r) => r.ref === 'rel_lungs' && r.text.includes('右に多い')), `咳 → 右の鼠蹊部を重点（${so4?.side}）`);
+  // 訴えが無くても：淋巴腺に所見 → 肩に＋1（元をたどる）
+  const p5 = planSession(db, { keibu_lymph: { heat: 2, kouketsu: 2 }, kata: { kouketsu: 2 } }, 60, null);
+  const ka = p5.items.find((i) => i.id === 'kata');
+  ok(ka.reasons.some((r) => r.ref === 'rel_p_lymph' && r.pts === 1), '淋巴腺に所見 → 肩に加点（淋巴腺には肩から来る）');
+  // 訴えの無い元には加点しない（耳の訴えが無ければ耳の関係は使わない）
+  const p6 = planSession(db, { enzui: { kouketsu: 2 } }, 60, analyze(db, '腰が重い'));
+  ok(!p6.items.find((i) => i.id === 'enzui')?.reasons.some((r) => /^rel_(eyes|ear|nose)/.test(r.ref || '')), '訴えに無い症状の関係は使わない');
+  // 関係表の整合：部位・症状・見解の id がすべてあり、出典がある
+  const ids = new Set(db.pointList.map((p) => p.id));
+  const cats = new Set(db.categories.map((c) => c.id));
+  const kes = new Set(db.kenkai.map((e) => e.id));
+  const bad = db.relations.filter((r) => !r.cites?.length || !r.sources.every((id) => ids.has(id)) || !(r.points || []).every((id) => ids.has(id)) || !(r.categories || []).every((id) => cats.has(id)) || !(r.kenkai || []).every((id) => kes.has(id)) || /霊|全集|浄霊/.test(r.summary + r.title));
+  ok(!bad.length, `関係表 ${db.relations.length}件の整合${bad.length ? '：' + bad.map((r) => r.id).join(',') : ''}`);
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }
@@ -434,9 +474,9 @@ for (const f of db.raw.flows.flows) if (!usedF.has(f.id)) console.log('flow not 
       Object.values(x).forEach(walk);
     }
   };
-  ['knowledge', 'kenkai'].forEach((f) => walk(load(f)));
+  ['knowledge', 'kenkai', 'relations'].forEach((f) => walk(load(f)));
   const missing = [...cited].filter((id) => !have.has(id));
-  const bad = rb.filter((a) => /霊|浄霊|全集|観音|明主|信者|御守|神様/.test(a.title + a.paras.join('')));
+  const bad = rb.filter((a) => /霊|浄霊|全集|観音|明主|信者|御守|神様|百パーセント|治癒率|必ず全治|必ず治/.test(a.title + a.paras.join('')) || a.paras.some((p) => p.split('。').some((x) => x.includes('癌') && !x.includes('注：') && /治|全快|消散|誤|擬似|手術/.test(x))));
   const good = !missing.length && !bad.length && rb.length >= cited.size;
   console.log(`${good ? 'ok' : 'NG'}  論文の本文 ${rb.length}件（根拠 ${cited.size}件）${missing.length ? ' 足りない：' + missing.join(',') : ''}${bad.length ? ' 禁止語：' + bad.map((a) => a.id).join(',') : ''}`);
   if (!good) fail++;

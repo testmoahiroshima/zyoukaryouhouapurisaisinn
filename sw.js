@@ -1,12 +1,12 @@
 // 一度開けば電波が無くても使えるように、アプリの部品を端末に保存する（外へは何も送らない）。
 // アプリの部品を変えた時は VERSION を上げる。
-const VERSION = 'joka-v17';
+const VERSION = 'joka-v18';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'app/style.css', 'app/app.js', 'app/engine.js', 'app/paint.js', 'app/body3d.js', 'app/zones.js', 'app/audio.js', 'app/records.js', 'app/history.js',
   'app/vendor/three.module.min.js', 'data/body3d.bin',
   'data/body_points.json', 'data/flows.json', 'data/routes.json', 'data/symptoms.json', 'data/safety.json', 'data/concepts.json',
-  'data/changes.json', 'data/places.json', 'data/knowledge.json', 'data/kenkai.json', 'data/zenshu_terms.json', 'data/ronbun.json',
+  'data/changes.json', 'data/places.json', 'data/knowledge.json', 'data/kenkai.json', 'data/relations.json', 'data/zenshu_terms.json', 'data/ronbun.json',
   'icons/icon-192.png', 'icons/icon-512.png', '施術記録人体図.jpg',
 ];
 // 大きくて変わりにくいものは、保存してあるものを先に使う

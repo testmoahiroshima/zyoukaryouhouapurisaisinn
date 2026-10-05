@@ -1,0 +1,1201 @@
+{
+ "_note": "症状・部位の「元」をたどる関係（岡田先生の論述・講話から）。categories（症状カテゴリ）・kenkai（見解）の訴えがある時、または points（探査部位）に所見がある時、sources の所に所見があれば施術計画で加点し、所見が無ければ探るよう促す。side は元の側（R/L）、same は訴えと同じ側を重点にする所、skip は既に同じ理由で加点した所を重ねない。",
+ "relations": [
+  {
+   "id": "rel_eyes",
+   "title": "眼の元",
+   "categories": [
+    "eyes"
+   ],
+   "kenkai": [
+    "me",
+    "d_kingan",
+    "d_ketsumakuen"
+   ],
+   "sources": [
+    "enzui",
+    "koutoubu",
+    "zentoubu",
+    "sokutoubu",
+    "koukeibu",
+    "kata"
+   ],
+   "summary": "眼の悪い元は延髄部にあり、後頭部の少し下の所に必ず固まりがあるとされる。目やに・まぶたのただれは前頭部の毒が浄化して出るもので、眼の疲れ・見えにくさは頭・首・肩の毒が眼に集まるためとされる。眉の上とこめかみ部も合わせて施術する。",
+   "cites": [
+    {
+     "id": "chojutsu04#105",
+     "page": "著述篇四巻p411",
+     "year": 1943,
+     "date": "194310"
+    },
+    {
+     "id": "chojutsu05#69",
+     "page": "著述篇五巻p224",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu11#129",
+     "page": "著述篇十一巻p229",
+     "year": 1953,
+     "date": "1953"
+    },
+    {
+     "id": "chojutsu03#119",
+     "page": "著述篇三巻p337",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "kowa02#391",
+     "year": 1949,
+     "date": "194908"
+    },
+    {
+     "id": "kowa07#12",
+     "page": "講話篇七巻p27",
+     "year": 1952,
+     "date": "195203"
+    },
+    {
+     "id": "kowa03#853",
+     "year": 1950,
+     "date": "195010"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_dizzy",
+   "title": "めまいの元",
+   "categories": [
+    "dizziness"
+   ],
+   "kenkai": [
+    "memai"
+   ],
+   "sources": [
+    "enzui",
+    "koukeibu",
+    "zentoubu"
+   ],
+   "summary": "めまいは延髄部（右側に多い）の固結の浄化によることが多く、額（前頭部）に毒のある人もめまいの元になることがあるとされる。首の付け根の固結が頭への血の巡りを妨げることもある。",
+   "cites": [
+    {
+     "id": "chojutsu05#56",
+     "page": "著述篇五巻p198",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "kowa02#157",
+     "page": "講話篇二巻p118",
+     "year": 1949,
+     "date": "194904"
+    }
+   ]
+  },
+  {
+   "id": "rel_nose",
+   "title": "鼻の元",
+   "categories": [
+    "nose"
+   ],
+   "kenkai": [
+    "hana",
+    "d_chikunou"
+   ],
+   "sources": [
+    "enzui",
+    "koukeibu",
+    "koutoubu",
+    "zentoubu",
+    "haimen_jinzo"
+   ],
+   "summary": "鼻は延髄部と非常に関係があり、延髄部の固まりが溶けると鼻汁になって出るとされる。鼻のつまりの元は後ろの首筋の両側・延髄部と、前頭部から額にかけての毒で、においが分からない時は後頭部の下の辺りを探る。延髄部・背面腎臓部も合わせて施術する。",
+   "cites": [
+    {
+     "id": "chojutsu05#70",
+     "page": "著述篇五巻p226",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu03#120",
+     "page": "著述篇三巻p340",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "chojutsu04#105",
+     "page": "著述篇四巻p411",
+     "year": 1943,
+     "date": "194310"
+    },
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940,
+     "date": "194011"
+    },
+    {
+     "id": "kowa03#751",
+     "year": 1950,
+     "date": "195001"
+    },
+    {
+     "id": "kowa03#802",
+     "year": 1950,
+     "date": "195003"
+    }
+   ]
+  },
+  {
+   "id": "rel_ear",
+   "title": "耳の元",
+   "categories": [
+    "ear"
+   ],
+   "kenkai": [
+    "mimi",
+    "d_chuujien"
+   ],
+   "sources": [
+    "jikasen",
+    "keibu_lymph",
+    "enzui",
+    "sokutoubu",
+    "kata",
+    "haimen_jinzo"
+   ],
+   "summary": "耳鳴りは耳下腺・内耳の近く・延髄部に溜まった毒が溶ける音とされ、延髄部を施術するとよいとされる。耳だれや聞こえにくさは淋巴腺から耳下腺へ来た毒で、淋巴腺には肩から、肩には腎臓部から来ているので、淋巴腺→肩→腎臓部とたどって施術する。耳ばかり施術しても効果は少ないとされる。",
+   "cites": [
+    {
+     "id": "chojutsu05#58",
+     "page": "著述篇五巻p200",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu05#70",
+     "page": "著述篇五巻p226",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu10#79",
+     "page": "著述篇十巻p214",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu11#151",
+     "page": "著述篇十一巻p260",
+     "year": 1953,
+     "date": "1953"
+    },
+    {
+     "id": "chojutsu02#97",
+     "page": "著述篇二巻p256",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "kowa05#49",
+     "year": 1951,
+     "date": "195111"
+    },
+    {
+     "id": "kowa04#488",
+     "year": 1951,
+     "date": "195110"
+    },
+    {
+     "id": "kowa04#440",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_teeth",
+   "title": "歯・歯ぐきの元",
+   "categories": [
+    "teeth"
+   ],
+   "kenkai": [
+    "ha",
+    "d_shishuu"
+   ],
+   "sources": [
+    "keibu_lymph",
+    "kata",
+    "haimen_jinzo",
+    "choukotsu"
+   ],
+   "side": {
+    "choukotsu": "R"
+   },
+   "summary": "歯の痛みの元は頸部淋巴腺にあり、さらに肋骨や、盲腸の手術をした人では盲腸部（右の腸骨の内側あたり）に残った毒が胸を通って歯ぐきから出ようとすることもあるとされる。歯ぐきの膿は腎臓部の毒が背部・肩・淋巴腺を通って上がってくるものとされる。",
+   "cites": [
+    {
+     "id": "chojutsu04#105",
+     "page": "著述篇四巻p411",
+     "year": 1943,
+     "date": "194310"
+    },
+    {
+     "id": "chojutsu07#223",
+     "page": "著述篇七巻p555",
+     "year": 1949,
+     "date": "194912"
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu05#71",
+     "page": "著述篇五巻p230",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu10#71",
+     "page": "著述篇十巻p196",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu11#129",
+     "page": "著述篇十一巻p229",
+     "year": 1953,
+     "date": "1953"
+    }
+   ]
+  },
+  {
+   "id": "rel_throat",
+   "title": "のどの元",
+   "categories": [
+    "throat"
+   ],
+   "kenkai": [
+    "nodo"
+   ],
+   "sources": [
+    "hentousen",
+    "keibu_lymph",
+    "jikasen",
+    "kata"
+   ],
+   "summary": "のどの元は扁桃腺付近・頸部淋巴腺の固結にあり、肩の毒が溶けるとのどへ移って咳が出ることがあるとされる。のどと肩を合わせて施術する。",
+   "cites": [
+    {
+     "id": "chojutsu05#70",
+     "page": "著述篇五巻p226",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "kowa02#644",
+     "year": 1950,
+     "date": "195001"
+    }
+   ]
+  },
+  {
+   "id": "rel_headache",
+   "title": "頭痛の元（首・肩）",
+   "categories": [
+    "headache",
+    "frontal",
+    "occipital",
+    "temple"
+   ],
+   "kenkai": [
+    "zutsuu",
+    "atama_omoi"
+   ],
+   "sources": [
+    "jikasen",
+    "keibu_lymph",
+    "koukeibu",
+    "enzui",
+    "kata"
+   ],
+   "skip": [
+    "zutsuu_moto",
+    "netsu_fukasa"
+   ],
+   "summary": "頭痛の元は耳下腺・淋巴腺の浄化熱や、肩の凝り・首筋の固結にもあるとされる。こめかみ部と肩は非常に関係がある。",
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940,
+     "date": "194011"
+    }
+   ]
+  },
+  {
+   "id": "rel_insomnia",
+   "title": "眠れない元",
+   "categories": [
+    "insomnia"
+   ],
+   "kenkai": [
+    "fumin"
+   ],
+   "sources": [
+    "enzui",
+    "keizui",
+    "keibu_lymph",
+    "koutoubu",
+    "zentoubu"
+   ],
+   "summary": "眠れない元は延髄部（左右どちらか）の固まりや淋巴腺にあり、延髄部の固結が頭へ行く血を妨げて前頭部が貧血になるためとされる。後頭部の左右に固い固結ができることも多い。",
+   "cites": [
+    {
+     "id": "chojutsu05#56",
+     "page": "著述篇五巻p198",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu10#35",
+     "page": "著述篇十巻p70",
+     "year": 1952,
+     "date": "195212"
+    },
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940,
+     "date": "194011"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_hands",
+   "title": "腕・手指の元",
+   "categories": [
+    "hands"
+   ],
+   "kenkai": [
+    "te"
+   ],
+   "sources": [
+    "keibu_lymph",
+    "kata",
+    "maekata",
+    "jikasen"
+   ],
+   "summary": "腕・手指の毒は淋巴腺・肩・腕の付け根から下りてくるもので、手の患部が掌でも元は首から肩・腕にあるとされる。肩を施術すると手のほうが楽になる。",
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu04#105",
+     "page": "著述篇四巻p411",
+     "year": 1943,
+     "date": "194310"
+    },
+    {
+     "id": "kowa03#850",
+     "year": 1950,
+     "date": "195010"
+    },
+    {
+     "id": "kowa05#1",
+     "page": "講話篇五巻p8",
+     "year": 1951,
+     "date": "195111"
+    }
+   ]
+  },
+  {
+   "id": "rel_legs",
+   "title": "脚の元",
+   "categories": [
+    "legs"
+   ],
+   "kenkai": [
+    "ashi",
+    "hiza",
+    "ashiura",
+    "d_kakke"
+   ],
+   "sources": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "sokeibu",
+    "choukotsu"
+   ],
+   "summary": "脚の毒は腎臓部と脚の付け根（鼠蹊部）から来ているとされ、脚の重さ・だるさは腎臓の働きの衰えが元とされる。脚の付け根と膝の裏が急所で、腎臓部から股の付け根を押すと痛い固まりがある。",
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu05#76",
+     "page": "著述篇五巻p234",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu02#113",
+     "page": "著述篇二巻p300",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "kowa04#419",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "kowa07#11",
+     "page": "講話篇七巻p26",
+     "year": 1952,
+     "date": "195203"
+    },
+    {
+     "id": "kowa03#861",
+     "year": 1950,
+     "date": "195010"
+    }
+   ]
+  },
+  {
+   "id": "rel_lungs",
+   "title": "咳・肺の元",
+   "categories": [
+    "lungs"
+   ],
+   "kenkai": [
+    "seki",
+    "d_kikanshi",
+    "d_haien",
+    "d_kekkaku"
+   ],
+   "sources": [
+    "sokeibu",
+    "kata",
+    "koukeibu",
+    "jikasen",
+    "haimen_jinzo"
+   ],
+   "side": {
+    "sokeibu": "R"
+   },
+   "summary": "咳・痰の元は、右の鼠蹊部の固結が溶けて肺へ移ったものであることがあるとされる。肺の上部の固まりは首と肩の凝りが溶けて下りてきたもの、胸に溜まる水は腹膜と腎臓の毒が元とされる。耳下腺の固結の浄化も咳の元になる。",
+   "cites": [
+    {
+     "id": "chojutsu07#223",
+     "page": "著述篇七巻p555",
+     "year": 1949,
+     "date": "194912"
+    },
+    {
+     "id": "chojutsu08#42",
+     "page": "著述篇八巻p106",
+     "year": 1950,
+     "date": "195004"
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu03#158",
+     "page": "著述篇三巻p433",
+     "year": 1942,
+     "date": "194212"
+    },
+    {
+     "id": "chojutsu11#126",
+     "page": "著述篇十一巻p217",
+     "year": 1953,
+     "date": "1953"
+    },
+    {
+     "id": "chojutsu03#170",
+     "page": "著述篇三巻p492",
+     "year": 1942,
+     "date": "194212"
+    },
+    {
+     "id": "chojutsu05#58",
+     "page": "著述篇五巻p200",
+     "year": 1947,
+     "date": "194702"
+    }
+   ]
+  },
+  {
+   "id": "rel_breath",
+   "title": "息切れの元",
+   "categories": [
+    "breath"
+   ],
+   "kenkai": [
+    "ikigire"
+   ],
+   "sources": [
+    "kata",
+    "maekata",
+    "haimen_jinzo"
+   ],
+   "summary": "息切れは肩の毒が少し溶けて胸に来て固まるためで、元は肩にあるとされる。",
+   "cites": [
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_asthma",
+   "title": "喘息の元",
+   "categories": [],
+   "kenkai": [
+    "d_zensoku"
+   ],
+   "sources": [
+    "kata",
+    "maekata",
+    "haimen_jinzo",
+    "sokeibu"
+   ],
+   "summary": "喘息の元は横隔膜の下辺の固結を主とし、肩・腎臓部・胸・腹膜・鼠蹊部の固結が溶けて肺に入るためとされる。",
+   "cites": [
+    {
+     "id": "chojutsu05#66",
+     "page": "著述篇五巻p217",
+     "year": 1947,
+     "date": "194702"
+    }
+   ]
+  },
+  {
+   "id": "rel_heart",
+   "title": "動悸・心臓の元",
+   "categories": [
+    "heart"
+   ],
+   "kenkai": [
+    "douki",
+    "d_shinzou"
+   ],
+   "sources": [
+    "haimen_jinzo",
+    "enzui",
+    "chikotsu"
+   ],
+   "side": {
+    "enzui": "R"
+   },
+   "summary": "動悸など心臓の不調は、臍の上下の固まりの浄化熱が心臓に響くことや、腎臓の働きの衰えが元とされ、心臓の表と裏・おなか・腎臓部と、右の延髄部を施術するとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#113",
+     "page": "著述篇二巻p300",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "kowa03#688",
+     "page": "講話篇三巻p415",
+     "year": 1950,
+     "date": "195006"
+    },
+    {
+     "id": "kowa02#310",
+     "year": 1949,
+     "date": "194907"
+    }
+   ]
+  },
+  {
+   "id": "rel_ketsuatsu",
+   "title": "血圧・頭の血管の元",
+   "categories": [],
+   "kenkai": [
+    "d_ketsuatsu",
+    "d_nouketsu"
+   ],
+   "sources": [
+    "hentousen",
+    "jikasen",
+    "enzui",
+    "koukeibu",
+    "koutoubu"
+   ],
+   "summary": "血圧の高い元は扁桃腺の直下（顎の下）の固結、頭の血管の病の元は耳下腺の付近から延髄部・首筋（耳の後ろ下）と後頭部の固結にあるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu05#67",
+     "page": "著述篇五巻p218",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu11#13",
+     "page": "著述篇十一巻p36",
+     "year": 1953,
+     "date": "195301"
+    },
+    {
+     "id": "chojutsu10#76",
+     "page": "著述篇十巻p208",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "kowa02#587",
+     "year": 1949,
+     "date": "194912"
+    }
+   ]
+  },
+  {
+   "id": "rel_stomach",
+   "title": "胃の元",
+   "categories": [
+    "stomach",
+    "diaphragm"
+   ],
+   "kenkai": [
+    "i",
+    "hakike",
+    "d_i"
+   ],
+   "sources": [
+    "kenkoukan",
+    "kata",
+    "haimen_jinzo",
+    "enzui",
+    "zentoubu"
+   ],
+   "summary": "胃の不調の急所は腎臓部と、肩甲骨の間から脊柱の両側に土手のようになっている固結（肩甲間部）にあるとされる。食欲がない時は胃より肩を施術したほうが食欲がつき、みぞおち（横隔膜）が元の時は前頭部・延髄部・胃部を施術する。",
+   "cites": [
+    {
+     "id": "chojutsu05#84",
+     "page": "著述篇五巻p251",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "kowa01#78",
+     "page": "講話篇一巻p324",
+     "year": 1949,
+     "date": "194901"
+    },
+    {
+     "id": "kowa07#81",
+     "page": "講話篇七巻p145",
+     "year": 1952,
+     "date": "195204"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    },
+    {
+     "id": "kowa03#357",
+     "year": 1949,
+     "date": "194903"
+    },
+    {
+     "id": "kowa01#489",
+     "year": 1948,
+     "date": "194812"
+    }
+   ]
+  },
+  {
+   "id": "rel_abdomen",
+   "title": "お腹の元",
+   "categories": [
+    "abdomen"
+   ],
+   "kenkai": [
+    "hara",
+    "geri",
+    "benpi",
+    "d_choubyou",
+    "d_mouchou"
+   ],
+   "sources": [
+    "haimen_jinzo",
+    "sokeibu",
+    "choukotsu",
+    "chikotsu",
+    "koutoubu",
+    "enzui"
+   ],
+   "side": {
+    "sokeibu": "R",
+    "choukotsu": "R",
+    "haimen_jinzo": "R"
+   },
+   "summary": "お腹（腹膜）の元は腎臓部にあるとされる。右下腹の痛みは右の腎臓部の毒が下りたもので、お腹から右の股（鼠蹊部）にかけて熱い所を施術する。便秘は臍の周りから下腹部の固まり、下痢は後頭部・延髄部の固まりが溶けて出ることがあるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#85",
+     "page": "著述篇二巻p225",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "chojutsu05#54",
+     "page": "著述篇五巻p196",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu03#170",
+     "page": "著述篇三巻p492",
+     "year": 1942,
+     "date": "194212"
+    },
+    {
+     "id": "kowa03#688",
+     "page": "講話篇三巻p415",
+     "year": 1950,
+     "date": "195006"
+    },
+    {
+     "id": "chojutsu03#111",
+     "page": "著述篇三巻p303",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "chojutsu10#87",
+     "page": "著述篇十巻p236",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "kowa04#474",
+     "year": 1951,
+     "date": "195110"
+    },
+    {
+     "id": "kowa05#481",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "chojutsu03#108",
+     "page": "著述篇三巻p293",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "chojutsu10#35",
+     "page": "著述篇十巻p70",
+     "year": 1952,
+     "date": "195212"
+    }
+   ]
+  },
+  {
+   "id": "rel_anus",
+   "title": "痔・肛門の元",
+   "categories": [
+    "anus"
+   ],
+   "kenkai": [
+    "ji",
+    "oshiri"
+   ],
+   "sources": [
+    "sokeibu",
+    "biteikotsu",
+    "sekichuu",
+    "koutoubu"
+   ],
+   "same": [
+    "sokeibu"
+   ],
+   "summary": "痔の元は同じ側の鼠蹊部の固まりにあるとされる。後頭部の毒が脊柱を下りて肛門に来ることもあり、前のほうは前頭部に、後ろのほうは肛門に関係があるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu08#217",
+     "page": "著述篇八巻p538",
+     "year": 1950,
+     "date": "195004"
+    },
+    {
+     "id": "chojutsu10#89",
+     "page": "著述篇十巻p251",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu11#18",
+     "page": "著述篇十一巻p39",
+     "year": 1953,
+     "date": "195301"
+    },
+    {
+     "id": "chojutsu02#121",
+     "page": "著述篇二巻p316",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_women",
+   "title": "婦人の不調の元",
+   "categories": [
+    "women"
+   ],
+   "kenkai": [
+    "fujin",
+    "d_fujinbyou"
+   ],
+   "sources": [
+    "chikotsu",
+    "choukotsu",
+    "sokeibu",
+    "haimen_jinzo"
+   ],
+   "summary": "婦人の不調は臍から下（下腹部）の急所をよく施術し、下腹を押して固い所に毒の固まりがあるとされる。子宮の前屈・後屈なども腎臓部を施術するとよいとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#129",
+     "page": "著述篇二巻p323",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "chojutsu10#84",
+     "page": "著述篇十巻p221",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    },
+    {
+     "id": "kowa02#113",
+     "year": 1949,
+     "date": "1949"
+    },
+    {
+     "id": "kowa03#730",
+     "year": 1950,
+     "date": "195006"
+    }
+   ]
+  },
+  {
+   "id": "rel_lowback",
+   "title": "腰の元",
+   "categories": [
+    "lowback"
+   ],
+   "kenkai": [
+    "koshi"
+   ],
+   "sources": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side",
+    "youkotsu"
+   ],
+   "summary": "腰や腹の痛む人は腎臓の少し下（腎臓下方部）に熱が出やすく、横から押すと痛むことが多いとされる。腰から腎臓部にかけて施術する。腰の曲がりも腎臓の萎縮が元とされる。",
+   "cites": [
+    {
+     "id": "kowa01#78",
+     "page": "講話篇一巻p324",
+     "year": 1949,
+     "date": "194901"
+    },
+    {
+     "id": "kowa04#453",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "chojutsu03#136",
+     "page": "著述篇三巻p365",
+     "year": 1942,
+     "date": "194209"
+    }
+   ]
+  },
+  {
+   "id": "rel_kata",
+   "title": "肩・首の凝りの元",
+   "categories": [
+    "katakori",
+    "neck"
+   ],
+   "kenkai": [
+    "katakori",
+    "kubi"
+   ],
+   "sources": [
+    "haimen_jinzo",
+    "kenkoukan"
+   ],
+   "summary": "肩から上に固まる毒素の元は腎臓にあり、背面腎臓部の毒が脊柱の両側を上がって肩・首まで及ぶとされる。",
+   "cites": [
+    {
+     "id": "chojutsu10#71",
+     "page": "著述篇十巻p196",
+     "year": 1952,
+     "date": "1952"
+    }
+   ]
+  },
+  {
+   "id": "rel_temple",
+   "title": "こめかみの元",
+   "categories": [
+    "temple"
+   ],
+   "kenkai": [],
+   "sources": [
+    "kata"
+   ],
+   "summary": "こめかみ部と肩は非常に関係があるとされる。",
+   "cites": [
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940,
+     "date": "194011"
+    }
+   ]
+  },
+  {
+   "id": "rel_face",
+   "title": "顔の元",
+   "categories": [
+    "face"
+   ],
+   "kenkai": [
+    "kao"
+   ],
+   "sources": [
+    "keibu_lymph",
+    "jikasen",
+    "kata"
+   ],
+   "summary": "顔のこわばり・ひきつりは、頸の淋巴腺や肩に溜まった毒が顔へ移ったものとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#98",
+     "page": "著述篇二巻p258",
+     "year": 1936,
+     "date": "1936"
+    },
+    {
+     "id": "chojutsu05#71",
+     "page": "著述篇五巻p230",
+     "year": 1947,
+     "date": "194702"
+    }
+   ]
+  },
+  {
+   "id": "rel_yuutsu",
+   "title": "気分のふさぎの元",
+   "categories": [],
+   "kenkai": [
+    "yuutsu"
+   ],
+   "sources": [
+    "zentoubu",
+    "koutoubu",
+    "kata",
+    "kenkoukan",
+    "haimen_jinzo"
+   ],
+   "summary": "気分のふさぎは、前頭部・後頭部の毒の浄化による微熱や肩の凝り、腎臓から背中にかけて肩甲骨の間から脊柱の両側に土手のようになっている固結が元とされる。",
+   "cites": [
+    {
+     "id": "chojutsu03#106",
+     "page": "著述篇三巻p291",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "kowa01#78",
+     "page": "講話篇一巻p324",
+     "year": 1949,
+     "date": "194901"
+    }
+   ]
+  },
+  {
+   "id": "rel_fever",
+   "title": "熱の出所",
+   "categories": [
+    "fever",
+    "head_warm"
+   ],
+   "kenkai": [
+    "netsu",
+    "nobose"
+   ],
+   "sources": [
+    "jikasen",
+    "koutoubu",
+    "koukeibu",
+    "kata"
+   ],
+   "skip": [
+    "netsu_fukasa"
+   ],
+   "summary": "額が熱い時の元は、額の奥か、後頭部か、耳下腺にあるとみる。一番の急所は首筋にあることが多く、そこを施術して額の熱が下がればそこが急所とされる。肩を施術すると頭の熱もよくなる。",
+   "cites": [
+    {
+     "id": "kowa01#416",
+     "page": "講話篇一巻p543",
+     "year": 1948,
+     "date": "194812"
+    },
+    {
+     "id": "kowa01#78",
+     "page": "講話篇一巻p324",
+     "year": 1949,
+     "date": "194901"
+    },
+    {
+     "id": "kowa02#273",
+     "year": 1949,
+     "date": "194907"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ]
+  },
+  {
+   "id": "rel_p_lymph",
+   "title": "淋巴腺の元",
+   "points": [
+    "keibu_lymph",
+    "jikasen"
+   ],
+   "when": "any",
+   "sources": [
+    "kata",
+    "haimen_jinzo"
+   ],
+   "short": "淋巴腺には肩から、肩には腎臓部から毒が来ている（元をたどる）",
+   "summary": "淋巴腺には肩から毒が来て、肩には腎臓部から来ているとされる。淋巴腺に所見があれば、肩・腎臓部とたどって施術する。",
+   "cites": [
+    {
+     "id": "kowa04#488",
+     "year": 1951,
+     "date": "195110"
+    },
+    {
+     "id": "chojutsu10#71",
+     "page": "著述篇十巻p196",
+     "year": 1952,
+     "date": "1952"
+    }
+   ]
+  },
+  {
+   "id": "rel_p_head",
+   "title": "頭の熱と肩",
+   "points": [
+    "zentoubu",
+    "touchoubu",
+    "sokutoubu",
+    "koutoubu"
+   ],
+   "when": "heat",
+   "sources": [
+    "kata",
+    "koukeibu"
+   ],
+   "short": "頭の熱は肩・首筋を施術すると頭もよくなる（元をたどる）",
+   "skip": [
+    "netsu_fukasa",
+    "zutsuu_moto"
+   ],
+   "summary": "頭の熱は肩を施術すると頭もよくなるとされ、一番の急所は首筋にあることが多い。",
+   "cites": [
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    },
+    {
+     "id": "kowa02#273",
+     "year": 1949,
+     "date": "194907"
+    }
+   ]
+  }
+ ]
+}

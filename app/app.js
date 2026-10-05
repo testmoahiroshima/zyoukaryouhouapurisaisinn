@@ -1,4 +1,4 @@
-import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS, nextAdvice, findingsMap } from './engine.js';
+import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS, nextAdvice, findingsMap, relationsFor } from './engine.js';
 import { saveMap, loadMap, hasMap, deleteMap } from './history.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
 import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
@@ -6,7 +6,7 @@ import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zon
 import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
-const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'zenshu_terms'];
+const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'relations', 'zenshu_terms'];
 const KEY_FIELDS = { body_points: 'points' };
 const STORE_INPUT = 'joka.lastInput';
 const STORE_SETTINGS = 'joka.settings';
@@ -226,7 +226,7 @@ function stationsText(fl) {
 }
 
 // ---- 本日の症状 ----
-const ROLE_LABEL = { rakuya: '楽屋', keiro: '経路', butai: '舞台', kakuron: '各論', outlet: '出口', look: '' , extra: '' };
+const ROLE_LABEL = { rakuya: '楽屋', keiro: '経路', butai: '舞台', kakuron: '各論', outlet: '出口', moto: '元', look: '' , extra: '' };
 
 function renderChips() {
   $('#chips').innerHTML = db.raw.symptoms.groups.map((g) => `
@@ -249,6 +249,10 @@ function markChips() {
 const selectedChips = () => $$('#chips .chip[aria-pressed="true"]').map((b) => b.dataset.id);
 const SIDE_TEXT = { left: '左側', right: '右側', both: '左右' };
 
+// 元をたどる（症状・部位の関係）の説明
+function relationCard(k) {
+  return `<div class="k-item"><div class="k-title">${esc(k.title)}</div><p>${esc(k.summary)}</p><div class="small">${k.points ? `所見を見る所：${k.points.map((id) => esc(db.pointById[id]?.name)).join('、')} → ` : ''}元になりうる所：${k.sources.map((id) => esc(db.pointById[id]?.name)).join('、')}</div>${citesHTML(k)}</div>`;
+}
 function principleCard(id) {
   const k = db.principleById[id];
   if (!k) return '';
@@ -417,6 +421,7 @@ function renderResult(r) {
           ${c.flows.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">${fl.src.t2 ? 'テキスト' : '3級テキスト'}</span>${esc(fl.src.stage)}</div>${stationsText(fl)}<p class="basis">${esc(fl.src.basis)}</p><div class="cite">根拠：3級テキスト ${esc(fl.src.textbook)}${fl.src.t2 ? `／2級テキスト実践編 ${esc(fl.src.t2)}` : ''}</div>${zenshuDetails(fl.src.zenshu_candidates)}</div>`).join('')}
           ${c.routes.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">早見表 No.${fl.src.no}</span>${esc(fl.src.text)}</div>${stationsText(fl)}${fl.src.note ? `<div class="small muted">※${esc(fl.src.note)}</div>` : ''}</div>`).join('')}
           ${c.basis ? `<p class="basis">${esc(c.basis)}</p>${c.textbook ? `<div class="cite">根拠：3級テキスト ${esc(c.textbook)}</div>` : ''}` : ''}`).join('')}
+        ${(() => { const rels = relationsFor(db, r.categories.map((c) => c.id), r.kenkai.map((e) => e.id)); return rels.length ? `<h3>元をたどる（訴えと関係の深い所）</h3><p class="small muted">岡田先生が、その症状の元になると説いている所です。探査で所見があれば施術計画で加点し、無ければ探るよう案内します。</p>${rels.map(relationCard).join('')}` : ''; })()}
         <p class="small muted">（ ）の箇所は、基本経路（腎臓部→肩甲間部→肩→頸部→頭／腎臓部→腎臓下方部→腰部）で補った箇所です。早見表は、既存のテキストに基づく試験的な分類です。</p>
         ${principleCard('joushou')}${principleCard('atama_kudari')}${principleCard('senaka_main')}
       </details>
@@ -1260,7 +1265,7 @@ function criteriaCard() {
   return `<details class="card criteria"><summary><h2>優先順位と時間配分の考え方</h2></summary>
     <p class="small">探査の結果に、施術の大事なポイント4つを掛け合わせて優先度を出し、時間を配分します（このアプリの判断基準）。</p>
     <ol class="steps small">
-      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加える。熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4。第二浄化作用が進んでいる所）。</li><li><b>4つのポイントの加点</b>：重要施術部位（腎臓部＋3、頭・肩＋2、背部＋1.5）、各論（＋2.5）、楽屋と舞台（楽屋＋3、舞台・経路＋1.5）、毒素集溜と排泄の経路（出口＋1.5、詰まっている時＋3、腎臓部から骨盤の内側への固結の柱＋2）。ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部に＋3して浄化力の高まりを目指す。前回の終わりにも残っていた所は＋1.5（続けて溶かす）。頭痛の時は、元（頭部の毒血・首の固結の圧迫・頸部淋巴腺や延髄部の浄化熱）に＋3。頭部の熱は浅い・深いを選べ、深い熱（頭の奥）は頭部が元として＋2・頭部を長めに、浅い熱（表面）はほかから響く熱として元（頸部淋巴腺・耳下腺・陰部、後頭部なら延髄部の辺り）に＋2。加点は計画の「なぜここを？」に出る。</li>
+      <li><b>探査の結果</b>：塗った濃さ（5段階）を探査箇所ごとに読み取る。熱を最も重く（熱は溶けて排泄に向かっている印）、固結・張り・圧痛を加える。熱・固結・圧痛が重なる所は、薄くても色が重なっているだけで加点する（二つで＋2、三つ重なれば急所として＋4。第二浄化作用が進んでいる所）。</li><li><b>4つのポイントの加点</b>：重要施術部位（腎臓部＋3、頭・肩＋2、背部＋1.5）、各論（＋2.5）、楽屋と舞台（楽屋＋3、舞台・経路＋1.5）、毒素集溜と排泄の経路（出口＋1.5、詰まっている時＋3、腎臓部から骨盤の内側への固結の柱＋2）。ほかの固結に熱が無い（第二浄化作用がまだ起きていない）時は、腎臓部に＋3して浄化力の高まりを目指す。前回の終わりにも残っていた所は＋1.5（続けて溶かす）。頭痛の時は、元（頭部の毒血・首の固結の圧迫・頸部淋巴腺や延髄部の浄化熱）に＋3。頭部の熱は浅い・深いを選べ、深い熱（頭の奥）は頭部が元として＋2・頭部を長めに、浅い熱（表面）はほかから響く熱として元（頸部淋巴腺・耳下腺・陰部、後頭部なら延髄部の辺り）に＋2。<b>元をたどる</b>：岡田先生がその症状の元と説いている所（例：眼→延髄部・後頭部、耳→淋巴腺→肩→腎臓部、咳→右の鼠蹊部・首と肩、痔→同じ側の鼠蹊部、脚→腎臓部・脚の付け根）に所見があれば＋2（訴えが二つあっても一か所に1回）、所見が無ければ探るよう案内する。訴えが無くても、淋巴腺に所見があれば肩・腎臓部に、頭部に熱があれば肩・後頸部に＋1。加点は計画の「なぜここを？」に出る。</li>
       <li><b>重要施術部位</b>：頭（前頭部・頭頂部・後頭部は外さず、所見が無くても1〜3分）・肩・腎臓部は、必ず施術に入れる（肩・腎臓部は所見のある箇所があればそこを、無ければ短い時間で）。骨盤まわり（自己探査）に張り・痛み・熱があれば、短くても必ず入れる（排泄の出口。鼠蹊部・恥骨部は少しでもあれば、腰骨部・腸骨の内側などははっきりしていれば。時間に応じて1〜3か所）。訴えの場所（舞台）に所見があれば、その一番強い所も必ず入れる。頭部は一か所あたり3分まで（その所に強い熱がある時は4分、頭痛など頭部の訴えもある時だけさらに長めに）。</li><li><b>左右</b>：左右がある箇所は、どちらが大事かを必ず決めて、重点の側から先に長めに施術する（熱に差があれば熱の強い側を。差がはっきりしない時は、からだ全体の左右の傾向や訴えの側で決める）。腎臓部を第一（全身の浄化作用を強める）、頭・肩をそれに次ぐ重みに、背部・肩甲骨部を第二の順位に。</li>
       <li><b>楽屋と舞台</b>：本日の症状の楽屋（元）を重く、流れの経路上をやや重く。腰・脚・婦人科・泌尿器・痔などでは、頭から脊柱の際を下りて腰に溜まる流れもみて、頭も楽屋になりうるとする。</li>
       <li><b>毒素集溜と排泄の順序</b>：骨盤周辺（腰骨部・尾てい骨部・鼠蹊部）は排泄の出口として重く。固結が強い時はさらに重く。</li>
@@ -2188,6 +2193,7 @@ function ronbunUsedBy(id) {
     ...db.knowledge.principles.filter(has).map((x) => x.title),
     ...db.knowledge.kakuron.filter(has).map((x) => x.title),
     ...db.kenkai.filter(has).map((x) => `${x.label}（岡田先生の見解）`),
+    ...db.relations.filter(has).map((x) => `${x.title}（元をたどる）`),
   ];
 }
 async function renderRonbun() {
@@ -2254,6 +2260,7 @@ function renderKnowledge(q = '') {
   const els = ['重要施術部位', '楽屋と舞台', '毒素集溜と排泄の順序', '探査', '施術'];
   const ps = k.principles.filter(hit);
   const ks = k.kakuron.filter(hit);
+  const rs = db.relations.filter(hit);
   $('#learn-knowledge').innerHTML = `
     <div class="card">
       <h2>岡田先生の論述から読み取った施術の知見</h2>
@@ -2266,7 +2273,8 @@ function renderKnowledge(q = '') {
     }).join('')}
     ${ks.length ? `<div class="card"><h2>各論（症状について説かれたこと）</h2>
       ${ks.map((x) => `<div class="k-item"><div class="k-title">${esc(x.title)}</div><p>${esc(x.summary)}</p><div class="small">見る箇所：${x.points.map((id) => esc(db.pointById[id]?.name)).join('、')}</div>${citesHTML(x)}</div>`).join('')}</div>` : ''}
-    ${!ps.length && !ks.length ? '<div class="card"><p>見つかりませんでした。別の言葉で探してみてください。</p></div>' : ''}`;
+    ${rs.length ? `<div class="card"><h2>元をたどる（症状・部位の関係）</h2><p class="small muted">症状の出ている所（舞台）の元になる所。施術計画では、訴えや探査の所見に合わせて、ここに挙げた所を加点します。</p>${rs.map(relationCard).join('')}</div>` : ''}
+    ${!ps.length && !ks.length && !rs.length ? '<div class="card"><p>見つかりませんでした。別の言葉で探してみてください。</p></div>' : ''}`;
   $('#kn-form').addEventListener('submit', (e) => { e.preventDefault(); renderKnowledge($('#kn-q').value); });
 }
 
