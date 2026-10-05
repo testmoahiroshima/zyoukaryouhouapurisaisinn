@@ -1009,6 +1009,41 @@
    ]
   },
   {
+   "id": "rel_neck",
+   "title": "首の周りの元",
+   "categories": [
+    "neck"
+   ],
+   "kenkai": [
+    "kubi"
+   ],
+   "sources": [
+    "kata",
+    "maekata",
+    "keibu_lymph"
+   ],
+   "summary": "首の周りの固まりは、いったん肩に固まった毒が首の方へ行ったもので、肩を施術すると首の周りの固まりが溶けやすくなるとされる。首と肩を施術すると耳の後ろも柔らかくなり、肩が柔らかくなれば首も柔らかくなる。",
+   "cites": [
+    {
+     "id": "kowa04#440",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    },
+    {
+     "id": "chojutsu10#71",
+     "page": "著述篇十巻p196",
+     "year": 1952,
+     "date": "1952"
+    }
+   ]
+  },
+  {
    "id": "rel_temple",
    "title": "こめかみの元",
    "categories": [
