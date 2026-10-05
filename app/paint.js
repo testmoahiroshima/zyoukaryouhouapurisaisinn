@@ -367,7 +367,7 @@ export class Painter {
       for (const [px, py] of cs) {
         let side = null;
         if (cs.length > 1) side = px < 222 ? (px < cx ? 'R' : 'L') : (px < cx ? 'L' : 'R');
-        all.push({ id: p.id, x: px * SCALE, y: py * SCALE, side });
+        all.push({ id: p.id, x: px * SCALE, y: py * SCALE, side, split: !!p.split });
       }
     }
     const per = new Map();
@@ -377,8 +377,11 @@ export class Painter {
           const d = Math.hypot(x - c.x, y - c.y);
           if (d > R) continue;
           if (all.some((o) => o !== c && Math.hypot(x - o.x, y - o.y) < d)) continue;
-          let a = per.get(c);
-          if (!a) per.set(c, (a = { id: c.id, side: c.side, n: 0, min: 6, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
+          // 中央の1か所でも左右に分けて読む箇所は、中心より左右どちらに塗ったかで分ける（背面図は左に描かれた方が体の左）
+          const side = c.split ? ((x < c.x) === (c.x >= 222 * SCALE) ? 'L' : 'R') : c.side;
+          const key = c.split ? `${c.id}:${side}` : c;
+          let a = per.get(key);
+          if (!a) per.set(key, (a = { id: c.id, side, n: 0, min: 6, vals: Object.fromEntries(LAYERS.map((l) => [l.id, []])) }));
           a.n++;
           const i = y * this.gw + x;
           for (const l of LAYERS) {

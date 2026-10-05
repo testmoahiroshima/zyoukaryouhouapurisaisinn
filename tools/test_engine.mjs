@@ -471,6 +471,22 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   ok(k3.minutes >= 4 && p3.total === 30, `30分でも肩は${k3.minutes}分`);
 }
 
+// 延髄部・後頸部：中央の1か所でも左右に分けて施術する（記録の左右差 → 楽屋（肩）の側 → 排泄経路の側）
+{
+  const side = (L, R) => ({ heat: Math.max(L.heat || 0, R.heat || 0), kouketsu: Math.max(L.kouketsu || 0, R.kouketsu || 0), atsutsuu: Math.max(L.atsutsuu || 0, R.atsutsuu || 0), sides: { L, R } });
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  const a = analyze(db, '首がこる');
+  const p1 = planSession(db, { enzui: side({ kouketsu: 1 }, { kouketsu: 4, atsutsuu: 2 }), koukeibu: side({ kouketsu: 3 }, { kouketsu: 3 }), kata: side({ kouketsu: 4 }, { kouketsu: 1 }) }, 60, a);
+  const en = p1.items.find((i) => i.id === 'enzui');
+  const ko = p1.items.find((i) => i.id === 'koukeibu');
+  ok(en?.split?.[0].side === 'R' && en.split[0].minutes > (en.split[1]?.minutes || 0), `延髄部は記録の強い右を重点（${en?.split?.map((x) => x.side + x.minutes).join('/')}）`);
+  ok(ko?.side === 'L' && ko.reasons.some((r) => r.text.includes('楽屋の肩')), `後頸部は左右差が小さい → 楽屋の肩が強い左を重点（${ko?.split?.map((x) => x.side + x.minutes).join('/')}）`);
+  const p2 = planSession(db, { koukeibu: side({ kouketsu: 3 }, { kouketsu: 3 }), haimen_jinzo: side({ kouketsu: 1 }, { kouketsu: 4 }), choukotsu: side({ kouketsu: 1 }, { kouketsu: 4 }) }, 60, a);
+  const ko2 = p2.items.find((i) => i.id === 'koukeibu');
+  ok(ko2?.side === 'R' && ko2.reasons.some((r) => r.text.includes('排泄経路')), `後頸部は楽屋に左右差なし → 排泄経路の強い右を重点（${ko2?.split?.map((x) => x.side + x.minutes).join('/')}）`);
+  ok(db.pointById.enzui.split && db.pointById.koukeibu.split, '延髄部・後頸部は左右に分けて読む箇所');
+}
+
 // データの整合：参照している id がすべて存在するか
 const ids = new Set(db.pointList.map((p) => p.id));
 for (const k of db.raw.knowledge.kakuron) for (const id of k.points) if (!ids.has(id)) { console.log('bad point in kakuron', k.id, id); fail++; }
