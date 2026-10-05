@@ -1,6 +1,6 @@
 // 症状入力→提案の簡易テスト：node tools/test_engine.mjs
 import { readFileSync } from 'node:fs';
-import { prepare, analyze, planSession } from '../app/engine.js';
+import { prepare, analyze, planSession, findingScore, excretionCheck, nextAdvice, historyHints } from '../app/engine.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url), 'utf8'));
 const db = prepare({
@@ -245,6 +245,75 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
     console.log(`${good ? 'ok' : 'NG'}  記録（首のかゆみ）${t}分：` + pl.items.map((i) => `${i.name}${i.minutes}`).join(' '));
     if (!good) fail++;
   }
+}
+
+// 重なりの加点：薄くても、色が重なっていれば重く数える（三つ重なれば急所）
+{
+  const thin = findingScore({ heat: 0.3, kouketsu: 0.3 });
+  const tri = findingScore({ heat: 0.3, kouketsu: 0.3, atsutsuu: 0.3 });
+  const good = thin > findingScore({ kouketsu: 3 }) && tri > thin + 1.5;
+  console.log(`${good ? 'ok' : 'NG'}  重なりの加点：熱0.3＋固結0.3=${thin.toFixed(2)}、三つ=${tri.toFixed(2)}、固結3=${findingScore({ kouketsu: 3 }).toFixed(2)}`);
+  if (!good) fail++;
+  // ほかの固結に熱が無い時は、腎臓部を長めに（浄化力を高める）
+  const p1 = planSession(db, { kata: { kouketsu: 3 }, kenkoukan: { kouketsu: 3 }, haimen_jinzo: { kouketsu: 3 } }, 60, null);
+  const p2 = planSession(db, { kata: { kouketsu: 3, heat: 3 }, kenkoukan: { kouketsu: 3 }, haimen_jinzo: { kouketsu: 3 } }, 60, null);
+  const kid = (p) => p.items.find((i) => i.id === 'haimen_jinzo').minutes;
+  const g2 = kid(p1) > kid(p2);
+  console.log(`${g2 ? 'ok' : 'NG'}  ほかに熱が無い時は腎臓部を長めに：${kid(p1)}分（熱がある時 ${kid(p2)}分）`);
+  if (!g2) fail++;
+}
+
+// 頭痛の元：首の固結の圧迫（脳貧血）・頸部淋巴腺の浄化熱・延髄部の浄化熱（根原は腎臓）・頭部の毒血
+{
+  const cases = [
+    ['頭が痛い', { koukeibu: { kouketsu: 4 }, kata: { kouketsu: 3 }, haimen_jinzo: { kouketsu: 2 } }, 'hinketsu', 'koukeibu'],
+    ['おでこが痛い', { keibu_lymph: { heat: 3, kouketsu: 2 }, zentoubu: { heat: 1 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 2 } }, 'lymph', 'keibu_lymph'],
+    ['後頭部が痛い', { enzui: { heat: 3 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 3 } }, 'enzui', 'enzui'],
+    ['頭が痛い', { zentoubu: { heat: 4 }, kata: { kouketsu: 2 }, haimen_jinzo: { kouketsu: 2 } }, 'doku', 'zentoubu'],
+  ];
+  for (const [text, f, type, id] of cases) {
+    const pl = planSession(db, f, 30, analyze(db, text, []));
+    const it = pl.items.find((i) => i.id === id);
+    const note = pl.notes.find((n) => n.title === '頭痛の元の見立て');
+    const sum = pl.probe + pl.check + pl.items.reduce((s, i) => s + i.minutes, 0);
+    const good = it && it.reasons.some((r) => r.ref === 'zutsuu_moto') && note && sum === 30 && (type !== 'doku' || it.minutes >= 4);
+    console.log(`${good ? 'ok' : 'NG'}  頭痛の元（${type}）「${text}」：` + pl.items.map((i) => `${i.name}${i.minutes}`).join(' '));
+    if (!good) fail++;
+  }
+  const none = planSession(db, { kata: { kouketsu: 3 } }, 30, analyze(db, '頭が痛い', []));
+  if (!none.notes.some((n) => n.title === '頭痛の元を探りましょう')) { console.log('NG 頭痛で所見が無い時の案内'); fail++; }
+}
+
+// 排泄経路：骨盤まわりの強い圧痛・熱も詰まりとみる（固結より軽く）
+{
+  const lv = (f) => excretionCheck(db, f, null).level;
+  const good = lv({ sokeibu: { atsutsuu: 5, heat: 4 } }) === 'blocked' && lv({ sokeibu: { atsutsuu: 3 } }) === 'some' && lv({ sokeibu: { atsutsuu: 1 } }) === 'clear';
+  console.log(`${good ? 'ok' : 'NG'}  排泄経路に圧痛・熱も入れる`);
+  if (!good) fail++;
+}
+
+// 前回の記録から：終わりにも残っていた所を重く、変わらなかった所は見直しを促す。施術後には次回の提案を出す
+{
+  const prev = {
+    date: '2026-10-01', session_id: 'x',
+    findings: [{ point_id: 'kata', kouketsu: 4 }, { point_id: 'kenkoukan', kouketsu: 3, heat: 2 }, { point_id: 'haimen_jinzo', kouketsu: 3 }],
+    findings_after: [{ point_id: 'kata', kouketsu: 4 }, { point_id: 'kenkoukan', kouketsu: 1 }, { point_id: 'haimen_jinzo', kouketsu: 3 }],
+    treatments: [{ point_id: 'kata', minutes: 5 }, { point_id: 'kenkoukan', minutes: 5 }, { point_id: 'haimen_jinzo', minutes: 5 }],
+  };
+  const h = historyHints(prev);
+  const f = { kata: { kouketsu: 3 }, kenkoukan: { kouketsu: 3 }, haimen_jinzo: { kouketsu: 3 } };
+  const p0 = planSession(db, f, 30, null);
+  const p1 = planSession(db, f, 30, null, { prev });
+  const kata = (p) => p.items.find((i) => i.id === 'kata');
+  const good = h.remain.has('kata') && h.unchanged.has('kata') && h.improved.has('kenkoukan')
+    && kata(p1).P > kata(p0).P && p1.notes.some((n) => n.title.startsWith('前回'));
+  console.log(`${good ? 'ok' : 'NG'}  前回の続き：残った所を重く（肩 ${kata(p0).P.toFixed(1)}→${kata(p1).P.toFixed(1)}）・変化の少ない所の見直し`);
+  if (!good) fail++;
+  const adv = nextAdvice(db, { kata: { kouketsu: 4 }, kenkoukan: { kouketsu: 3 }, enzui: { kouketsu: 2 } }, { kata: { kouketsu: 4 }, kenkoukan: { kouketsu: 1, heat: 1 }, keizui: { heat: 2 }, enzui: { kouketsu: 2 } }, [{ id: 'kata' }, { id: 'kenkoukan' }]);
+  const kinds = adv.map((x) => x.kind);
+  const g2 = ['good', 'up', 'move', 'same', 'todo'].every((k) => kinds.includes(k));
+  console.log(`${g2 ? 'ok' : 'NG'}  次回の提案：${kinds.join(',')}`);
+  if (!g2) fail++;
 }
 
 // 左右と排泄経路：右の腎臓部が強く、右の腸骨の内側にも固結 → 右の腎臓部を重点・出口を先に

@@ -872,3 +872,22 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 }
 :root[data-theme="dark"] .med-note { background: #3a2a1c; color: #f5c899; }
 :root[data-theme="dark"] .rb-body p.qa-a b { background: #3a2a1c; color: #f5c899; }
+.reasons .pts { display: inline-block; min-width: 2.4em; margin-right: 4px; padding: 0 4px; border-radius: 6px; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: .8rem; text-align: center; }
+
+/* 前回の続き・次回の提案・経過 */
+.prev-bar { margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.prev-code { display: flex; align-items: center; gap: 8px; font-weight: 700; flex-wrap: wrap; }
+.prev-code input { flex: 1 1 8em; min-height: 44px; font: inherit; padding: 4px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.prev-info { margin-top: 6px; }
+.prev-info .ghost.wide { margin: 6px 0; }
+.advice { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 6px; }
+.advice li { display: flex; gap: 8px; align-items: flex-start; line-height: 1.6; }
+.advice .adv-i { flex: none; width: 1.6em; text-align: center; font-weight: 700; color: var(--accent); }
+.advice .adv-same .adv-i, .advice .adv-move .adv-i { color: #b0721f; }
+.progress-wrap { overflow-x: auto; }
+.progress { border-collapse: collapse; font-size: .82rem; min-width: 100%; }
+.progress th, .progress td { border: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; white-space: nowrap; }
+.progress tbody th { position: sticky; left: 0; background: var(--surface); }
+.progress td.treated { background: var(--accent-soft); }
+.progress .arrow { color: var(--muted); font-size: .75rem; }
+.progress .pv { display: inline-block; margin-right: 4px; padding: 0 3px; border-left: 3px solid var(--c); }
