@@ -313,6 +313,25 @@ const used = new Set(db.raw.symptoms.categories.flatMap((c) => c.routes));
 for (const r of db.raw.routes.routes) if (!used.has(r.no)) console.log('route not used by any category:', r.no);
 const usedF = new Set(db.raw.symptoms.categories.flatMap((c) => c.flows));
 for (const f of db.raw.flows.flows) if (!usedF.has(f.id)) console.log('flow not used by any category:', f.id);
+// 論文の本文（data/ronbun.json）：根拠として引いている論述がすべて読めて、精神面・宗教面の語・「浄霊」・本の名前が出ないこと
+{
+  const rb = load('ronbun').articles;
+  const have = new Set(rb.map((a) => a.id));
+  const cited = new Set();
+  const walk = (x) => {
+    if (Array.isArray(x)) x.forEach(walk);
+    else if (x && typeof x === 'object') {
+      if (typeof x.id === 'string' && /^(chojutsu|kowa)\d+#\d+$/.test(x.id) && ('page' in x || 'date' in x || 'year' in x)) cited.add(x.id);
+      Object.values(x).forEach(walk);
+    }
+  };
+  ['knowledge', 'kenkai'].forEach((f) => walk(load(f)));
+  const missing = [...cited].filter((id) => !have.has(id));
+  const bad = rb.filter((a) => /霊|浄霊|全集|観音|明主|信者|御守|神様/.test(a.title + a.paras.join('')));
+  const good = !missing.length && !bad.length && rb.length >= cited.size;
+  console.log(`${good ? 'ok' : 'NG'}  論文の本文 ${rb.length}件（根拠 ${cited.size}件）${missing.length ? ' 足りない：' + missing.join(',') : ''}${bad.length ? ' 禁止語：' + bad.map((a) => a.id).join(',') : ''}`);
+  if (!good) fail++;
+}
 console.log('keywords:', db.categories.reduce((n, c) => n + c.keywords.length, 0), 'categories:', db.categories.length);
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);
