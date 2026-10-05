@@ -74,6 +74,14 @@
      },
      "note": {
       "type": "string"
+     },
+     "depth": {
+      "type": "string",
+      "enum": [
+       "shallow",
+       "deep"
+      ],
+      "description": "頭部の熱の深さ（浅い＝表面・ほかから響く熱／深い＝奥・頭部が元）"
      }
     }
    }
