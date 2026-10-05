@@ -308,6 +308,7 @@ dl.terms dd { margin: 2px 0 0; }
 .role-楽屋 { border-color: var(--rakuya); color: var(--rakuya); }
 .role-舞台 { border-color: var(--point); color: var(--point); }
 .role-各論 { border-color: var(--accent); color: var(--accent); }
+.role-元 { border-color: var(--rakuya); color: var(--rakuya); border-style: dashed; }
 .role-重点 { background: var(--point-key); color: #fff; border-color: var(--point-key); }
 button.primary.wide { width: 100%; margin-top: 12px; }
 
@@ -896,3 +897,8 @@ body.no-select, body.no-select * { -webkit-user-select: none !important; user-se
 .depth-row .chip { min-height: 40px; }
 .depth-help { margin-top: 6px; }
 .depth-help p { margin: 6px 0; }
+
+/* 受け手コード：見出しを上に、入力欄は画面の幅に収める（文字を大きくしても横にはみ出さない） */
+input, select, textarea { max-width: 100%; box-sizing: border-box; }
+.prev-code, label.rec-row { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.prev-code input, .rec-row input { width: 100%; min-width: 0; flex: none; font-size: max(16px, 1rem); }
