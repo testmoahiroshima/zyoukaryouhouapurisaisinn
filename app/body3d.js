@@ -732,7 +732,7 @@ export class Body3D {
     return { v, x: P[v * 3], y: P[v * 3 + 1], z: P[v * 3 + 2], hot: !!h };
   }
 
-  focusTargets(ks, r = 0.75) {
+  focusTargets(ks, r = 0.75, turn = 0) {
     if (!ks.length || !this.camera) return;
     const c = new THREE.Vector3();
     const n = new THREE.Vector3();
@@ -746,8 +746,9 @@ export class Body3D {
     n.normalize();
     // 真上・真下から見ないように、少し水平に寄せる
     const ny = Math.max(-0.6, Math.min(0.75, n.y));
-    const theta = Math.atan2(n.x, n.z);
-    const phi = Math.acos(ny);
+    // turn：手をかざす姿を見せる時は、少し横から（手が箇所を隠さないように）
+    const theta = Math.atan2(n.x, n.z) + turn;
+    const phi = Math.acos(ny) - (turn ? 0.12 : 0);
     const spread = ks.length > 1 ? Math.hypot(this.targets[ks[0]].x - this.targets[ks[ks.length - 1]].x, this.targets[ks[0]].y - this.targets[ks[ks.length - 1]].y) : 0;
     this.animateTo({ target: c, r: Math.max(r, spread * 2.6 + 0.35), theta, phi });
   }
@@ -784,12 +785,13 @@ export class Body3D {
 
   // ---- 施術箇所を図で示す ----
   // items: [{ id, side, no, order, current, emphasis }]、flows: [{ ids: [[id, side], ...], color }]
-  setGuide({ items = [], flows = [], focus = true } = {}) {
-    this.guide = { items, flows, focus };
+  setGuide({ items = [], flows = [], focus = true, form = null } = {}) {
+    this.guide = { items, flows, focus, form };
     if (!this.scene) return;
     if (this.guideGroup) { this.scene.remove(this.guideGroup); this.guideGroup.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); }); }
     const G = (this.guideGroup = new THREE.Group());
     this.pulse = [];
+    this.arrow = null; // 前の矢印が残って動き続けないように
     const up = new THREE.Vector3(0, 1, 0);
     // 施術の印と矢印は、探査で塗った記録の一番強い所に置く（塗られていなければ探査箇所の位置）
     const posOf = (k, lift = 0, hot = true) => {
@@ -829,8 +831,12 @@ export class Body3D {
           s.material.depthTest = !see;
           G.add(s);
         }
+        // 施術の形（誰かに／自分に）を選んでいる時は、矢印の代わりに、その所へ手をかざす姿
+        if (it.current && form && k === ks[0]) {
+          G.add(this.handForm(k, form));
+        }
         // 今施術する所には、体の外から指す矢印
-        if (it.current) {
+        else if (it.current && !form) {
           const len = 0.1;
           // 正面から見ても分かるように、斜め上から指す
           const out = n.clone().multiplyScalar(0.6).addScaledVector(up, 0.8).normalize();
@@ -883,9 +889,87 @@ export class Body3D {
     this.startPulse();
     if (focus) {
       const cur = items.find((x) => x.current);
-      if (cur) this.focusTargets(this.targetIndexes(cur.id, cur.side), 0.8);
+      if (cur) this.focusTargets(this.targetIndexes(cur.id, cur.side), form === 'other' ? 1.35 : form === 'self' ? 1.05 : 0.8, form ? 0.8 : 0);
     }
     this.render();
+  }
+
+  // ---- 施術の形：その所へ手をかざす姿 ----
+  // 手のひらを所に向け、指をそろえ（力は抜いて）、離してかざす。
+  //  other：誰かに施術する時。体から30〜60cm離す（図では約35cm）。施術者の腕が体の外から伸びる
+  //  self ：自分に施術する時。近くてもよいが、体に触れず隙間をあける（細かい距離は示さない）。受け手自身の肩から腕が伸びる
+  //         （肩・前肩は反対の手、ほかは同じ側の手、中央は右手）
+  handForm(k, mode) {
+    const t = this.spotOf(k);
+    const tgt = this.targets[k];
+    const n = new THREE.Vector3(...this.vertexNormal(t.v)).normalize();
+    const p = new THREE.Vector3(t.x, t.y, t.z);
+    const up = new THREE.Vector3(0, 1, 0);
+    // 図で手を置く位置（画面に数字は出さない）。自分に施術する時は近め、ただし体との間に隙間を残す
+    const dist = mode === 'self' ? 0.08 : 0.35;
+    const H = p.clone().addScaledVector(n, dist); // 手のひらの中心
+    const skin = new THREE.MeshStandardMaterial({ color: 0xe2ad8a, roughness: 0.7, metalness: 0, transparent: true, opacity: 0.93 });
+    const sleeve = new THREE.MeshStandardMaterial({ color: 0x5f7a92, roughness: 0.9, metalness: 0, transparent: true, opacity: 0.9 });
+    // 腕の通り道（手首 W → 肘 E → 肩 S）
+    let S, E;
+    const lateral = new THREE.Vector3(1, 0, 0);
+    if (mode === 'self') {
+      const shoulderSide = ['kata', 'maekata'].includes(tgt.id) ? (t.x > 0 ? -1 : 1) : (Math.abs(t.x) < 0.03 ? -1 : Math.sign(t.x));
+      S = new THREE.Vector3(0.17 * shoulderSide, 1.4, -0.02);
+      const mid = S.clone().add(H).multiplyScalar(0.5);
+      E = mid.addScaledVector(n, 0.13).addScaledVector(lateral, 0.09 * shoulderSide).addScaledVector(up, 0.03);
+    } else {
+      // 施術者は体の外、少し下から腕を伸ばす
+      const out = n.clone().setY(0);
+      if (out.lengthSq() < 1e-4) out.set(0, 0, 1);
+      out.normalize();
+      E = H.clone().addScaledVector(n, 0.2).addScaledVector(up, -0.1).addScaledVector(out, 0.04);
+      S = E.clone().addScaledVector(out, 0.2).addScaledVector(up, 0.16);
+    }
+    // 指の向き：前腕の向きをそのまま伸ばす（手のひらの面の中で）
+    const f = H.clone().sub(E);
+    f.addScaledVector(n, -f.dot(n));
+    if (f.lengthSq() < 1e-6) f.copy(up).addScaledVector(n, -up.dot(n));
+    if (f.lengthSq() < 1e-6) f.set(0, 0, 1);
+    f.normalize();
+    const w = new THREE.Vector3().crossVectors(f, n).normalize(); // 手の幅の向き
+    const W = H.clone().addScaledVector(f, -0.05);
+    const g = new THREE.Group();
+    // 手のひら（平たい楕円）と、そろえた4本の指、親指
+    const basis = new THREE.Matrix4().makeBasis(w, f, n);
+    const palm = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), skin);
+    palm.scale.set(0.042, 0.052, 0.013);
+    palm.quaternion.setFromRotationMatrix(basis);
+    palm.position.copy(H);
+    g.add(palm);
+    for (let i = 0; i < 4; i++) {
+      const len = [0.044, 0.05, 0.047, 0.038][i];
+      const fin = new THREE.Mesh(new THREE.CapsuleGeometry(0.0085, len, 4, 10), skin);
+      fin.quaternion.setFromRotationMatrix(basis);
+      fin.position.copy(H).addScaledVector(w, (i - 1.5) * 0.0175).addScaledVector(f, 0.05 + len / 2);
+      g.add(fin);
+    }
+    const thumbDir = f.clone().multiplyScalar(0.55).addScaledVector(w, -0.85).normalize();
+    const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.0095, 0.036, 4, 10), skin);
+    thumb.quaternion.setFromUnitVectors(up, thumbDir);
+    thumb.position.copy(H).addScaledVector(w, -0.04).addScaledVector(f, -0.005).addScaledVector(thumbDir, 0.022);
+    g.add(thumb);
+    // 前腕（肌）と上腕（袖）
+    const fore = new THREE.CatmullRomCurve3([W, W.clone().lerp(E, 0.5).addScaledVector(n, 0.01), E]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(fore, 24, 0.022, 12, false), skin));
+    const upper = new THREE.CatmullRomCurve3([E, E.clone().lerp(S, 0.5), S]);
+    g.add(new THREE.Mesh(new THREE.TubeGeometry(upper, 24, 0.03, 12, false), sleeve));
+    const elbow = new THREE.Mesh(new THREE.SphereGeometry(0.029, 16, 12), sleeve);
+    elbow.position.copy(E);
+    g.add(elbow);
+    // 手のひらから所へ、うすい光の道（かざしている所と、体との隙間が分かるように）
+    const gap = dist - 0.012;
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.05, gap, 24, 1, true), new THREE.MeshBasicMaterial({ color: 0xffc070, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }));
+    beam.quaternion.setFromUnitVectors(up, n);
+    beam.position.copy(p).addScaledVector(n, 0.004 + gap / 2);
+    g.add(beam);
+    g.traverse((o) => { o.renderOrder = 12; });
+    return g;
   }
 
   startPulse() {

@@ -912,3 +912,7 @@ input, select, textarea { max-width: 100%; box-sizing: border-box; }
 .finish-outlets { margin: 4px 0 0; padding-left: 1em; }
 .finish-outlets li { margin: 3px 0; }
 .finish-outlets .small { display: block; }
+
+/* 施術の形（誰かに施術／自分に施術） */
+.form-switch { display: flex; gap: 8px; justify-content: center; margin: 8px 0 2px; flex-wrap: wrap; }
+.form-tip { margin: 4px 0 8px; color: var(--muted); }

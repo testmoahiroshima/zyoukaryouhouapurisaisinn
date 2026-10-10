@@ -41,6 +41,7 @@ const settings = Object.assign({
   detail: 'simple',
   theme: 'auto',
   welcomed: false,
+  form: 'other', // 施術の形：other＝誰かに施術、self＝自分に施術（3D図の手の姿と、かざし方の案内）
 }, store.get(STORE_SETTINGS, {}));
 const saveSettings = () => store.set(STORE_SETTINGS, settings);
 
@@ -1452,6 +1453,16 @@ function renderSessionPlan({ jump = true } = {}) {
 }
 
 // 仕上げ（最後の約6分の1）：全体を今一度探査し、求める所、無ければ排泄経路に関わる辛くない所を施術する
+// 施術の形：誰かに施術／自分に施術。3D図に、その所へ手をかざす姿を出す
+const FORMS = {
+  other: { name: '誰かに施術', tip: '手のひらを所に向け、体から30〜60cmほど離してかざします。指はそろえ、力を抜いて。受け手には楽な姿勢でいてもらいます。' },
+  self: { name: '自分に施術', tip: '自分の手でかざします。近くてもかまいませんが、体に触れず、少し隙間をあけます。指はそろえ、力を抜いて。届きにくい所は届く範囲で（人に頼むのもよい）。' },
+};
+function formHTML() {
+  const f = FORMS[settings.form] || FORMS.other;
+  return `<div class="form-switch" role="group" aria-label="施術の形">${Object.entries(FORMS).map(([k, x]) => `<button type="button" class="chip" data-form="${k}" aria-pressed="${settings.form === k}">${x.name}</button>`).join('')}</div>
+    <p class="small form-tip">${esc(f.tip)}</p>`;
+}
 function finishText(x) {
   return `${x.name}${x.side ? `（${SIDE_JA[x.side]}）` : ''}`;
 }
@@ -1597,8 +1608,9 @@ function renderRun() {
       <div class="run-clock" id="run-clock">${mmss(run.left)}</div>
       <div class="run-progress"><i id="run-bar" style="width:0%"></i></div>
       ${ph.type === 'treat' ? recordLineHTML(ph) : ph.type === 'check' ? finishHTML(session.plan, { run: true }) : ''}
+      ${ph.type === 'treat' ? formHTML() : ''}
       <div class="b3-stage guide-stage run-stage"><div class="b3-wrap" id="run-3d"><p class="small muted b3-loading">図を読み込んでいます…</p></div>${zoomHTML('rg')}</div>
-      <p class="small muted run-guide-note">${ph.type === 'check' ? '<b class="c-now">橙</b>と<b>緑の丸</b>は、求める所が無い時に施術する排泄経路の所です（探査の記録の強い所に置いています）。' : ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所（探査で塗った記録の、熱・固結・圧痛がいちばん強い所）です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番。探査で塗った記録の、いちばん強い所に置いています）。'}</p>
+      <p class="small muted run-guide-note">${ph.type === 'treat' && settings.form ? `図は、今施術する所（探査の記録のいちばん強い所）へ手をかざす姿です（${FORMS[settings.form]?.name || ''}）。緑は、これから施術する所。` : ph.type === 'check' ? '<b class="c-now">橙</b>と<b>緑の丸</b>は、求める所が無い時に施術する排泄経路の所です（探査の記録の強い所に置いています）。' : ph.type === 'treat' ? '<b class="c-now">橙の矢印</b>が今施術する所（探査で塗った記録の、熱・固結・圧痛がいちばん強い所）です。緑は、これから施術する所。' : '緑の丸が今日施術する所です（番号は順番。探査で塗った記録の、いちばん強い所に置いています）。'}</p>
       <p class="run-check" id="run-check"${run.checkShow > 0 ? '' : ' hidden'}>${esc(CHECK_VOICE)}</p>
       <p class="small muted">${next ? `次：${esc(next.label)}（${Math.round(next.sec / 60)}分）` : '最後の段階です'}</p>
       <div class="run-controls">
@@ -1614,7 +1626,8 @@ function renderRun() {
   updateRunClock();
   wireStepBar($('#tab-session'));
   const finishItems = () => (session.plan.finish?.outlets || []).map((x, i) => ({ id: x.id, side: x.side, order: i + 1, emphasis: true, current: i === 0, done: false }));
-  mountGuide($('#run-3d'), { items: ph.type === 'check' && session.plan.finish ? finishItems() : planGuideItems(session.plan, ph.type === 'treat' ? ph.key : null, doneKeys), focus: ph.type !== 'probe' }, { ratio: 0.9, maxH: 0.45 });
+  mountGuide($('#run-3d'), { items: ph.type === 'check' && session.plan.finish ? finishItems() : planGuideItems(session.plan, ph.type === 'treat' ? ph.key : null, doneKeys), focus: ph.type !== 'probe', form: ph.type === 'treat' ? settings.form : null }, { ratio: 0.9, maxH: 0.45 });
+  $$('[data-form]', $('#tab-session')).forEach((b) => b.addEventListener('click', () => { settings.form = b.dataset.form; saveSettings(); renderRun(); }));
   wireZoom($('#tab-session'), 'rg', () => guide.b3);
   $('#run-pause').addEventListener('click', () => { run.paused = !run.paused; renderRun(); });
   $('#run-plus').addEventListener('click', () => { run.left += 60; ph.sec += 60; updateRunClock(); });
