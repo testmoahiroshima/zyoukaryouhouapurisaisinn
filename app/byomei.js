@@ -3,14 +3,14 @@
 import { normalize, findHits } from './engine.js';
 
 export function prepareByomei(raw) {
-  const entries = (raw?.entries || []).map((e) => ({ ...e, _words: e.words.map(normalize) }));
+  const entries = (raw?.entries || []).map((e) => ({ ...e, _words: e.words.map(normalize), _ex: (e.exclude || []).map(normalize), _sites: (e.sites || []).map((w) => [w, normalize(w)]) }));
   const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
   // 体の部位 × 感じ方（長い言葉から先に見る）
   const prep = (list) => (list || []).map((x) => ({ ...x, _words: x.words.map((w) => [w, normalize(w)]).filter(([, n]) => n).sort((a, b) => b[1].length - a[1].length) }));
   const parts = prep(raw?.parts);
   const senses = prep(raw?.senses);
   const combos = Object.fromEntries((raw?.combos || []).map((c) => [`${c.part}|${c.sense}`, c.entry]));
-  return { entries, byId, block: (raw?.block || []).map(normalize), parts, senses, combos, partExclude: (raw?.part_exclude || []).map(normalize) };
+  return { entries, byId, cancerWords: (raw?.cancer_words || []).map(normalize), general: entries.find((e) => e.general), parts, senses, combos, partExclude: (raw?.part_exclude || []).map(normalize), senseExclude: (raw?.sense_exclude || []).map(normalize) };
 }
 
 const NEG = /^(は|が|も)?(ない|無い|なし|無し|ありません)|^くない|^く(は|も)?ありません|^くな(か|く)/;
@@ -78,13 +78,16 @@ function partSenseHits(bm, norm) {
   return { hits, negated };
 }
 
+// がん（癌）の語を見る時は「がんばる」「頑固」「ガンガン」「ガングリオン」「眼科」などを伏せる（位置はそのまま）
+const NOT_CANCER = /がんば|がんこ|がんじょう|がんがん|がんぐりおん|がんめん|がんきゅう|がんか|めがね|がんたん|がんらい|がんぼう|がんじつ|がんだむ|がんもどき|がんぷら|(がん|癌)(検診|健診|保険)/g;
+
 // 入力文に出てくる対応表の項目（「〜はない」と打ち消した言葉は拾わない）。入力に出た順
+// がん（癌）の語がある時は、部位ごとのがんの項目を出し（cancer: true）、その部位の言葉で拾ったほかの項目（「胃がん」の胃の不調 など）は重ねて出さない
 export function matchByomei(bm, text) {
   const norm = normalize(text);
-  if (!norm) return { entries: [], blocked: false };
-  // がん（癌）の語：「がんばる」「頑固」「ガンガン」「ガングリオン」などは除いて見る
-  const cleaned = norm.replace(/がんば|がんこ|がんじょう|がんがん|がんぐりおん|がんめん|がんきゅう|がんか|めがね/g, '');
-  const blocked = bm.block.some((w) => cleaned.includes(w));
+  if (!norm) return { entries: [], cancer: false };
+  const cleaned = norm.replace(NOT_CANCER, (m) => '\u0000'.repeat(m.length));
+  const cancer = bm.cancerWords.some((w) => cleaned.includes(w));
   const found = new Map();
   const put = (entry, index, words) => {
     if (!entry) return;
@@ -92,17 +95,44 @@ export function matchByomei(bm, text) {
     if (!cur) found.set(entry.id, { entry, index, words: [...words] });
     else { cur.index = Math.min(cur.index, index); for (const w of words) if (!cur.words.includes(w)) cur.words.push(w); }
   };
+  const shown = (e, hits) => [...new Set(hits.map((h) => e.words[e._words.indexOf(h.kw)] || h.kw))];
+  // がんの項目：部位の付いた言い方（胃がん・肺癌・白血病 など）。無ければ、がんの語と部位の言葉が離れている時（「がんが肝臓に転移」）
+  const cancerRanges = [];
+  if (cancer) {
+    const ces = bm.entries.filter((e) => e.cancer && !e.general);
+    for (const e of ces) {
+      const hits = findHits(cleaned, e._words);
+      if (!hits.length) continue;
+      put(e, Math.min(...hits.map((h) => h.index)), shown(e, hits));
+      for (const h of hits) cancerRanges.push([h.index, h.index + h.kw.length]);
+    }
+    if (!found.size) {
+      for (const e of ces) {
+        for (const [w, n] of e._sites) {
+          const i = cleaned.indexOf(n);
+          if (i !== -1) { put(e, i, [`${w}（がん）`]); cancerRanges.push([i, i + n.length]); break; }
+        }
+      }
+    }
+    if (bm.general) {
+      const hits = findHits(cleaned, bm.general._words);
+      if (!found.size || hits.length) put(bm.general, hits.length ? Math.min(...hits.map((h) => h.index)) : 0, hits.length ? shown(bm.general, hits) : bm.cancerWords.filter((w) => cleaned.includes(w)).slice(0, 1).map((w) => (w === 'がん' ? 'がん' : w)));
+    }
+  }
   // 体の部位 × 感じ方（「膝の裏がジンジンする」「目がかゆい」など）。組み合わせで決まる項目があればそれだけ、無ければ部位の項目と感じ方の項目
-  const ps = partSenseHits(bm, norm);
+  const masked = rangesIn(norm, bm.senseExclude || []).reduce((t, [a, b]) => t.slice(0, a) + '\u0000'.repeat(b - a) + t.slice(b), norm);
+  const ps = partSenseHits(bm, masked);
   const inside = (i, ranges) => ranges.some(([a, b]) => a <= i && i < b);
   // 組み合わせで決まった感じ方の言葉は、感じ方だけの項目（「目がかゆい」の皮膚のかゆみ など）として重ねて拾わない
   const comboSense = ps.hits.filter((h) => bm.combos[`${h.part.name}|${h.sense.name}`]).map((h) => ({ range: h.senseRange, entry: h.sense.entry }));
   for (const e of bm.entries) {
-    const hits = findHits(norm, e._words).filter((h) => !inside(h.index, ps.negated) && !comboSense.some((c) => c.entry === e.id && h.index < c.range[1] && c.range[0] < h.index + h.kw.length));
+    if (e.cancer) continue;
+    const hits = findHits(norm, e._words, e._ex).filter((h) => !inside(h.index, ps.negated) && !inside(h.index, cancerRanges) && !comboSense.some((c) => c.entry === e.id && h.index < c.range[1] && c.range[0] < h.index + h.kw.length));
     // 画面には、対応表の元の書き方で出す（カタカナをひらがなに直した形ではなく）
-    if (hits.length) put(e, Math.min(...hits.map((h) => h.index)), [...new Set(hits.map((h) => e.words[e._words.indexOf(h.kw)] || h.kw))]);
+    if (hits.length) put(e, Math.min(...hits.map((h) => h.index)), shown(e, hits));
   }
   for (const h of ps.hits) {
+    if (inside(h.index, cancerRanges)) continue;
     const combo = bm.combos[`${h.part.name}|${h.sense.name}`];
     const label = `${h.words[0].replace(/[がのをもは]$/, '')}が${h.words[1]}`;
     if (combo) put(bm.byId[combo], h.index, [label]);
@@ -111,9 +141,12 @@ export function matchByomei(bm, text) {
       if (h.sense.entry) put(bm.byId[h.sense.entry], h.index, [label]);
     }
   }
-  for (const v of found.values()) v.words = v.words.slice(0, 4);
-  const out = [...found.values()].sort((a, b) => a.index - b.index);
-  return { entries: out, blocked };
+  // 「肩がこ」「肩がこる」のように一方がもう一方の頭の部分なら、長い方だけ
+  for (const v of found.values()) v.words = v.words.filter((w) => !v.words.some((x) => x !== w && x.startsWith(w))).slice(0, 4);
+  // がんの項目を先に（部位の分かるものから）、ほかは入力に出た順
+  const rank = (v) => (v.entry.cancer ? (v.entry.general ? 1 : 0) : 2);
+  const out = [...found.values()].sort((a, b) => rank(a) - rank(b) || a.index - b.index);
+  return { entries: out, cancer };
 }
 
 // 論述の索引（題名と本文）を一度だけ作る
@@ -150,41 +183,37 @@ export function searchRonbun(index, terms, { limit = 4, exclude = new Set() } = 
 }
 
 // 当時の言葉が出てくる一文（長い語を優先）。前後を詰めて、語の位置を返す
+// 一文だけを切り出すと誤解を招く文（治る・放っておいても・医療や手術の話など）は添えず、次の文を探す
+const RISKY = /放任|放置|うっちゃ|自然治癒|薬を(やめ|止め|廃)|医療|医学|医家|医師|医者|誤診|間違|手術|注射|切開|治る|治す|治癒|治り|治っ|治ら|全快|全治|全癒|死/;
+function trim(text, k, width) {
+  if (text.length <= width) return text;
+  const start = Math.max(0, Math.min(k - 20, text.length - width));
+  return (start > 0 ? '…' : '') + text.slice(start, start + width) + (start + width < text.length ? '…' : '');
+}
 export function snippetOf(a, terms, width = 70) {
   const order = [...terms].sort((x, y) => y.length - x.length);
+  const sents = a.paras.filter((p) => !p.startsWith('〔注')).flatMap((p) => p.split(/(?<=[。！？])/)).map((s) => s.replace(/^\s*(問：|岡田先生：)/, '').trim()).filter(Boolean);
   for (const t of order) {
-    for (const p of a.paras) {
-      const i = p.indexOf(t);
-      if (i < 0 || p.startsWith('〔注')) continue;
-      const sents = p.split(/(?<=[。！？])/);
-      let pos = 0;
-      for (const s of sents) {
-        if (pos <= i && i < pos + s.length) {
-          let text = s.replace(/^(問：|岡田先生：)/, '');
-          const k = text.indexOf(t);
-          if (text.length > width) {
-            const start = Math.max(0, Math.min(k - 20, text.length - width));
-            text = (start > 0 ? '…' : '') + text.slice(start, start + width) + (start + width < text.length ? '…' : '');
-          }
-          return { text, term: t };
-        }
-        pos += s.length;
-      }
+    for (const s of sents) {
+      const k = s.indexOf(t);
+      if (k !== -1 && !RISKY.test(s)) return { text: trim(s, k, width), term: t };
     }
   }
-  return { text: (a.paras[0] || '').slice(0, width) + '…', term: '' };
+  const safe = sents.find((s) => !RISKY.test(s)) || '';
+  return { text: trim(safe, 0, width), term: '' };
 }
 
 // 入力文 → 項目ごとの論述（同じ論述は最初の項目にだけ出す）
 export function ronbunForText(bm, index, text, { perEntry = 3, maxEntries = 4 } = {}) {
   const m = matchByomei(bm, text);
-  if (m.blocked) return { blocked: true, groups: [] };
   const used = new Set();
   const groups = [];
-  for (const { entry, words } of m.entries.slice(0, maxEntries)) {
-    const arts = searchRonbun(index, entry.search, { limit: perEntry, exclude: used });
+  // がんの項目は数に入れず全部出す（ほかの項目は maxEntries まで）
+  const list = [...m.entries.filter((x) => x.entry.cancer), ...m.entries.filter((x) => !x.entry.cancer).slice(0, maxEntries)];
+  for (const { entry, words } of list) {
+    const arts = searchRonbun(index, entry.search, { limit: perEntry, exclude: new Set([...used, ...(entry.avoid || [])]) });
     arts.forEach((x) => used.add(x.id));
-    groups.push({ id: entry.id, label: entry.label, show: entry.show, note: entry.note || '', words, articles: arts });
+    groups.push({ id: entry.id, label: entry.label, show: entry.show, note: entry.note || '', cancer: !!entry.cancer, words, articles: arts });
   }
-  return { blocked: false, groups };
+  return { cancer: m.cancer, groups };
 }

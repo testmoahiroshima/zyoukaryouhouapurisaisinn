@@ -2291,12 +2291,14 @@ async function byomeiHTML(text, fallback = '') {
   ronbunIndex ||= indexRonbun(list);
   // 入力した言葉から探す。拾えない時だけ、読み取った症状の名前（候補ボタンで選んだ時など）から
   let res = ronbunForText(bm, ronbunIndex, text);
-  if (!res.blocked && !res.groups.some((g) => g.articles.length) && fallback) res = ronbunForText(bm, ronbunIndex, fallback);
-  if (res.blocked) return `<div class="card byomei-card"><h2>岡田先生の論述から</h2><div class="banner notice">がん（癌）について、このアプリでは岡田先生の論述を示していません。必ず医療機関で診断・治療を受け、医師の指示に従ってください。</div></div>`;
+  if (!res.groups.some((g) => g.articles.length) && fallback) res = ronbunForText(bm, ronbunIndex, fallback);
   const groups = res.groups.filter((g) => g.articles.length);
-  if (!groups.length) return '';
+  if (!groups.length && !res.cancer) return '';
+  // がん（癌）：医療が最優先であることを、カードの最初に必ず出す
+  const cancerBanner = res.cancer ? `<div class="banner notice"><b>がん（癌）は、必ず医療機関で診断・治療を受け、医師の治療を続けてください。</b>浄化療法はがんの治療の代わりにはなりません。治療をやめる・変える判断に使わないでください。ここに示すのは、その部位について岡田先生が述べた昭和当時の見解で、治療法として示すものではありません。治療中の方への施術は、主治医の了承のもとで行ってください。</div>` : '';
   return `<div class="card byomei-card">
     <h2>岡田先生の論述から（関係がありそうなもの）</h2>
+    ${cancerBanner}
     <p class="small muted">今の病名・症状の言い方と、昭和当時の言い方は同じとは限りません。当時の言い方に置き換えて、関係がありそうな論述を探しています。病気の診断・治療は医療機関で受けてください。</p>
     ${groups.map((g) => `<div class="bm-group">
       <div class="bm-map"><b>${esc(g.label)}</b><span class="small muted">（「${esc(g.words.join('」「'))}」）</span><br><span class="small">当時の言い方：<b>${esc(g.show)}</b></span></div>

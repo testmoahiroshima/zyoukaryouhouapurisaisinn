@@ -551,7 +551,36 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
     ok(!matchByomei(bm, '目がかゆい').entries[0].words.some((w) => w.includes('がが')), '部位の言葉の「が」を重ねない');
     ok(bm.entries.some((e) => e.note), '服薬など注意書きのある項目がある');
   }
-  ok(ronbunForText(bm, idx, '乳がんで治療中').blocked && !ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').blocked, 'がんは論述を示さず受診の案内（「ガンガン」は除く）');
+  {
+    // がん（癌）は部位ごとに、その部位の論述を、医療優先の注意を添えて出す
+    const r = ronbunForText(bm, idx, '乳がんで治療中');
+    ok(r.cancer && r.groups[0]?.label === '乳がん' && r.groups[0].articles.length && r.groups[0].note.includes('医療機関'), 'がんは部位ごとの論述を、受診・治療継続の注意と出す');
+    ok(!ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').cancer && !ronbunForText(bm, idx, 'ガングリオンができた').cancer && !ronbunForText(bm, idx, '眼科に行った').cancer, '「ガンガン」「ガングリオン」「眼科」はがんとしない');
+    const lab = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    ok(lab('胃がんの治療中').join() === '胃がん', '「胃がん」は胃がんだけ（胃の不調と重ねない）');
+    ok(lab('がんが肝臓に転移した')[0] === '肝臓がん', 'がんの語と部位が離れていても部位で出す');
+    ok(lab('がんの治療中').join() === 'がん（癌）', '部位が分からない時はがん全体の論述');
+    ok(lab('白血病').join() === '血液・リンパのがん' && lab('前立腺癌').join() === '前立腺がん' && lab('子宮頸がん').join() === '子宮がん', '病名の言い方（白血病・前立腺癌・子宮頸がん）');
+    ok(bm.entries.filter((e) => e.cancer).every((e) => e.note && e.note.includes('医療機関')), 'がんの項目すべてに医療優先の注意');
+  }
+  {
+    // 取りこぼしの見直しで足した病気・症状と、ふつうの言葉での誤検出
+    const lab = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    const has = (t, l) => ok(lab(t).includes(l), `「${t}」→ ${l}（${lab(t).join('／') || 'なし'}）`);
+    has('子どもの夜泣きがひどい', '子どもの不調');
+    has('つわりがつらい', '妊娠・出産・産後');
+    has('ノロウイルスにかかった', 'うつる病気（感染症）');
+    has('てんかんの持病', 'てんかん・気を失う');
+    has('統合失調症で通院中', '心の病気・依存');
+    has('熱中症っぽい', '暑さ負け・熱中症');
+    has('匂いがしない', '副鼻腔炎（蓄膿症）');
+    has('お通じがない', '便秘');
+    has('肩がバキバキ', '肩こり');
+    has('足がつる', '脚のだるさ・つり');
+    ok(!lab('蕁麻疹が出た').includes('うつる病気（感染症）'), '「蕁麻疹」を麻疹（はしか）と取り違えない');
+    for (const t of ['ガンダムを見た', 'がんもどきを食べた', '胸を張って歩く', '子供の運動会', 'ウイルス対策ソフト', '肌がつるつる', 'お疲れさまです', '予算で足が出た', 'がん検診で異常なし'])
+      ok(!lab(t).length, `「${t}」は症状として拾わない`);
+  }
   const empty = bm.entries.filter((e) => !ronbunForText(bm, idx, e.words[0]).groups.some((g) => g.articles.length));
   ok(!empty.length, `対応表 ${bm.entries.length}項目すべてに関係の論述がある${empty.length ? '：無い項目 ' + empty.map((e) => e.label).join('、') : ''}`);
 }
