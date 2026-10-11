@@ -125,6 +125,14 @@ async function loadZenshu() {
   }
   return zenshuIndex;
 }
+// 毒素の流れの出典：テキストの流れはテキストの頁、論述から読み取った流れは岡田先生の論述（本文を読める）
+function flowSrcLabel(f) {
+  return f.textbook ? (f.t2 ? 'テキスト' : '3級テキスト') : '岡田先生の論述';
+}
+function flowCite(f) {
+  if (!f.textbook) return citesHTML({ cites: f.cites || [] });
+  return `<div class="cite">根拠：3級テキスト ${esc(f.textbook)}${f.t2 ? `／2級テキスト実践編 ${esc(f.t2)}` : ''}</div>`;
+}
 function zenshuDetails(ids) {
   if (!ids || !ids.length) return '';
   return `<details class="zenshu" data-ids="${esc(ids.join(','))}">
@@ -423,7 +431,7 @@ function renderResult(r) {
       <details class="el" open><summary>② 楽屋と舞台（毒素の流れ）</summary>
         <p class="small muted">症状が出ている所が舞台、その原因になっている所が楽屋。楽屋をやらなければ根本的には治らない（3級テキスト p59-61）。</p>
         ${r.categories.map((c) => `<h3>${esc(c.label)}</h3>
-          ${c.flows.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">${fl.src.t2 ? 'テキスト' : '3級テキスト'}</span>${esc(fl.src.stage)}</div>${stationsText(fl)}<p class="basis">${esc(fl.src.basis)}</p><div class="cite">根拠：3級テキスト ${esc(fl.src.textbook)}${fl.src.t2 ? `／2級テキスト実践編 ${esc(fl.src.t2)}` : ''}</div>${zenshuDetails(fl.src.zenshu_candidates)}</div>`).join('')}
+          ${c.flows.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">${flowSrcLabel(fl.src)}</span>${esc(fl.src.stage)}</div>${stationsText(fl)}<p class="basis">${esc(fl.src.basis)}</p>${flowCite(fl.src)}${zenshuDetails(fl.src.zenshu_candidates)}</div>`).join('')}
           ${c.routes.map((fl) => `<div class="flow-block"><div class="flow-title"><span class="src-label">早見表 No.${fl.src.no}</span>${esc(fl.src.text)}</div>${stationsText(fl)}${fl.src.note ? `<div class="small muted">※${esc(fl.src.note)}</div>` : ''}</div>`).join('')}
           ${c.basis ? `<p class="basis">${esc(c.basis)}</p>${c.textbook ? `<div class="cite">根拠：3級テキスト ${esc(c.textbook)}</div>` : ''}` : ''}`).join('')}
         ${(() => { const rels = relationsFor(db, r.categories.map((c) => c.id), r.kenkai.map((e) => e.id)); return rels.length ? `<h3>元をたどる（訴えと関係の深い所）</h3><p class="small muted">岡田先生が、その症状の元になると説いている所です。探査で所見があれば施術計画で加点し、無ければ探るよう案内します。</p>${rels.map(relationCard).join('')}` : ''; })()}
@@ -2187,7 +2195,7 @@ function renderLearnTab() {
     </div>
     <div class="card">
       <h2>3級テキストにある毒素の流れ</h2>
-      ${db.raw.flows.flows.map((f) => `<div class="flow-block"><div class="flow-title">${esc(f.stage)}</div><div class="small">${f.route.map(esc).join(' → ') || '—'}</div><p class="basis">${esc(f.basis)}</p><div class="cite">3級テキスト ${esc(f.textbook)}${f.t2 ? `／2級テキスト実践編 ${esc(f.t2)}` : ''}</div></div>`).join('')}
+      ${db.raw.flows.flows.map((f) => `<div class="flow-block"><div class="flow-title"><span class="src-label">${flowSrcLabel(f)}</span>${esc(f.stage)}</div><div class="small">${f.route.map(esc).join(' → ') || '—'}</div><p class="basis">${esc(f.basis)}</p>${flowCite(f)}</div>`).join('')}
     </div>
     <div class="card">
       <h2>具体的な毒素の移動経路（早見表）</h2>

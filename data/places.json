@@ -131,6 +131,26 @@
   "腰の中心（尾てい骨）": [
    "youkotsu",
    "biteikotsu"
+  ],
+  "背中（脊柱の際）": [
+   "kenkoukan",
+   "sekichuu"
+  ],
+  "下腹部（恥骨部）": [
+   "chikotsu"
+  ],
+  "背面腎臓部（右）": [
+   "haimen_jinzo"
+  ],
+  "盲腸部（右の腸骨の内側）": [
+   "choukotsu"
+  ],
+  "背部（脊柱の右側）": [
+   "sekichuu",
+   "kenkoukan"
+  ],
+  "扁桃腺付近（のど）": [
+   "hentousen"
   ]
  },
  "levels": {

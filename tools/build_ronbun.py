@@ -21,7 +21,7 @@ for stem, f in sorted(FILES.items()):
 # 根拠として引いている記事（確かめた引用 cites のみ。流れ・変化の「候補」は含めない）
 def cited():
     ids = {}
-    for name in ['knowledge', 'kenkai', 'concepts', 'body_points', 'symptoms', 'relations']:
+    for name in ['knowledge', 'kenkai', 'concepts', 'body_points', 'symptoms', 'relations', 'flows']:
         d = json.load(open(R + f'data/{name}.json', encoding='utf-8'))
         def walk(x):
             if isinstance(x, dict):
