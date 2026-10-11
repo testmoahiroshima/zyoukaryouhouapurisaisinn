@@ -623,6 +623,20 @@ for (const f of db.raw.flows.flows) if (!usedF.has(f.id)) console.log('flow not 
   console.log(`${good ? 'ok' : 'NG'}  論文の本文 ${rb.length}件（根拠 ${cited.size}件）${missing.length ? ' 足りない：' + missing.join(',') : ''}${bad.length ? ' 禁止語：' + bad.map((a) => a.id).join(',') : ''}`);
   if (!good) fail++;
 }
+{
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  // 毒素の流れ：論述から読み取った流れ（腰は 腎臓→腰／肩→腰／頭→脊柱→腰 に加えて、後頭部→背中→腰・下腹部→腰）
+  const flowIds = (t) => analyze(db, t).categories.flatMap((c) => [...c.flows.map((f) => f.src.id), ...c.routes.map((r) => `r${r.src.no}`)]);
+  const low = flowIds('腰が痛い');
+  ok(['r25', 'r26', 'head_down', 'lowback_occipital', 'lowback_pelvic'].every((x) => low.includes(x)), `腰の流れ5通り（${low.join(',')}）`);
+  ok(flowIds('下痢が続く').includes('abdomen_head') && flowIds('胃が痛い').includes('stomach_back') && flowIds('咳が出る').includes('lungs_head'), '下痢・胃・咳に頭・背中からの流れ');
+  const ronbunIds = new Set(load('ronbun').articles.map((a) => a.id));
+  const fromText = db.raw.flows.flows.filter((f) => !f.textbook);
+  ok(fromText.length >= 16 && fromText.every((f) => f.cites?.length && f.cites.every((c) => ronbunIds.has(c.id))), `論述から読み取った流れ ${fromText.length}本すべて、根拠の論述を読める`);
+  ok(db.raw.flows.flows.every((f) => !/霊|全集|浄霊|宗教/.test(f.stage + f.basis)), '流れの説明に使わない語が無い');
+  const roles = Object.fromEntries(analyze(db, '腰が痛い').categories[0].flows.find((f) => f.src.id === 'lowback_occipital').stations.map((s) => [s.name, s.role]));
+  ok(roles['後頭部'] === 'rakuya' && roles['腰'] === 'butai', '後頭部→背中→腰：後頭部が楽屋、腰が舞台');
+}
 console.log('keywords:', db.categories.reduce((n, c) => n + c.keywords.length, 0), 'categories:', db.categories.length);
 console.log(fail ? `${fail} FAILED` : 'all passed');
 process.exit(fail ? 1 : 0);

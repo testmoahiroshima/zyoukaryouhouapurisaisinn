@@ -1,5 +1,5 @@
 {
- "_note": "症状（舞台）から、探査して見つめる箇所（楽屋を含む）への流れ。route は毒素が流れてくる順（元→症状）。look_order は探査で見つめる順の提案。根拠は3級テキスト頁と全集の候補。zenshu_candidates は語句一致による自動候補で verified=false。SFが確認後 true にする。 look_points は look_order を body_points.json の id に展開したもの（探査で見つめる箇所）。",
+ "_note": "症状（舞台）から、探査して見つめる箇所（楽屋を含む）への流れ。route は毒素が流れてくる順（元→症状）。look_order は探査で見つめる順の提案。根拠は3級テキスト頁と全集の候補。zenshu_candidates は語句一致による自動候補で verified=false。SFが確認後 true にする。 look_points は look_order を body_points.json の id に展開したもの（探査で見つめる箇所）。 textbook の無い流れ（source が「岡田先生の論述」）は、全集の論述・講話から読み取ったもので、cites が根拠の論述。side はその流れの側。",
  "flows": [
   {
    "id": "headache_general",
@@ -380,6 +380,574 @@
     "haimen_jinzo",
     "youkotsu",
     "biteikotsu"
+   ]
+  },
+  {
+   "id": "lowback_occipital",
+   "stage": "腰の痛み：後頭部の毒が背中を下りて腰へ",
+   "route": [
+    "後頭部",
+    "背中（脊柱の際）",
+    "腰"
+   ],
+   "look_order": [
+    "後頭部",
+    "背中（脊柱の際）",
+    "腰"
+   ],
+   "basis": "腰の痛みは腎臓からだけでなく、後頭部の毒が下に下がって来ることもあるとされる。腰だけを施術するのでなく、後頭部から背中にかけて、上のほうを大事に施術する。",
+   "cites": [
+    {
+     "id": "kowa05#8",
+     "year": 1951,
+     "date": "195111"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "koutoubu",
+    "kenkoukan",
+    "sekichuu",
+    "youkotsu",
+    "biteikotsu"
+   ]
+  },
+  {
+   "id": "lowback_pelvic",
+   "stage": "腰・下腹の不快：下腹部（子宮の周り）の固まりから腰へ",
+   "route": [
+    "下腹部（恥骨部）",
+    "腰の中心（尾てい骨）"
+   ],
+   "look_order": [
+    "下腹部（恥骨部）",
+    "腰の中心（尾てい骨）"
+   ],
+   "basis": "腰や下腹部の不快は、子宮の裏や下腹部に溜まった固まりが元のことがあるとされ、腰（特に尾骨の付近）の押して痛む所と、下腹部の押して痛む所・固い所を施術する。産後の古い血が、腰・お腹・脚に移ることもあるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#129",
+     "page": "著述篇二巻p323",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "chojutsu03#50",
+     "page": "著述篇三巻p060"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "chikotsu",
+    "youkotsu",
+    "biteikotsu"
+   ]
+  },
+  {
+   "id": "legs_abdomen",
+   "stage": "脚の重さ・だるさ：お腹（腹膜）に溜まった毒が脚へ",
+   "route": [
+    "腎臓部",
+    "腹部（腹膜）",
+    "脚"
+   ],
+   "look_order": [
+    "腎臓部"
+   ],
+   "basis": "脚の重さ・だるさ・ふらつきは、腎臓の毒が脚へ下りて溜まる場合のほか、お腹（腹膜）に溜まった毒が脚へ下りる場合があるとされる。お腹に溜まる毒は、腎臓の働きの衰えによるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu03#50",
+     "page": "著述篇三巻p060"
+    },
+    {
+     "id": "chojutsu03#103",
+     "page": "著述篇三巻p286",
+     "year": 1942,
+     "date": "194209"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ]
+  },
+  {
+   "id": "pelvic_down",
+   "stage": "下へ下りる毒：下腹部から陰部・肛門、股の付け根へ",
+   "route": [
+    "下腹部（恥骨部）",
+    "陰部・肛門・尿道",
+    "鼠蹊部",
+    "脚"
+   ],
+   "look_order": [
+    "下腹部（恥骨部）",
+    "鼠蹊部"
+   ],
+   "basis": "体の毒は少しずつ下へ下がり、下腹部に溜まれば子宮などの不調に、さらに下がれば痔・陰部のかゆみ・尿道の不調になり、股の付け根（鼠蹊部）に及ぶと脚の動きを妨げることもあるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu10#84",
+     "page": "著述篇十巻p221",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "chikotsu",
+    "sokeibu"
+   ]
+  },
+  {
+   "id": "abdomen_head",
+   "stage": "下痢・お腹の張り：頭の毒が背中を伝ってお腹へ",
+   "route": [
+    "後頭部",
+    "背中（脊柱の際）",
+    "腹部"
+   ],
+   "look_order": [
+    "後頭部",
+    "背中（脊柱の際）"
+   ],
+   "basis": "下痢の元は多くは頭と背中にあるとされ、頭の毒が溶けると胸のほうではなく背中を伝ってお腹へ行き、便や尿になって出るとされる。後頭部の毒は肛門のほうへ行くとされ、頭を施術したあとお腹が張るのも、溶けた毒がお腹に溜まるためとされる。",
+   "cites": [
+    {
+     "id": "kowa04#457",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "chojutsu09#115",
+     "page": "著述篇九巻p324",
+     "year": 1951,
+     "date": "195106"
+    },
+    {
+     "id": "kowa10#0",
+     "page": "講話篇十巻p123",
+     "year": 1953,
+     "date": "195304"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "koutoubu",
+    "kenkoukan",
+    "sekichuu"
+   ]
+  },
+  {
+   "id": "moucho",
+   "stage": "右の下腹（盲腸部）：背中の毒が右の腎臓部を経て盲腸部へ",
+   "route": [
+    "背中",
+    "背面腎臓部（右）",
+    "盲腸部（右の腸骨の内側）"
+   ],
+   "look_order": [
+    "背中",
+    "背面腎臓部（右）",
+    "盲腸部（右の腸骨の内側）"
+   ],
+   "basis": "背中一面の毒は、いったん右側の背面腎臓部に溜まり、少しずつ盲腸部（右の腸骨の内側）へ移るとされる。盲腸部は下半身の毒の出口とされ、右の下腹の不調は背中・右の腎臓部から見ていく（急な強い痛みや発熱は医療機関へ）。",
+   "cites": [
+    {
+     "id": "chojutsu10#87",
+     "page": "著述篇十巻p236",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu11#3",
+     "page": "著述篇十一巻p19",
+     "year": 1953,
+     "date": "195301"
+    },
+    {
+     "id": "kowa09#119",
+     "page": "講話篇九巻p243",
+     "year": 1953,
+     "date": "195310"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "kenkoukan",
+    "kenkoukotsu",
+    "kenkoukotsu_ka",
+    "sekichuu",
+    "haimen_jinzo",
+    "choukotsu"
+   ],
+   "side": "right"
+  },
+  {
+   "id": "stomach_back",
+   "stage": "胃の痛み・吐き気：後頭部・背中の毒が胃へ",
+   "route": [
+    "後頭部",
+    "背中（脊柱の際）",
+    "胃"
+   ],
+   "look_order": [
+    "後頭部",
+    "背中（脊柱の際）"
+   ],
+   "basis": "胃の痛みは、背中で溶けた毒が胃へ来るもので、元は背中にあるとされ、前（胃）より背中を施術するとよいとされる。後頭部の毒が溶けると、いったん胃へ行って軽い吐き気が起こることもあるとされる。",
+   "cites": [
+    {
+     "id": "kowa04#422",
+     "year": 1951,
+     "date": "195109"
+    },
+    {
+     "id": "kowa07#166",
+     "page": "講話篇七巻p296",
+     "year": 1952,
+     "date": "195206"
+    },
+    {
+     "id": "kowa01#31",
+     "page": "講話篇一巻p224",
+     "year": 1940,
+     "date": "194011"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "koutoubu",
+    "kenkoukan",
+    "sekichuu"
+   ]
+  },
+  {
+   "id": "lungs_head",
+   "stage": "咳・痰：頭の毒が溶けて肺へ",
+   "route": [
+    "頭部",
+    "肺"
+   ],
+   "look_order": [
+    "頭部"
+   ],
+   "basis": "咳や痰は、頭の毒が溶けて肺に入り、痰になって出ることが多いとされる。頭に熱のある人は、頭を施術すると咳と痰が出ることがあり、熱のある不調には頭の施術を一度試みるとよいとされる。",
+   "cites": [
+    {
+     "id": "chojutsu05#87",
+     "page": "著述篇五巻p257",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "kowa07#166",
+     "page": "講話篇七巻p296",
+     "year": 1952,
+     "date": "195206"
+    },
+    {
+     "id": "chojutsu03#107",
+     "page": "著述篇三巻p292",
+     "year": 1942,
+     "date": "194209"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "zentoubu",
+    "touchoubu",
+    "sokutoubu",
+    "koutoubu"
+   ]
+  },
+  {
+   "id": "lungs_ribs",
+   "stage": "咳・息切れ：肋骨の周り・横隔膜の辺りの毒が肺へ",
+   "route": [
+    "肋骨・横隔膜の周り",
+    "肺"
+   ],
+   "look_order": [],
+   "basis": "肋骨とその付近、横隔膜の辺りに溜まった毒が熱で溶けると、肺に入って痰になって出ようとするとされる。痰が濃いと肺に入りにくく、息切れになるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu03#71",
+     "page": "著述篇三巻p159",
+     "year": 1942,
+     "date": "194209"
+    },
+    {
+     "id": "chojutsu10#73",
+     "page": "著述篇十巻p203",
+     "year": 1952,
+     "date": "1952"
+    },
+    {
+     "id": "chojutsu10#35",
+     "page": "著述篇十巻p70",
+     "year": 1952,
+     "date": "195212"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": []
+  },
+  {
+   "id": "women_abdomen",
+   "stage": "おりもの：お腹（腹膜）の毒が子宮へ",
+   "route": [
+    "腎臓部",
+    "腹部（腹膜）",
+    "子宮"
+   ],
+   "look_order": [
+    "腎臓部"
+   ],
+   "basis": "おりものは、お腹（腹膜）に溜まった毒が溶けて、いったん子宮に溜まって流れ出るもので、子宮そのものが悪いのではないとされる。お腹に溜まる毒は、腎臓の働きの衰えによるとされる（気になる時は婦人科で診てもらう）。",
+   "cites": [
+    {
+     "id": "chojutsu05#79",
+     "page": "著述篇五巻p237",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu03#103",
+     "page": "著述篇三巻p286",
+     "year": 1942,
+     "date": "194209"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ]
+  },
+  {
+   "id": "stone",
+   "stage": "結石：胆嚢の石が腎臓・膀胱へ",
+   "route": [
+    "胆嚢",
+    "腎臓部",
+    "膀胱部"
+   ],
+   "look_order": [
+    "腎臓部",
+    "膀胱部"
+   ],
+   "basis": "腎臓や膀胱の結石は、胆嚢の小さな石が流れ下って腎臓に留まり、大きくなったものとされる。",
+   "cites": [
+    {
+     "id": "chojutsu05#72",
+     "page": "著述篇五巻p231",
+     "year": 1947,
+     "date": "194702"
+    },
+    {
+     "id": "chojutsu11#131",
+     "page": "著述篇十一巻p234",
+     "year": 1953,
+     "date": "1953"
+    },
+    {
+     "id": "chojutsu03#122",
+     "page": "著述篇三巻p346",
+     "year": 1942,
+     "date": "194209"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side",
+    "chikotsu"
+   ]
+  },
+  {
+   "id": "gall_koshi",
+   "stage": "胆嚢：腰・腎臓の毒が背骨の右側を上がって胆嚢へ",
+   "route": [
+    "腰",
+    "背面腎臓部（右）",
+    "背部（脊柱の右側）",
+    "胆嚢"
+   ],
+   "look_order": [
+    "腰",
+    "背面腎臓部（右）",
+    "背部（脊柱の右側）"
+   ],
+   "basis": "胆嚢の不調は、腎臓から出た毒や腰に溜まった膿が、背骨の右側を上がって胆嚢に入るためとされる。",
+   "cites": [
+    {
+     "id": "chojutsu02#112",
+     "page": "著述篇二巻p298",
+     "year": 1936,
+     "date": "193607"
+    },
+    {
+     "id": "chojutsu11#129",
+     "page": "著述篇十一巻p229",
+     "year": 1953,
+     "date": "1953"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "youkotsu",
+    "biteikotsu",
+    "haimen_jinzo",
+    "sekichuu",
+    "kenkoukan"
+   ],
+   "side": "right"
+  },
+  {
+   "id": "liver_kidney",
+   "stage": "肝臓：腎臓の毒が肝臓へ",
+   "route": [
+    "腎臓部",
+    "肝臓"
+   ],
+   "look_order": [
+    "腎臓部"
+   ],
+   "basis": "肝臓の所の固まりは、腎臓の毒が肝臓へ行ったもので、腎臓部と肝臓の裏側（背中側）をよく施術するとよいとされる。背中も十分に施術する。",
+   "cites": [
+    {
+     "id": "kowa02#598",
+     "year": 1949,
+     "date": "194912"
+    },
+    {
+     "id": "chojutsu02#114",
+     "page": "著述篇二巻p304",
+     "year": 1936,
+     "date": "193607"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side"
+   ]
+  },
+  {
+   "id": "ribs_spine",
+   "stage": "肋膜：背骨の際の毒が肋膜へ",
+   "route": [
+    "脊柱",
+    "肋膜"
+   ],
+   "look_order": [
+    "脊柱"
+   ],
+   "basis": "肋膜に溜まる膿には、背骨（脊髄）から膿が肋膜へしみ込んで溜まるものがあるとされる。",
+   "cites": [
+    {
+     "id": "chojutsu03#114",
+     "page": "著述篇三巻p319",
+     "year": 1942,
+     "date": "194209"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "sekichuu"
+   ]
+  },
+  {
+   "id": "dizzy_throat",
+   "stage": "めまい：のどの熱が前頭部へ",
+   "route": [
+    "扁桃腺付近（のど）",
+    "前頭部"
+   ],
+   "look_order": [
+    "扁桃腺付近（のど）",
+    "前頭部"
+   ],
+   "basis": "めまいには、のど（咽喉）の浄化の熱が前頭部へ来て起こるものがあるとされる。",
+   "cites": [
+    {
+     "id": "kowa05#79",
+     "page": "講話篇五巻p137",
+     "year": 1951,
+     "date": "195112"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "hentousen",
+    "zentoubu"
+   ]
+  },
+  {
+   "id": "fatigue_kidney",
+   "stage": "全身のだるさ：腎臓で処理しきれない尿が背中へ",
+   "route": [
+    "腎臓部",
+    "背中",
+    "全身"
+   ],
+   "look_order": [
+    "腎臓部",
+    "背中"
+   ],
+   "basis": "腎臓で処理しきれない尿は、腎臓から背中を伝って背部に溜まり、いろいろな不調の元になるとされる。背中が張って筋肉が盛り上がって見える人も、実はこれによるとされる。",
+   "cites": [
+    {
+     "id": "kowa03#72",
+     "page": "講話篇三巻p51",
+     "year": 1949,
+     "date": "194907"
+    },
+    {
+     "id": "chojutsu05#2",
+     "page": "著述篇五巻p10",
+     "year": 1943,
+     "date": "194311"
+    }
+   ],
+   "source": "岡田先生の論述",
+   "verified": true,
+   "look_points": [
+    "haimen_jinzo",
+    "jinzo_kahou",
+    "jinzo_kahou_side",
+    "kenkoukan",
+    "kenkoukotsu",
+    "kenkoukotsu_ka",
+    "sekichuu"
    ]
   }
  ]

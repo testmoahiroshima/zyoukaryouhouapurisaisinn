@@ -398,7 +398,9 @@
    "id": "dizziness",
    "group": "頭部・顔面",
    "label": "めまい・ふらつき",
-   "flows": [],
+   "flows": [
+    "dizzy_throat"
+   ],
    "routes": [
     1
    ],
@@ -537,7 +539,10 @@
    "id": "lungs",
    "group": "胸部・腹部・手部",
    "label": "肺（咳・痰・息苦しさ）",
-   "flows": [],
+   "flows": [
+    "lungs_head",
+    "lungs_ribs"
+   ],
    "routes": [
     11,
     12
@@ -597,7 +602,9 @@
    "id": "ribs",
    "group": "胸部・腹部・手部",
    "label": "肋膜・肋骨（脇腹）",
-   "flows": [],
+   "flows": [
+    "ribs_spine"
+   ],
    "routes": [
     15,
     16
@@ -635,7 +642,8 @@
    "group": "胸部・腹部・手部",
    "label": "胃（消化不良・胃のもたれ）",
    "flows": [
-    "stomach"
+    "stomach",
+    "stomach_back"
    ],
    "routes": [
     18
@@ -667,7 +675,9 @@
    "id": "liver",
    "group": "胸部・腹部・手部",
    "label": "肝臓",
-   "flows": [],
+   "flows": [
+    "liver_kidney"
+   ],
    "routes": [
     19
    ],
@@ -701,7 +711,10 @@
    "id": "gall",
    "group": "胸部・腹部・手部",
    "label": "胆嚢",
-   "flows": [],
+   "flows": [
+    "stone",
+    "gall_koshi"
+   ],
    "routes": [
     21
    ],
@@ -720,7 +733,10 @@
    "id": "abdomen",
    "group": "胸部・腹部・手部",
    "label": "腹部（お腹の張り・便通）",
-   "flows": [],
+   "flows": [
+    "abdomen_head",
+    "moucho"
+   ],
    "routes": [
     24
    ],
@@ -753,7 +769,9 @@
    "group": "腰部・脚部",
    "label": "腰部（腰の痛み・重さ）",
    "flows": [
-    "head_down"
+    "head_down",
+    "lowback_occipital",
+    "lowback_pelvic"
    ],
    "routes": [
     25,
@@ -777,7 +795,8 @@
    "label": "足が悪い・だるい・吊る・膝",
    "flows": [
     "legs",
-    "head_down"
+    "head_down",
+    "legs_abdomen"
    ],
    "routes": [
     23,
@@ -825,7 +844,8 @@
    "group": "腰部・脚部",
    "label": "坂や階段での息切れ",
    "flows": [
-    "breath"
+    "breath",
+    "lungs_ribs"
    ],
    "routes": [],
    "keywords": [
@@ -843,7 +863,9 @@
    "group": "腰部・脚部",
    "label": "下腹部・膀胱",
    "flows": [
-    "head_down"
+    "head_down",
+    "pelvic_down",
+    "stone"
    ],
    "routes": [
     27
@@ -867,7 +889,10 @@
    "group": "腰部・脚部",
    "label": "子宮・卵巣・陰部",
    "flows": [
-    "head_down"
+    "head_down",
+    "lowback_pelvic",
+    "pelvic_down",
+    "women_abdomen"
    ],
    "routes": [
     28,
@@ -893,7 +918,8 @@
    "group": "腰部・脚部",
    "label": "肛門・鼠蹊部",
    "flows": [
-    "head_down"
+    "head_down",
+    "pelvic_down"
    ],
    "routes": [
     30,
@@ -943,7 +969,9 @@
    "id": "fatigue",
    "group": "全身",
    "label": "全身のだるさ・重さ",
-   "flows": [],
+   "flows": [
+    "fatigue_kidney"
+   ],
    "routes": [],
    "extra_points": [
     "haimen_jinzo",
