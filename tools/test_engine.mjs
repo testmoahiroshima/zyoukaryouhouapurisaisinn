@@ -537,6 +537,20 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   const fp = ['ふつうに過ごしている', 'プラスチックの容器', 'かんたんに言うと', 'いったん休む', '夜ふけまで起きている', 'けがれを払う', '責任が重い'].filter((t) => matchByomei(bm, t).entries.length);
   ok(!fp.length, `ふつうの言葉で誤って拾わない${fp.length ? '：' + fp.join('、') : ''}`);
   ok(matchByomei(bm, 'そうですね、肩が重い').entries.map((x) => x.entry.label).join() === '肩こり', '「ですね」を脛（すね）と取り違えない');
+  {
+    // 体の部位 × 感じ方の組み合わせ
+    const labels = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    const only = (t, l) => { const g = labels(t); ok(g.length === 1 && g[0] === l, `「${t}」→ ${l} だけ（${g.join('／') || 'なし'}）`); };
+    only('膝の裏がジンジンする', '膝の痛み');
+    only('目がかゆい', '結膜炎・ものもらい');
+    only('腹が立って胃が痛い', '胃の不調');
+    only('膝は痛くないが腰が痛い', '腰痛');
+    only('左胸がドキドキ', '動悸・不整脈');
+    for (const t of ['膝は痛くない', '手術の傷が痛い', '一回目は痛かった', '口が重い', '肩の荷が重い', '頭が上がらない', '予算で足が出た', '顔が広い'])
+      ok(!labels(t).length, `「${t}」は症状として拾わない`);
+    ok(!matchByomei(bm, '目がかゆい').entries[0].words.some((w) => w.includes('がが')), '部位の言葉の「が」を重ねない');
+    ok(bm.entries.some((e) => e.note), '服薬など注意書きのある項目がある');
+  }
   ok(ronbunForText(bm, idx, '乳がんで治療中').blocked && !ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').blocked, 'がんは論述を示さず受診の案内（「ガンガン」は除く）');
   const empty = bm.entries.filter((e) => !ronbunForText(bm, idx, e.words[0]).groups.some((g) => g.articles.length));
   ok(!empty.length, `対応表 ${bm.entries.length}項目すべてに関係の論述がある${empty.length ? '：無い項目 ' + empty.map((e) => e.label).join('、') : ''}`);

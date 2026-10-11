@@ -2300,6 +2300,7 @@ async function byomeiHTML(text, fallback = '') {
     <p class="small muted">今の病名・症状の言い方と、昭和当時の言い方は同じとは限りません。当時の言い方に置き換えて、関係がありそうな論述を探しています。病気の診断・治療は医療機関で受けてください。</p>
     ${groups.map((g) => `<div class="bm-group">
       <div class="bm-map"><b>${esc(g.label)}</b><span class="small muted">（「${esc(g.words.join('」「'))}」）</span><br><span class="small">当時の言い方：<b>${esc(g.show)}</b></span></div>
+      ${g.note ? `<p class="small bm-note">⚠ ${esc(g.note)}</p>` : ''}
       <ul class="bm-list">${g.articles.map((a) => `<li><button type="button" class="ronbun-b bm-open" data-ronbun="${esc(a.id)}">📖 ${esc(a.title)}</button><span class="small muted"> 岡田先生 ${esc(dateText(a))}${a.kind === 'kowa' ? '・講話' : ''}</span>
         <p class="small bm-snip">${markTerm(a.snippet.text, a.snippet.term)}</p></li>`).join('')}</ul>
     </div>`).join('')}
