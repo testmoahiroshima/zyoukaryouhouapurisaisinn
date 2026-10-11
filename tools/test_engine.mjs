@@ -1,5 +1,6 @@
 // 症状入力→提案の簡易テスト：node tools/test_engine.mjs
 import { readFileSync } from 'node:fs';
+import { prepareByomei, indexRonbun, ronbunForText, matchByomei } from '../app/byomei.js';
 import { prepare, analyze, planSession, findingScore, excretionCheck, nextAdvice, historyHints } from '../app/engine.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url), 'utf8'));
@@ -499,6 +500,89 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
     `仕上げ：求める所 ${p1.finish.said.map((x) => x.name).join('・')}／排泄経路 ${p1.finish.outlets.map((x) => x.name + (x.side || '')).join('・')}`);
   const p2 = planSession(db, { kata: { kouketsu: 3 } }, 30, null);
   ok(p2.check === 5 && p2.items.reduce((s, i) => s + i.minutes, 0) === 25 && !p2.finish.said.length && p2.finish.outlets[0].id === 'biteikotsu', `30分 → 施術25分＋仕上げ5分、訴えも骨盤の所見も無い時は尾てい骨部・仙骨から（${p2.finish.outlets.map((x) => x.name).join('・')}）`);
+}
+
+// 今日の言葉（現代の病名・症状）→ 当時の言い方 → 関係のありそうな岡田先生の論述
+{
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  const bm = prepareByomei(load('byomei'));
+  const idx = indexRonbun(load('ronbun').articles);
+  const have = (text, entryLabel, titleRe) => {
+    const r = ronbunForText(bm, idx, text);
+    const g = r.groups.find((x) => x.label === entryLabel);
+    const good = !!g && g.articles.length > 0 && (!titleRe || g.articles.some((a) => titleRe.test(a.title + a.snippet.text)));
+    ok(good, `「${text}」→ ${entryLabel}［${g?.show || '-'}］→ ${g?.articles.map((a) => a.title).join('、') || 'なし'}`);
+  };
+  have('アトピーでかゆい', 'かゆみ・湿疹', /掻痒|湿疹|皮膚/);
+  have('逆流性食道炎', '胸やけ・逆流', /胃/);
+  have('虫垂炎の手術をした', '盲腸（虫垂炎）', /盲腸/);
+  have('脳梗塞の後遺症', '脳卒中とその後', /中風|脳溢血/);
+  have('自律神経失調症', '自律神経の乱れ', /神経衰弱|脳貧血/);
+  have('花粉症で鼻水', '花粉症・鼻炎', /鼻/);
+  have('副鼻腔炎', '副鼻腔炎（蓄膿症）', /蓄膿|鼻/);
+  have('歯周病', '歯・歯ぐき', /歯槽膿漏/);
+  have('メニエール病', 'めまい', /眩暈|脳貧血/);
+  have('更年期のほてり', '更年期', /婦人/);
+  have('関節リウマチ', '関節の痛み・リウマチ', /リョウマチス/);
+  have('ぎっくり腰', '腰痛', /腰|腎臓/);
+  have('しゃっくりが止まらない', 'しゃっくり', /しゃっくり|シャックリ|横隔膜/);
+  have('胸が痛い、肋間が痛む', '胸・脇腹の痛み', /肋/);
+  have('天気が悪いと関節が痛む', '天気・気圧で悪くなる', /神経痛|リョウマチス/);
+  have('老化で体力が落ちた', '老化・若返り', /若返|腎臓/);
+  have('顔色が悪いと言われる', '顔色の悪さ', /腹膜|顔色|貧血/);
+  have('下腹が張る', '下腹の痛み・張り', /下腹|子宮|腹膜/);
+  // 打ち消した言葉は拾わない、がんは論述を示さない、全ての項目に論述がある
+  ok(!matchByomei(bm, '頭痛はない').entries.length, '「頭痛はない」は頭痛として拾わない');
+  // 短いひらがなの言葉が、別の言葉の一部で引っかからない（ふつう→うつ、かんたん→たん、ですね→すね など）
+  const fp = ['ふつうに過ごしている', 'プラスチックの容器', 'かんたんに言うと', 'いったん休む', '夜ふけまで起きている', 'けがれを払う', '責任が重い'].filter((t) => matchByomei(bm, t).entries.length);
+  ok(!fp.length, `ふつうの言葉で誤って拾わない${fp.length ? '：' + fp.join('、') : ''}`);
+  ok(matchByomei(bm, 'そうですね、肩が重い').entries.map((x) => x.entry.label).join() === '肩こり', '「ですね」を脛（すね）と取り違えない');
+  {
+    // 体の部位 × 感じ方の組み合わせ
+    const labels = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    const only = (t, l) => { const g = labels(t); ok(g.length === 1 && g[0] === l, `「${t}」→ ${l} だけ（${g.join('／') || 'なし'}）`); };
+    only('膝の裏がジンジンする', '膝の痛み');
+    only('目がかゆい', '結膜炎・ものもらい');
+    only('腹が立って胃が痛い', '胃の不調');
+    only('膝は痛くないが腰が痛い', '腰痛');
+    only('左胸がドキドキ', '動悸・不整脈');
+    for (const t of ['膝は痛くない', '手術の傷が痛い', '一回目は痛かった', '口が重い', '肩の荷が重い', '頭が上がらない', '予算で足が出た', '顔が広い'])
+      ok(!labels(t).length, `「${t}」は症状として拾わない`);
+    ok(!matchByomei(bm, '目がかゆい').entries[0].words.some((w) => w.includes('がが')), '部位の言葉の「が」を重ねない');
+    ok(bm.entries.some((e) => e.note), '服薬など注意書きのある項目がある');
+  }
+  {
+    // がん（癌）は部位ごとに、その部位の論述を、医療優先の注意を添えて出す
+    const r = ronbunForText(bm, idx, '乳がんで治療中');
+    ok(r.cancer && r.groups[0]?.label === '乳がん' && r.groups[0].articles.length && r.groups[0].note.includes('医療機関'), 'がんは部位ごとの論述を、受診・治療継続の注意と出す');
+    ok(!ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').cancer && !ronbunForText(bm, idx, 'ガングリオンができた').cancer && !ronbunForText(bm, idx, '眼科に行った').cancer, '「ガンガン」「ガングリオン」「眼科」はがんとしない');
+    const lab = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    ok(lab('胃がんの治療中').join() === '胃がん', '「胃がん」は胃がんだけ（胃の不調と重ねない）');
+    ok(lab('がんが肝臓に転移した')[0] === '肝臓がん', 'がんの語と部位が離れていても部位で出す');
+    ok(lab('がんの治療中').join() === 'がん（癌）', '部位が分からない時はがん全体の論述');
+    ok(lab('白血病').join() === '血液・リンパのがん' && lab('前立腺癌').join() === '前立腺がん' && lab('子宮頸がん').join() === '子宮がん', '病名の言い方（白血病・前立腺癌・子宮頸がん）');
+    ok(bm.entries.filter((e) => e.cancer).every((e) => e.note && e.note.includes('医療機関')), 'がんの項目すべてに医療優先の注意');
+  }
+  {
+    // 取りこぼしの見直しで足した病気・症状と、ふつうの言葉での誤検出
+    const lab = (t) => matchByomei(bm, t).entries.map((x) => x.entry.label);
+    const has = (t, l) => ok(lab(t).includes(l), `「${t}」→ ${l}（${lab(t).join('／') || 'なし'}）`);
+    has('子どもの夜泣きがひどい', '子どもの不調');
+    has('つわりがつらい', '妊娠・出産・産後');
+    has('ノロウイルスにかかった', 'うつる病気（感染症）');
+    has('てんかんの持病', 'てんかん・気を失う');
+    has('統合失調症で通院中', '心の病気・依存');
+    has('熱中症っぽい', '暑さ負け・熱中症');
+    has('匂いがしない', '副鼻腔炎（蓄膿症）');
+    has('お通じがない', '便秘');
+    has('肩がバキバキ', '肩こり');
+    has('足がつる', '脚のだるさ・つり');
+    ok(!lab('蕁麻疹が出た').includes('うつる病気（感染症）'), '「蕁麻疹」を麻疹（はしか）と取り違えない');
+    for (const t of ['ガンダムを見た', 'がんもどきを食べた', '胸を張って歩く', '子供の運動会', 'ウイルス対策ソフト', '肌がつるつる', 'お疲れさまです', '予算で足が出た', 'がん検診で異常なし'])
+      ok(!lab(t).length, `「${t}」は症状として拾わない`);
+  }
+  const empty = bm.entries.filter((e) => !ronbunForText(bm, idx, e.words[0]).groups.some((g) => g.articles.length));
+  ok(!empty.length, `対応表 ${bm.entries.length}項目すべてに関係の論述がある${empty.length ? '：無い項目 ' + empty.map((e) => e.label).join('、') : ''}`);
 }
 
 // データの整合：参照している id がすべて存在するか

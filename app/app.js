@@ -1,12 +1,13 @@
 import { prepare, analyze, planSession, normalize, sideFocus, OUTLET_POINTS, nextAdvice, findingsMap, relationsFor } from './engine.js';
 import { saveMap, loadMap, hasMap, deleteMap } from './history.js';
+import { prepareByomei, indexRonbun, ronbunForText } from './byomei.js';
 import { Painter, LAYERS, REGIONS, BRUSHES, SHADES, TOOLS } from './paint.js';
 import { Body3D, loadBodyMesh, VIEWS3 } from './body3d.js';
 import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zoneBounds, zoneDetail, phrasesForDetails } from './zones.js';
 import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
-const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'relations', 'zenshu_terms'];
+const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'relations', 'byomei', 'zenshu_terms'];
 const KEY_FIELDS = { body_points: 'points' };
 const STORE_INPUT = 'joka.lastInput';
 const STORE_SETTINGS = 'joka.settings';
@@ -22,6 +23,7 @@ const store = {
 };
 
 let db;
+let bm; // 現代の病名・症状 → 当時の言い方の対応表（byomei.json）
 let zenshuIndex = null;
 let lastAnalysis = null;
 const player = new Player();
@@ -374,6 +376,9 @@ function renderResult(r) {
     </div>`);
   }
 
+  // 今日の言葉（現代の病名・症状）→ 当時の言い方 → 関係のありそうな岡田先生の論述
+  if (!r.urgent && !r.spiritual.length) out.push('<div id="byomei-box" hidden></div>');
+
   // 探査して見つめる箇所＋流れの矢印
   const allFlows = r.categories.flatMap((c) => [...c.flows, ...c.routes].map((fl) => ({ fl, cat: c })));
   const highlight = Object.fromEntries(r.points.map((p) => [p.id, p]));
@@ -445,6 +450,7 @@ function renderResult(r) {
   const el = $('#result');
   el.innerHTML = out.join('');
   wireZenshu(el);
+  fillByomei($('#byomei-box', el), r.input, r.categories.map((c) => c.label).join(' '));
   // 3D図：見つめる箇所（探査の番号）と毒素の流れ
   const sidePref = r.side === 'left' ? 'L' : r.side === 'right' ? 'R' : null;
   const guideFlows = (list) => list.flatMap(({ fl, i }) => {
@@ -2152,8 +2158,9 @@ function renderKenkaiTab() {
         ${r.categories.length ? `<p class="small">症状の流れでは「${r.categories.map((c) => esc(c.label)).join('」「')}」に当たります。<button type="button" class="ghost small-btn" id="kk-go-today">探査する箇所を見る →</button></p>` : '<p class="small">言い方を変えて（例：「頭が重い」「足がだるい」）調べてみてください。</p>'}
         ${termRefsHTML(words)}`;
     }
-    box.innerHTML = `${banners}${spiritualHTML(r.spiritual)}${body ? `<div class="card kenkai-card">${hits.some((e) => e.disease) ? noticeHTML(true) : ''}${body}</div>` : ''}`;
+    box.innerHTML = `${banners}${spiritualHTML(r.spiritual)}${body ? `<div class="card kenkai-card">${hits.some((e) => e.disease) ? noticeHTML(true) : ''}${body}</div>` : ''}${blocked ? '' : '<div id="kk-byomei" hidden></div>'}`;
     wireKenkaiLinks(box);
+    if (!blocked) fillByomei($('#kk-byomei', box), q);
     $('#kk-go-today', box)?.addEventListener('click', () => {
       showTab('today');
       $('#symptom-text').value = q;
@@ -2271,6 +2278,46 @@ async function renderRonbun() {
   $$('[data-rb-kind]', box).forEach((b) => b.addEventListener('click', () => { st.kind = b.dataset.rbKind; renderRonbun(); }));
   $$('[data-rb-open]', box).forEach((b) => b.addEventListener('click', () => { st.open = b.dataset.rbOpen; renderRonbun(); }));
 }
+// ---- 今日の言葉 → 当時の言い方 → 関係のありそうな岡田先生の論述 ----
+// 現代の病名と当時の病名は一致しないことがあるので、対応表（byomei.json）で当時の言い方に置き換えて探す
+let ronbunIndex = null;
+function markTerm(text, term) {
+  const t = esc(text);
+  return term ? t.split(esc(term)).join(`<mark>${esc(term)}</mark>`) : t;
+}
+async function byomeiHTML(text, fallback = '') {
+  if (!bm) return '';
+  const list = await loadRonbun();
+  ronbunIndex ||= indexRonbun(list);
+  // 入力した言葉から探す。拾えない時だけ、読み取った症状の名前（候補ボタンで選んだ時など）から
+  let res = ronbunForText(bm, ronbunIndex, text);
+  if (!res.groups.some((g) => g.articles.length) && fallback) res = ronbunForText(bm, ronbunIndex, fallback);
+  const groups = res.groups.filter((g) => g.articles.length);
+  if (!groups.length && !res.cancer) return '';
+  // がん（癌）：医療が最優先であることを、カードの最初に必ず出す
+  const cancerBanner = res.cancer ? `<div class="banner notice"><b>がん（癌）は、必ず医療機関で診断・治療を受け、医師の治療を続けてください。</b>浄化療法はがんの治療の代わりにはなりません。治療をやめる・変える判断に使わないでください。ここに示すのは、その部位について岡田先生が述べた昭和当時の見解で、治療法として示すものではありません。治療中の方への施術は、主治医の了承のもとで行ってください。</div>` : '';
+  return `<div class="card byomei-card">
+    <h2>岡田先生の論述から（関係がありそうなもの）</h2>
+    ${cancerBanner}
+    <p class="small muted">今の病名・症状の言い方と、昭和当時の言い方は同じとは限りません。当時の言い方に置き換えて、関係がありそうな論述を探しています。病気の診断・治療は医療機関で受けてください。</p>
+    ${groups.map((g) => `<div class="bm-group">
+      <div class="bm-map"><b>${esc(g.label)}</b><span class="small muted">（「${esc(g.words.join('」「'))}」）</span><br><span class="small">当時の言い方：<b>${esc(g.show)}</b></span></div>
+      ${g.note ? `<p class="small bm-note">⚠ ${esc(g.note)}</p>` : ''}
+      <ul class="bm-list">${g.articles.map((a) => `<li><button type="button" class="ronbun-b bm-open" data-ronbun="${esc(a.id)}">📖 ${esc(a.title)}</button><span class="small muted"> 岡田先生 ${esc(dateText(a))}${a.kind === 'kowa' ? '・講話' : ''}</span>
+        <p class="small bm-snip">${markTerm(a.snippet.text, a.snippet.term)}</p></li>`).join('')}</ul>
+    </div>`).join('')}
+  </div>`;
+}
+async function fillByomei(el, text, fallback = '') {
+  if (!el) return;
+  try {
+    const h = await byomeiHTML(text, fallback);
+    if (!el.isConnected) return;
+    el.innerHTML = h;
+    el.hidden = !h;
+  } catch { el.hidden = true; }
+}
+
 // どの画面からでも、出典の「本文を読む」で論文を開く
 function openRonbun(id) {
   ronbunState.open = id;
@@ -2556,6 +2603,7 @@ function setupTitle() {
 async function main() {
   try {
     db = prepare(await loadData());
+    bm = prepareByomei(db.raw.byomei);
   } catch (e) {
     $('#load-error').hidden = false;
     console.error(e);
