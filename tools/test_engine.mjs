@@ -525,8 +525,18 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
   have('更年期のほてり', '更年期', /婦人/);
   have('関節リウマチ', '関節の痛み・リウマチ', /リョウマチス/);
   have('ぎっくり腰', '腰痛', /腰|腎臓/);
+  have('しゃっくりが止まらない', 'しゃっくり', /しゃっくり|シャックリ|横隔膜/);
+  have('胸が痛い、肋間が痛む', '胸・脇腹の痛み', /肋/);
+  have('天気が悪いと関節が痛む', '天気・気圧で悪くなる', /神経痛|リョウマチス/);
+  have('老化で体力が落ちた', '老化・若返り', /若返|腎臓/);
+  have('顔色が悪いと言われる', '顔色の悪さ', /腹膜|顔色|貧血/);
+  have('下腹が張る', '下腹の痛み・張り', /下腹|子宮|腹膜/);
   // 打ち消した言葉は拾わない、がんは論述を示さない、全ての項目に論述がある
   ok(!matchByomei(bm, '頭痛はない').entries.length, '「頭痛はない」は頭痛として拾わない');
+  // 短いひらがなの言葉が、別の言葉の一部で引っかからない（ふつう→うつ、かんたん→たん、ですね→すね など）
+  const fp = ['ふつうに過ごしている', 'プラスチックの容器', 'かんたんに言うと', 'いったん休む', '夜ふけまで起きている', 'けがれを払う', '責任が重い'].filter((t) => matchByomei(bm, t).entries.length);
+  ok(!fp.length, `ふつうの言葉で誤って拾わない${fp.length ? '：' + fp.join('、') : ''}`);
+  ok(matchByomei(bm, 'そうですね、肩が重い').entries.map((x) => x.entry.label).join() === '肩こり', '「ですね」を脛（すね）と取り違えない');
   ok(ronbunForText(bm, idx, '乳がんで治療中').blocked && !ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').blocked, 'がんは論述を示さず受診の案内（「ガンガン」は除く）');
   const empty = bm.entries.filter((e) => !ronbunForText(bm, idx, e.words[0]).groups.some((g) => g.articles.length));
   ok(!empty.length, `対応表 ${bm.entries.length}項目すべてに関係の論述がある${empty.length ? '：無い項目 ' + empty.map((e) => e.label).join('、') : ''}`);
