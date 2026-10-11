@@ -1,5 +1,6 @@
 // 症状入力→提案の簡易テスト：node tools/test_engine.mjs
 import { readFileSync } from 'node:fs';
+import { prepareByomei, indexRonbun, ronbunForText, matchByomei } from '../app/byomei.js';
 import { prepare, analyze, planSession, findingScore, excretionCheck, nextAdvice, historyHints } from '../app/engine.js';
 
 const load = (f) => JSON.parse(readFileSync(new URL(`../data/${f}.json`, import.meta.url), 'utf8'));
@@ -499,6 +500,36 @@ for (const [f, t] of [[{ sokeibu: { heat: 4 } }, 15], [{ youkotsu: { kouketsu: 5
     `仕上げ：求める所 ${p1.finish.said.map((x) => x.name).join('・')}／排泄経路 ${p1.finish.outlets.map((x) => x.name + (x.side || '')).join('・')}`);
   const p2 = planSession(db, { kata: { kouketsu: 3 } }, 30, null);
   ok(p2.check === 5 && p2.items.reduce((s, i) => s + i.minutes, 0) === 25 && !p2.finish.said.length && p2.finish.outlets[0].id === 'biteikotsu', `30分 → 施術25分＋仕上げ5分、訴えも骨盤の所見も無い時は尾てい骨部・仙骨から（${p2.finish.outlets.map((x) => x.name).join('・')}）`);
+}
+
+// 今日の言葉（現代の病名・症状）→ 当時の言い方 → 関係のありそうな岡田先生の論述
+{
+  const ok = (good, msg) => { console.log(`${good ? 'ok' : 'NG'}  ${msg}`); if (!good) fail++; };
+  const bm = prepareByomei(load('byomei'));
+  const idx = indexRonbun(load('ronbun').articles);
+  const have = (text, entryLabel, titleRe) => {
+    const r = ronbunForText(bm, idx, text);
+    const g = r.groups.find((x) => x.label === entryLabel);
+    const good = !!g && g.articles.length > 0 && (!titleRe || g.articles.some((a) => titleRe.test(a.title + a.snippet.text)));
+    ok(good, `「${text}」→ ${entryLabel}［${g?.show || '-'}］→ ${g?.articles.map((a) => a.title).join('、') || 'なし'}`);
+  };
+  have('アトピーでかゆい', 'かゆみ・湿疹', /掻痒|湿疹|皮膚/);
+  have('逆流性食道炎', '胸やけ・逆流', /胃/);
+  have('虫垂炎の手術をした', '盲腸（虫垂炎）', /盲腸/);
+  have('脳梗塞の後遺症', '脳卒中とその後', /中風|脳溢血/);
+  have('自律神経失調症', '自律神経の乱れ', /神経衰弱|脳貧血/);
+  have('花粉症で鼻水', '花粉症・鼻炎', /鼻/);
+  have('副鼻腔炎', '副鼻腔炎（蓄膿症）', /蓄膿|鼻/);
+  have('歯周病', '歯・歯ぐき', /歯槽膿漏/);
+  have('メニエール病', 'めまい', /眩暈|脳貧血/);
+  have('更年期のほてり', '更年期', /婦人/);
+  have('関節リウマチ', '関節の痛み・リウマチ', /リョウマチス/);
+  have('ぎっくり腰', '腰痛', /腰|腎臓/);
+  // 打ち消した言葉は拾わない、がんは論述を示さない、全ての項目に論述がある
+  ok(!matchByomei(bm, '頭痛はない').entries.length, '「頭痛はない」は頭痛として拾わない');
+  ok(ronbunForText(bm, idx, '乳がんで治療中').blocked && !ronbunForText(bm, idx, '頑張りすぎて頭がガンガンする').blocked, 'がんは論述を示さず受診の案内（「ガンガン」は除く）');
+  const empty = bm.entries.filter((e) => !ronbunForText(bm, idx, e.words[0]).groups.some((g) => g.articles.length));
+  ok(!empty.length, `対応表 ${bm.entries.length}項目すべてに関係の論述がある${empty.length ? '：無い項目 ' + empty.map((e) => e.label).join('、') : ''}`);
 }
 
 // データの整合：参照している id がすべて存在するか
