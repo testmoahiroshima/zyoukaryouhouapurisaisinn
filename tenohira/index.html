@@ -85,6 +85,7 @@ label.file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .chip { font-size: 0.78rem; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
 .chip.ok { color: var(--ok); border-color: var(--ok); }
 .chip.ng { color: var(--warn-ink); border-color: var(--warn-ink); }
+.ask { background: var(--zone); color: var(--ink); border-radius: 8px; padding: 8px 12px; font-weight: 700; margin-top: 8px; }
 .warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 8px 12px; font-weight: 700; }
 table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
 th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
@@ -120,6 +121,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
       <div class="row">
         <button class="primary" id="btnCam" type="button">カメラを開始</button>
         <label class="file" for="fileVideo">動画を読み込む<input id="fileVideo" type="file" accept="video/*"></label>
+        <button id="btnStop" type="button">止める</button>
       </div>
       <div class="grid2" style="margin-top:10px">
         <div class="field"><label for="selFacing">カメラ</label>
@@ -132,6 +134,8 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
             <option value="right">画面の右の人</option>
             <option value="tap">映像でタップした人</option>
           </select></div>
+        <div class="field"><label for="selPace">動き（電池・発熱）</label>
+          <select id="selPace"><option value="save">省電力（おすすめ）</option><option value="smooth">なめらか（熱くなりやすい）</option></select></div>
         <div class="field"><label for="selOrient">掌の向き</label>
           <select id="selOrient"><option value="auto">自動（受ける方の側を向く）</option><option value="manual">「合わせる」で合わせた向き</option></select></div>
         <div class="field"><label for="selView">受ける方の向き</label>
@@ -144,6 +148,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
       <h2>いま掌が向いている範囲</h2>
       <div class="target" id="target">―<small id="targetSub">手と体が映ると表示されます</small></div>
       <div class="warn" id="warn" hidden>首まわり：安全に注意してください</div>
+      <div class="ask" id="ask" hidden>だれが受ける方か、自動では決めきれません。受ける方が違う時は、映像の中の受ける方を一度タップしてください（そのあとはその人を追います）。</div>
       <div class="chips" style="margin-top:8px">
         <span class="chip" id="chipCalib">掌の向き：未調整</span>
         <span class="chip" id="chipView">体の向き：―</span>
@@ -156,6 +161,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
       <h2>操作</h2>
       <div class="row">
         <button id="btnCalib" type="button" disabled>掌の向きを合わせる</button>
+        <button id="btnManual" type="button">受ける方の位置をタップで決める</button>
         <button class="rec" id="btnRec" type="button" aria-pressed="false" disabled>記録開始</button>
         <button id="btnReset" type="button">記録を消す</button>
       </div>
@@ -196,6 +202,8 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
         <li>金色の矢印が掌の向きと逆になる時だけ、「掌の向きを合わせる」を押し、2秒間、掌をカメラに向けます。</li>
         <li>「記録開始」を押して施術します。金色の矢印が掌の向き、色の付いた円が体の範囲です。頭の上に「受ける方」「施術者」の名札が出ます。</li>
         <li>受ける方を取り違える時は、映像の中の受ける方をタップしてください。</li>
+        <li>後ろ向き・頭のアップなどで受ける方が見つからない時は、「受ける方の位置をタップで決める」を押し、頭の真ん中、腰の真ん中の順にタップします（カメラは動かさないでください）。</li>
+        <li>スマホが熱くなる時は「動き」を「省電力」にし、使わない時は「止める」を押してください。</li>
         <li>終わったら「記録開始」をもう一度押して止め、CSVで書き出します。</li>
       </ol>
     </div>
@@ -213,12 +221,13 @@ setTimeout(function () {
 // 画像認識（MediaPipe Tasks Vision 0.10.14）は、このページと同じ場所に置いた部品（vendor/・models/）を先に使い、
 // 読み込めない時だけインターネット（jsDelivr・Google）から読み込む
 const MP = {
-  local: { lib: "./vendor/mediapipe/vision_bundle.mjs", wasm: "./vendor/mediapipe/wasm", hand: "./models/hand_landmarker.task", pose: "./models/pose_landmarker_lite.task" },
+  local: { lib: "./vendor/mediapipe/vision_bundle.mjs", wasm: "./vendor/mediapipe/wasm", hand: "./models/hand_landmarker.task", pose: "./models/pose_landmarker_lite.task", person: "./models/person_detector_efficientdet_lite0.tflite" },
   remote: {
     lib: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs",
     wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
     hand: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-    pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+    pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+    person: "https://storage.googleapis.com/mediapipe-models/object_detector/efficientdet_lite0/int8/1/efficientdet_lite0.tflite"
   }
 };
 const abs = (u) => new URL(u, location.href).href;
@@ -372,7 +381,8 @@ function matchHands(poses, wrists, W) {
 }
 
 /** 腕を伸ばしているか（施術者らしさ）。手首が肩から横へ離れているほど大きく、腰より下なら半分。
-    other（相手）があれば、手首が自分の肩より相手の体に近い時に加点 */
+    other（相手）があり、腕をある程度伸ばしていて（0.7以上）手首が自分の肩より相手の体に近い時に加点。
+    座って膝の上に手を置いた人（0.4〜0.6くらい）を、腕を伸ばしている人と取り違えないため */
 function reachScore(P, other) {
   const u = bodyScale(P), hipY = (P[23].y + P[24].y) / 2;
   let best = 0;
@@ -381,7 +391,7 @@ function reachScore(P, other) {
     if (!w || (w.v ?? 1) < 0.3) continue;
     let r = Math.abs(w.x - sh.x) / u;
     if (w.y > hipY) r *= 0.5;
-    if (other) { const oc = torsoCenter(other); if (dist2(w, oc) < dist2(sh, oc)) r += 0.3; }
+    if (other && r >= 0.7) { const oc = torsoCenter(other); if (dist2(w, oc) < dist2(sh, oc)) r += 0.3; }
     best = Math.max(best, r);
   }
   return best;
@@ -410,10 +420,51 @@ function pickRoles(poses, owners, mode, tapPt) {
   if (ownerPoses.length) practitioner = ownerPoses.length > 1 ? mostReaching(ownerPoses) : ownerPoses[0];
   else if (poses.length > 1) {
     const score = (P) => reachScore(P, biggest(others(P)));
-    practitioner = poses.reduce((a, b) => (score(b) > score(a) ? b : a));
+    const top = poses.reduce((a, b) => (score(b) > score(a) ? b : a));
+    // 腕を伸ばしている人が見当たらない時（後ろ向きで骨格が取れず枠だけの人など）は施術者を決めず、頭の一番低い人（座っている人）を受ける方にする
+    if (score(top) < 0.8) return { recipient: poses.reduce((a, b) => (b[0].y > a[0].y ? b : a)), practitioner: null, uncertain: true };
+    practitioner = top;
   } else if (reachScore(poses[0]) >= 0.9) practitioner = poses[0];
   const rest = practitioner ? others(practitioner) : poses;
   return { recipient: rest.length ? biggest(rest) : null, practitioner };
+}
+
+/** 人の検出の枠（x, y, w, h：画素）から、骨格の代わりの点を作る。顔が見えない後ろ向き・暗い服などで骨格が取れない人に使う。
+    枠は頭から腰（座面）までが映っているとみなす（縦長すぎる枠は立った全身とみなす）。view：back（既定）／front */
+function poseFromBox(b, view = "back") {
+  const cx = b.x + b.w / 2;
+  const full = b.h > 2.6 * b.w;
+  const yS = b.y + (full ? 0.18 : 0.27) * b.h, yH = b.y + (full ? 0.55 : 0.9) * b.h, yE = b.y + (full ? 0.07 : 0.12) * b.h;
+  const s = view === "front" ? -1 : 1;  // 背面では人の左肩が画面の左
+  const P = Array.from({ length: 33 }, () => ({ x: cx, y: (yS + yH) / 2, z: 0, v: 0 }));
+  const set = (i, x, y, v = 1) => (P[i] = { x, y, z: 0, v });
+  set(0, cx, yE, view === "front" ? 0.9 : 0.1);
+  set(7, cx - s * 0.1 * b.w, yE); set(8, cx + s * 0.1 * b.w, yE);
+  set(11, cx - s * 0.32 * b.w, yS); set(12, cx + s * 0.32 * b.w, yS);
+  set(23, cx - s * 0.22 * b.w, yH); set(24, cx + s * 0.22 * b.w, yH);
+  P.synthetic = true; P.box = b;
+  return P;
+}
+
+/** 受ける方の頭（真ん中）と腰（座っている所の真ん中）をタップした2点から、骨格の代わりの点を作る。どんな映り方でも使える */
+function poseFromTaps(head, waist, view = "back") {
+  const dx = waist.x - head.x, dy = waist.y - head.y, L = Math.hypot(dx, dy) || 1;
+  const ax = dx / L, ay = dy / L, px = -ay, py = ax;  // 頭→腰の向きと、それに直角な向き（立っている時は画面の左）
+  const s = view === "front" ? -1 : 1;
+  const at = (t, k) => ({ x: head.x + ax * L * t + px * L * k * s, y: head.y + ay * L * t + py * L * k * s, z: 0, v: 1 });
+  const P = Array.from({ length: 33 }, () => ({ ...at(0.6, 0), v: 0 }));
+  P[0] = { ...at(0, 0), v: view === "front" ? 0.9 : 0.1 };
+  P[7] = at(0, 0.07); P[8] = at(0, -0.07);
+  P[11] = at(0.3, 0.2); P[12] = at(0.3, -0.2);
+  P[23] = at(1, 0.14); P[24] = at(1, -0.14);
+  P.synthetic = true; P.manual = true;
+  return P;
+}
+
+/** 人の検出の枠のうち、骨格で取れている人（鼻・肩の中点・腰の中点のどれかが枠の中）に当たらない枠だけを返す */
+function unexplainedBoxes(boxes, poses) {
+  const inside = (p, b) => p.x >= b.x - 0.05 * b.w && p.x <= b.x + 1.05 * b.w && p.y >= b.y - 0.05 * b.h && p.y <= b.y + 1.05 * b.h;
+  return boxes.filter((b) => !poses.some((P) => [P[0], lerp(P[11], P[12], 0.5), lerp(P[23], P[24], 0.5)].some((p) => inside(p, b))));
 }
 
 /** 掌の表と裏を、受ける方の側に向く方に決める（浄化療法では掌を受ける方に向けて施術するため）。
@@ -440,11 +491,11 @@ function calibKey(h) { return h.fromPose ? (h.side === "R" ? "Left" : "Right") :
 const $ = (id) => document.getElementById(id);
 const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
 const ui = {
-  status: $("status"), target: $("target"), targetSub: $("targetSub"), warn: $("warn"),
+  status: $("status"), target: $("target"), targetSub: $("targetSub"), warn: $("warn"), ask: $("ask"),
   chipCalib: $("chipCalib"), chipView: $("chipView"), chipHands: $("chipHands"), chipPeople: $("chipPeople"),
   btnCam: $("btnCam"), fileVideo: $("fileVideo"), btnCalib: $("btnCalib"), btnRec: $("btnRec"), btnReset: $("btnReset"),
   clock: $("clock"), tbody: $("tbodyTotals"), btnCopy: $("btnCopy"), btnSave: $("btnSave"), csvOut: $("csvOut"),
-  exportStatus: $("exportStatus"), selFacing: $("selFacing"), selRecipient: $("selRecipient"), selView: $("selView"), selOrient: $("selOrient"),
+  exportStatus: $("exportStatus"), selFacing: $("selFacing"), selRecipient: $("selRecipient"), selView: $("selView"), selOrient: $("selOrient"), selPace: $("selPace"), btnManual: $("btnManual"), btnStop: $("btnStop"),
   placeholder: $("placeholder")
 };
 
@@ -456,7 +507,10 @@ const state = {
   recording: false, recElapsed: 0, lastTs: null,
   totals: {}, names: {}, segments: [], tracks: {},
   lastVideoTime: -1,
-  tapPt: null  // 映像でタップした受ける方の位置（画素）
+  tapPt: null,  // 映像でタップした受ける方の位置（画素）
+  boxes: [], boxesTs: 0, lastPersonTs: -1e9,  // 人の検出の枠（1秒ごと）
+  manual: null, manualStep: null,  // タップで決めた受ける方の頭と腰
+  stickyPt: null, switchSince: null  // 自動で決めた受ける方を保つための位置と、切り替わりの判断が始まった時刻
 };
 try {
   const saved = JSON.parse(localStorage.getItem("tenohira-calib") || "null");
@@ -465,6 +519,8 @@ try {
 updateCalibChip();
 
 function setStatus(t) { ui.status.textContent = t; }
+// 確認用（画面には出さない）：認識の部品と、人の検出の枠
+window.__tenohiraDebug = () => ({ person: !!state.person, boxes: state.boxes, lastDet: state.lastDet });
 function updateCalibChip() {
   const auto = !ui.selOrient || ui.selOrient.value === "auto";
   ui.chipCalib.textContent = auto ? "掌の向き：自動" : state.calibrated ? "掌の向き：合わせ済み" : "掌の向き：未調整";
@@ -472,10 +528,10 @@ function updateCalibChip() {
 }
 
 async function loadModels() {
-  if (state.hand && state.pose) return;
+  if (state.hand && state.pose) return;  // person（人の検出）は読み込めなくても動く
   setStatus("認識用のデータを読み込んでいます…");
   const build = async (src) => {
-    const { FilesetResolver, HandLandmarker, PoseLandmarker } = await import(src.lib.startsWith("http") ? src.lib : abs(src.lib));
+    const { FilesetResolver, HandLandmarker, PoseLandmarker, ObjectDetector } = await import(src.lib.startsWith("http") ? src.lib : abs(src.lib));
     const fileset = await FilesetResolver.forVisionTasks(src.wasm.startsWith("http") ? src.wasm : abs(src.wasm));
     const make = async (delegate) => {
       const hand = await HandLandmarker.createFromOptions(fileset, {
@@ -486,7 +542,15 @@ async function loadModels() {
         baseOptions: { modelAssetPath: abs(src.pose), delegate },
         runningMode: "VIDEO", numPoses: 3, minPoseDetectionConfidence: 0.3, minPosePresenceConfidence: 0.3, minTrackingConfidence: 0.3
       });
-      return { hand, pose };
+      // 人の検出（顔に頼らないので、後ろ向き・暗い服の人も見つけやすい）。骨格が取れない人の代わりに使う
+      let person = null;
+      try {
+        person = await ObjectDetector.createFromOptions(fileset, {
+          // 整数版のモデルは GPU では正しく動かないことがあるので、CPU で（1秒に1回だけなので負担は小さい）
+          baseOptions: { modelAssetPath: abs(src.person), delegate: "CPU" }, runningMode: "VIDEO", scoreThreshold: 0.3, categoryAllowlist: ["person"], maxResults: 4
+        });
+      } catch (e) { person = null; }
+      return { hand, pose, person };
     };
     try { return await make("GPU"); }
     catch (e) { return await make("CPU"); }
@@ -540,7 +604,7 @@ async function startCamera() {
     setStatus("カメラを開いています…");
     const facing = ui.selFacing.value;
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 15, max: 30 } }, audio: false });
     } catch (e) {
       if (e && e.name === "OverconstrainedError") {
         try { state.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
@@ -573,7 +637,17 @@ function stopSource() {
   if (video.src && video.src.startsWith("blob:")) URL.revokeObjectURL(video.src);
 }
 
-function startLoop() { if (!state.running) { state.running = true; requestAnimationFrame(loop); } }
+// 発熱を抑えるため、毎画面ではなく決まった間隔で認識する（記録中は1秒に8回、待っている間は4回。「なめらか」はその約2倍）。
+// 画面が隠れている間（ほかのアプリ・画面を消した時）は認識しない
+const PACE = { save: { rec: 8, idle: 4 }, smooth: { rec: 15, idle: 8 } };
+function startLoop() { if (!state.running) { state.running = true; tick(); } }
+function tick() {
+  if (!state.running) return;
+  const pace = PACE[ui.selPace.value] || PACE.save;
+  setTimeout(tick, 1000 / (state.recording ? pace.rec : pace.idle));
+  if (document.hidden) { state.lastTs = null; return; }
+  loop();
+}
 
 // ---------- 認識と記録 ----------
 function toPx(list) {
@@ -585,7 +659,32 @@ function toPx(list) {
 function rolesAndHands(posesPx, handsPx) {
   const mode = ui.selRecipient.value;
   const owners = matchHands(posesPx, handsPx.map((h) => h.lm[0]), canvas.width);
-  const roles = pickRoles(posesPx, owners, mode, state.tapPt);
+  const synView = ui.selView.value === "front" ? "front" : "back";
+  let roles;
+  if (state.manual) {
+    // 受ける方の位置をタップで決めてある時：その位置を受ける方にし、骨格で取れている人のうち腕を伸ばしている人を施術者に
+    const M = poseFromTaps(state.manual.head, state.manual.waist, synView);
+    const others = posesPx.filter((P) => dist2(torsoCenter(P), torsoCenter(M)) > 0.5 * bodyScale(M));
+    const owned = [...new Set(owners.filter(Boolean).map((o) => posesPx[o.pose]))].filter((P) => others.includes(P));
+    const pr = owned[0] || (others.length ? others.reduce((a, b) => (reachScore(b, M) > reachScore(a, M) ? b : a)) : null);
+    roles = { recipient: M, practitioner: pr };
+  } else {
+    // 骨格で取れない人は、人の検出の枠から代わりの点を作って候補に入れる（受ける方の候補としてだけ使う）
+    const cands = mode === "self" ? posesPx : [...posesPx, ...unexplainedBoxes(state.boxes || [], posesPx).map((b) => poseFromBox(b, synView))];
+    roles = pickRoles(cands, owners, mode, state.tapPt);
+    // 自動の時は、一度決めた受ける方を保つ：別の人に変わる判断が1.5秒続くまでは、前の受ける方の近くにいる人を受ける方のままにする
+    if (mode === "auto" && state.stickyPt) {
+      const near = cands.find((P) => dist2(torsoCenter(P), state.stickyPt) < 0.6 * bodyScale(P));
+      if (near && near !== roles.recipient) {
+        state.switchSince ??= performance.now();
+        if (performance.now() - state.switchSince < 1500) {
+          const prev = roles.recipient;
+          roles = { recipient: near, practitioner: roles.practitioner === near ? (prev && !prev.synthetic ? prev : null) : roles.practitioner };
+        } else state.switchSince = null;
+      } else state.switchSince = null;
+    }
+    if (roles.recipient) state.stickyPt = torsoCenter(roles.recipient);
+  }
   if (mode === "tap" && roles.recipient) state.tapPt = torsoCenter(roles.recipient);  // 動いても同じ人を追う
   let hands = handsPx.map((h, i) => ({ ...h, side: owners[i] ? owners[i].side : null, owner: owners[i] ? posesPx[owners[i].pose] : null }));
   // 受ける方自身の手（膝の上の手など）は数えない（自己施術を除く）
@@ -608,8 +707,6 @@ function rolesAndHands(posesPx, handsPx) {
 }
 
 function loop() {
-  if (!state.running) return;
-  requestAnimationFrame(loop);
   if (video.readyState < 2 || !video.videoWidth) return;
   if (video.currentTime === state.lastVideoTime && !state.stream) return;
   state.lastVideoTime = video.currentTime;
@@ -625,9 +722,20 @@ function loop() {
     lm: toPx(lm), label: (labels[i] && labels[i][0] && labels[i][0].categoryName) || "Right"
   }));
   const posesPx = dedupePoses((poseRes.landmarks || []).map(toPx));
+  if (state.person && posesPx.length < 2 && now - state.lastPersonTs > 1000) {
+    state.lastPersonTs = now;
+    try {
+      const det = state.person.detectForVideo(video, now);
+      state.lastDet = (det.detections || []).map((d) => [d.categories[0]?.categoryName, +(d.categories[0]?.score || 0).toFixed(2)]);
+      state.boxes = (det.detections || []).map((d) => ({ x: d.boundingBox.originX, y: d.boundingBox.originY, w: d.boundingBox.width, h: d.boundingBox.height }));
+    } catch (e) { state.boxes = []; }
+    state.boxesTs = now;
+  }
+  if (posesPx.length >= 2 || now - state.boxesTs > 2500) state.boxes = [];
 
 
-  const { recipient, practitioner, hands } = rolesAndHands(posesPx, handsPx);
+  const { recipient, practitioner, hands, uncertain } = rolesAndHands(posesPx, handsPx);
+  ui.ask.hidden = !uncertain;
   let view = ui.selView.value;
   if (recipient && view === "auto") view = bodyView(recipient);
   const zoneInfo = recipient ? buildZones(recipient, view) : null;
@@ -653,7 +761,7 @@ function loop() {
 
   if (state.calibrating) collectCalibration(hands, now);
   draw(posesPx, recipient, zoneInfo, hits, active, practitioner);
-  updatePanel(view, recipient, hands, hits, active, practitioner, posesPx.length);
+  updatePanel(view, recipient, hands, hits, active, practitioner, posesPx.length + unexplainedBoxes(state.boxes || [], posesPx).length);
 }
 
 function updateTracks(hits, now) {
@@ -718,7 +826,13 @@ function draw(posesPx, recipient, zoneInfo, hits, active, practitioner) {
     ctx.fillStyle = bg; ctx.fillRect(x - w / 2, y - fs * 0.75, w, fs * 1.5);
     ctx.fillStyle = "#ffffff"; ctx.fillText(text, x, y);
   };
-  if (recipient) tag(recipient, practitioner === recipient ? "自己施術" : "受ける方", "rgba(31,111,92,0.9)");
+  if (recipient && recipient.synthetic) {
+    // 骨格の代わりに、枠やタップから作った受ける方（位置は目安）
+    ctx.save(); ctx.setLineDash([lw * 4, lw * 3]); ctx.strokeStyle = colors.edge; ctx.lineWidth = lw;
+    if (recipient.box) ctx.strokeRect(recipient.box.x, recipient.box.y, recipient.box.w, recipient.box.h);
+    ctx.restore();
+  }
+  if (recipient) tag(recipient, practitioner === recipient ? "自己施術" : recipient.manual ? "受ける方（指定）" : recipient.synthetic ? "受ける方（推定）" : "受ける方", "rgba(31,111,92,0.9)");
   if (practitioner && practitioner !== recipient) tag(practitioner, "施術者", "rgba(168,123,31,0.9)");
   for (const { h, pf, hit } of hits) {
     ctx.fillStyle = colors.gold;
@@ -765,9 +879,9 @@ function updatePanel(view, recipient, hands, hits, active, practitioner, nPeople
     ui.targetSub.textContent = modes[0] || "";
   } else {
     ui.target.firstChild.textContent = "―";
-    ui.targetSub.textContent = !nPeople ? "人が映ると表示されます"
-      : !recipient && practitioner ? "施術者だけが見つかっています。受ける方の体（頭から腰まで）も映るように、カメラを少し離してください。"
-      : !recipient ? "受ける方が見つかりません。体（頭から腰まで）が映るようにしてください。"
+    ui.targetSub.textContent = !recipient && !nPeople ? "人が映ると表示されます"
+      : !recipient && practitioner ? "施術者だけが見つかっています。受ける方も映るようにカメラを離すか、「受ける方の位置をタップで決める」で決めてください。"
+      : !recipient ? "受ける方が見つかりません。「受ける方の位置をタップで決める」で決めることもできます。"
       : hands.length ? "どの範囲にも向いていません" : "施術者の手が映ると表示されます";
   }
   const caution = [...active].some((id) => id.startsWith("neck"));
@@ -855,9 +969,32 @@ function buildCsv() {
 // 映像の中の人をタップすると、その人を受ける方にする（自動で取り違える時のため）
 canvas.addEventListener("click", (e) => {
   const r = canvas.getBoundingClientRect();
-  state.tapPt = { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
+  const pt = { x: (e.clientX - r.left) * canvas.width / r.width, y: (e.clientY - r.top) * canvas.height / r.height };
+  if (state.manualStep === "head") { state.manualHead = pt; state.manualStep = "waist"; setStatus("次に、受ける方の腰（座っている所）の真ん中をタップしてください。"); return; }
+  if (state.manualStep === "waist") {
+    state.manual = { head: state.manualHead, waist: pt }; state.manualStep = null;
+    ui.btnManual.textContent = "位置の指定をやめる";
+    setStatus("受ける方の位置を決めました。カメラを動かした時は、もう一度決め直してください。");
+    return;
+  }
+  state.tapPt = pt;
   ui.selRecipient.value = "tap";
   setStatus("タップした人を受ける方にしました。元に戻す時は「受ける方」で「自動」を選んでください。");
+});
+ui.btnManual.addEventListener("click", () => {
+  if (state.manual || state.manualStep) {
+    state.manual = null; state.manualStep = null; ui.btnManual.textContent = "受ける方の位置をタップで決める";
+    setStatus("位置の指定をやめました。自動で見つけます。");
+    return;
+  }
+  state.manualStep = "head"; ui.btnManual.textContent = "やめる";
+  setStatus("映像の中で、受ける方の頭の真ん中をタップしてください。");
+});
+ui.btnStop.addEventListener("click", () => {
+  state.running = false; stopSource(); video.pause();
+  ui.btnRec.disabled = true; ui.btnCalib.disabled = true;
+  if (state.recording) toggleRecording();
+  setStatus("カメラを止めました。発熱を抑えるため、使わない時は止めておいてください。");
 });
 ui.btnCam.addEventListener("click", startCamera);
 ui.fileVideo.addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) startFile(f); });
