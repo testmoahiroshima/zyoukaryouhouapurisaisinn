@@ -187,7 +187,7 @@ function scene1(recvName, opts = {}, frameNo = 0) {
   const pj = (p) => { const q = cam.proj(p); return { x: q.x + gauss() * jit, y: q.y + gauss() * jit }; };
   const taps = { head: pj(recv.head), waist: pj(lerp3(recv.J[23], recv.J[24], 0.5)) };
   const truth = { taps, recvCenter: (() => { const s = cam.proj(lerp3(recv.J[11], recv.J[12], 0.5)), h = cam.proj(lerp3(recv.J[23], recv.J[24], 0.5)); return { x: (s.x + h.x) / 2, y: (s.y + h.y) / 2 }; })(), zoneId, recvU: uPx(recv) };
-  return { input: { poses, hands, boxes, W: cam.W, mode: "auto", mem: {}, now: 0 }, truth, recvPose: !!recvPose, info: { recv: recvName, side, zoneId, prac: pracPosture, portrait } };
+  return { input: { poses, hands, boxes, W: cam.W, H: cam.H, mode: "auto", mem: {}, now: 0 }, truth, recvPose: !!recvPose, info: { recv: recvName, side, zoneId, prac: pracPosture, portrait } };
 }
 
 // 近い範囲（取り違えても大きくは外れていないもの）
