@@ -1,6 +1,6 @@
 // 一度開けば電波が無くても使えるように、アプリの部品を端末に保存する（外へは何も送らない）。
 // アプリの部品を変えた時は VERSION を上げる。
-const VERSION = 'joka-v26';
+const VERSION = 'joka-v27';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'app/style.css', 'app/app.js', 'app/engine.js', 'app/paint.js', 'app/body3d.js', 'app/zones.js', 'app/audio.js', 'app/records.js', 'app/history.js', 'app/byomei.js',
@@ -10,7 +10,7 @@ const CORE = [
   'icons/icon-192.png', 'icons/icon-512.png', '施術記録人体図.jpg',
 ];
 // 大きくて変わりにくいものは、保存してあるものを先に使う
-const CACHE_FIRST = [/\/app\/vendor\//, /\/data\/body3d\.bin$/, /^https:\/\/fonts\.(googleapis|gstatic)\.com\//];
+const CACHE_FIRST = [/\/app\/vendor\//, /\/tenohira\/(vendor|models)\//, /\/data\/body3d\.bin$/, /^https:\/\/fonts\.(googleapis|gstatic)\.com\//];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => Promise.all(CORE.map((u) => c.add(u).catch(() => null)))).then(() => self.skipWaiting()));

@@ -55,6 +55,8 @@ body {
 header { max-width: 1200px; margin: 0 auto 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
 h1 { font-size: 1.35rem; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
 .sub { color: var(--muted); font-size: 0.9rem; }
+.back { flex-basis: 100%; color: var(--accent); font-weight: 700; text-decoration: none; padding: 6px 0; }
+.back:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
 main { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
 @media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
 .stage { background: #0e1312; border-radius: 10px; overflow: hidden; position: relative; min-height: 220px; display: grid; place-items: center; }
@@ -97,6 +99,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
 </head>
 <body>
 <header>
+  <a class="back" href="../">← 浄化療法アプリに戻る</a>
   <h1>掌の向き記録（試作）</h1>
   <span class="sub">映像から掌の向きを推定し、受ける方の体のどの範囲に向いていたか、何秒かを記録します。映像は保存・送信せず、この端末の中だけで処理します。</span>
 </header>
@@ -107,7 +110,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
     <canvas id="canvas" hidden></canvas>
     <div class="placeholder" id="placeholder">
       「カメラを開始」または「動画を読み込む」を押してください。<br>
-      初回は認識用のデータ（数MB）を読み込むため、少し時間がかかります。
+      初回は認識用のデータを読み込むため、少し時間がかかります。
     </div>
   </section>
 
@@ -181,7 +184,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
       <ul class="steps" style="margin-bottom:12px">
         <li>パソコン：このファイルを保存し、Chromeで直接開きます（Claudeの画面の中のプレビューではカメラが使えません）。</li>
         <li>スマホ：「https://」で始まるアドレス（GitHub Pagesなど）に置いたページを開きます。</li>
-        <li>どちらもインターネットへの接続が必要です（初回に認識用のデータを読み込みます）。</li>
+        <li>認識用のデータ（約30MB）は、このページと一緒に置いてあります。初回に読み込むため、電波のよい所で開いてください。</li>
       </ul>
       <h2>使い方</h2>
       <ol class="steps">
@@ -198,11 +201,22 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
 setTimeout(function () {
   if (window.__tenohiraReady) return;
   var s = document.getElementById("status");
-  if (s) s.textContent = "プログラムを読み込めませんでした。Claudeの画面の中（プレビュー）では動かないため、ファイルを端末に保存してChromeで直接開いてください。インターネットへの接続も必要です。";
+  if (s) s.textContent = "プログラムを読み込めませんでした。古いブラウザでは動かないことがあります。新しいChromeやSafariで開いてください。";
 }, 6000);
 </script>
 <script type="module">
-import { FilesetResolver, HandLandmarker, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+// 画像認識（MediaPipe Tasks Vision 0.10.14）は、このページと同じ場所に置いた部品（vendor/・models/）を先に使い、
+// 読み込めない時だけインターネット（jsDelivr・Google）から読み込む
+const MP = {
+  local: { lib: "./vendor/mediapipe/vision_bundle.mjs", wasm: "./vendor/mediapipe/wasm", hand: "./models/hand_landmarker.task", pose: "./models/pose_landmarker_lite.task" },
+  remote: {
+    lib: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs",
+    wasm: "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm",
+    hand: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+    pose: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task"
+  }
+};
+const abs = (u) => new URL(u, location.href).href;
 window.__tenohiraReady = true;
 
 // GEOMETRY-START
@@ -325,20 +339,25 @@ function updateCalibChip() {
 async function loadModels() {
   if (state.hand && state.pose) return;
   setStatus("認識用のデータを読み込んでいます…");
-  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
-  const make = async (delegate) => {
-    const hand = await HandLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate },
-      runningMode: "VIDEO", numHands: 2, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5
-    });
-    const pose = await PoseLandmarker.createFromOptions(fileset, {
-      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", delegate },
-      runningMode: "VIDEO", numPoses: 2, minPoseDetectionConfidence: 0.5, minTrackingConfidence: 0.5
-    });
-    return { hand, pose };
+  const build = async (src) => {
+    const { FilesetResolver, HandLandmarker, PoseLandmarker } = await import(src.lib.startsWith("http") ? src.lib : abs(src.lib));
+    const fileset = await FilesetResolver.forVisionTasks(src.wasm.startsWith("http") ? src.wasm : abs(src.wasm));
+    const make = async (delegate) => {
+      const hand = await HandLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: abs(src.hand), delegate },
+        runningMode: "VIDEO", numHands: 2, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+      });
+      const pose = await PoseLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: abs(src.pose), delegate },
+        runningMode: "VIDEO", numPoses: 2, minPoseDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+      });
+      return { hand, pose };
+    };
+    try { return await make("GPU"); }
+    catch (e) { return await make("CPU"); }
   };
-  try { Object.assign(state, await make("GPU")); }
-  catch (e) { Object.assign(state, await make("CPU")); }
+  try { Object.assign(state, await build(MP.local)); }
+  catch (e) { Object.assign(state, await build(MP.remote)); }
   setStatus("読み込みが終わりました");
 }
 

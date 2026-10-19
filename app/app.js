@@ -2037,6 +2037,11 @@ function renderRecordsTab() {
       <p id="imp-msg" class="small" hidden></p>
       <p class="small muted">記録はこの端末の中にだけ保存されています。機種変更やブラウザのデータ消去に備えて、ときどき書き出しておいてください。</p>
     </div>
+    <div class="card"><h2>カメラで掌の向きを記録（試作）</h2>
+      <p class="small">施術の様子をカメラで映すと、掌が受ける方の体のどの範囲に、何秒向いていたかを自動で記録します。人体図に塗る代わりに、撮るだけで「どこに何分」が残る仕組みを試しています。</p>
+      <a class="link-btn" href="tenohira/" target="_blank" rel="noopener">掌の向き記録を開く</a>
+      <p class="small muted">映像は保存も送信もせず、この端末の中だけで処理します。初回は認識用のデータ（約30MB）を読み込むので、電波のよい所で開いてください。首まわりに掌が向くと、安全の注意を出します。</p>
+    </div>
     <div class="viz-tip" id="viz-tip" hidden></div>`;
   const root = $('#tab-records');
   $$('.rec-filter', root).forEach((b) => b.addEventListener('click', () => { recFilter = b.dataset.code; renderRecordsTab(); }));
