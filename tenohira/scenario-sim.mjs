@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const html = readFileSync(fileURLToPath(new URL("./index.html", import.meta.url)), "utf8");
 const block = html.split("// GEOMETRY-START")[1].split("// GEOMETRY-END")[0];
-const G = await import("data:text/javascript," + encodeURIComponent(block + "\nexport { resolveFrame, bodyScale, torsoCenter };"));
+const G = await import("data:text/javascript," + encodeURIComponent(block + "\nexport { resolveFrame, stabilize, bodyScale, torsoCenter };"));
 
 // ---- 小さな道具 ----
 const V = (x, y, z) => ({ x, y, z });
@@ -116,6 +116,11 @@ function scene(recvName, opts = {}) {
   for (let k = 0; k < (opts.frames || 1); k++) {
     R = rng(structSeed);  // 場面の作り（姿勢・カメラ・見落とし）は同じ
     const one = scene1(recvName, opts, k);
+    if (opts.flicker) {
+      // 実機のように、コマごとに骨格・枠・手がときどき取れない（3割）
+      const F = rng(structSeed + 7919 * (k + 1)), inp = one.input;
+      inp.poses = inp.poses.filter(() => F() > 0.3); inp.boxes = inp.boxes.filter(() => F() > 0.3); inp.hands = inp.hands.filter(() => F() > 0.3);
+    }
     frames.push(one);
   }
   R = rng(structSeed ^ 0x9e3779b9);
@@ -195,20 +200,31 @@ const NEAR = {
 export function run(n = 2000, seed = 1, opts = {}) {
   R = rng(seed);
   const by = {};
-  const tot = { n: 0, recv: 0, exact: 0, near: 0, none: 0 };
+  const tot = { n: 0, recv: 0, exact: 0, near: 0, none: 0, fr: 0, frOk: 0 };
   for (let i = 0; i < n; i++) {
     const name = Object.keys(RECEIVERS)[i % 5];
     const seq = scene(name, opts);
     const sc = seq[0];
     const mem = {}, votes = {};
-    let fr = null;
+    let fr = null, user = null;
     seq.forEach((f, k) => {
-      let r = G.resolveFrame({ ...f.input, mem, now: k * 125 });
+      // stab：コマをまたいだ安定化（stabilize）を通す
+      const fn = opts.stab ? G.stabilize : G.resolveFrame;
+      let r = fn({ ...f.input, ...user, mem, now: k * 125 });
+      // user：使う人が実際にするように、案内が出た・違う人が選ばれた時に一度だけタップし、その後はそのまま
+      if (opts.user && !user && k >= 2) {
+        const okNow = r.recipient && Math.hypot(G.torsoCenter(r.recipient).x - sc.truth.recvCenter.x, G.torsoCenter(r.recipient).y - sc.truth.recvCenter.y) < 0.8 * sc.truth.recvU;
+        if (r.needTap || !r.recipient) user = { manual: sc.truth.taps };
+        else if (r.uncertain || !okNow) { user = { mode: "tap" }; mem.tapPt = sc.truth.recvCenter; }
+        if (user) r = fn({ ...f.input, ...user, mem, now: k * 125 });
+      }
       if (opts.taps) {
         const okNow = r.recipient && Math.hypot(G.torsoCenter(r.recipient).x - f.truth.recvCenter.x, G.torsoCenter(r.recipient).y - f.truth.recvCenter.y) < 0.8 * f.truth.recvU;
         if (r.needTap || !r.recipient) r = G.resolveFrame({ ...f.input, manual: sc.truth.taps, mem, now: k * 125 });
         else if (r.uncertain || !okNow) r = G.resolveFrame({ ...f.input, mode: "tap", mem: { ...mem, tapPt: f.truth.recvCenter }, now: k * 125 });
       }
+      tot.fr++;
+      if (r.recipient && Math.hypot(G.torsoCenter(r.recipient).x - f.truth.recvCenter.x, G.torsoCenter(r.recipient).y - f.truth.recvCenter.y) < 0.8 * f.truth.recvU) tot.frOk++;
       const h = r.hits.find((x) => x.hit)?.hit?.zone.id || null;
       if (h) votes[h] = (votes[h] || 0) + 1;
       fr = r;
@@ -227,9 +243,10 @@ export function run(n = 2000, seed = 1, opts = {}) {
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const n = +(process.argv[2] || 2000);
-  const { by, tot } = run(n, 1, { ideal: process.argv.includes("ideal"), taps: process.argv.includes("taps"), frames: process.argv.includes("seq") ? 16 : 1 });
+  const { by, tot } = run(n, 1, { ideal: process.argv.includes("ideal"), taps: process.argv.includes("taps"), frames: process.argv.includes("seq") ? 16 : 1, stab: process.argv.includes("stab"), flicker: process.argv.includes("flicker"), user: process.argv.includes("user") });
   const pct = (a, b) => `${Math.round((100 * a) / (b || 1))}%`;
   console.log("場面\t件数\t受ける方が正しい\t範囲が一致\t一致か隣\t当たりなし");
   for (const [k, o] of Object.entries(by).sort()) console.log(`${k}\t${o.n}\t${pct(o.recv, o.n)}\t${pct(o.exact, o.n)}\t${pct(o.exact + o.near, o.n)}\t${pct(o.none, o.n)}`);
+  console.log(`コマごとに受ける方が正しい：${pct(tot.frOk, tot.fr)}`);
   console.log(`合計\t${tot.n}\t${pct(tot.recv, tot.n)}\t${pct(tot.exact, tot.n)}\t${pct(tot.exact + tot.near, tot.n)}\t${pct(tot.none, tot.n)}`);
 }

@@ -10,9 +10,9 @@ const html = readFileSync(path, "utf8");
 const block = html.split("// GEOMETRY-START")[1]?.split("// GEOMETRY-END")[0];
 if (!block) throw new Error("GEOMETRY-START / GEOMETRY-END の目印が見つかりません: " + path);
 const mod = await import(
-  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame };")
+  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize };")
 );
-const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame } = mod;
+const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize } = mod;
 
 // 背中をカメラに向けて座った受ける方（画素座標）。人の左肩が画面の左
 const P = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 1 }));
@@ -202,6 +202,30 @@ check("寝ている人が枠でしか見つからない時は、受ける方を�
 check("施術者の骨格が上にかがんでも、寝ている人の枠を捨てない", () => {
   const bent = pose({ 0: [300, 420], 11: [330, 480], 12: [270, 470], 23: [320, 640], 24: [280, 630] });
   assert.equal(unexplainedBoxes([{ x: 50, y: 600, w: 600, h: 200 }], [bent]).length, 1);
+});
+
+// ---- コマをまたいだ安定化 ----
+const tc = (Q) => ({ x: (Q[11].x + Q[12].x + Q[23].x + Q[24].x) / 4, y: (Q[11].y + Q[12].y + Q[23].y + Q[24].y) / 4 });
+check("一コマだけ判断が入れ替わっても、受ける方は入れ替えない", () => {
+  const mem = {};
+  let fr;
+  for (let k = 0; k < 10; k++) fr = stabilize({ poses: [recv, prac], hands: [], W: 1074, mem, now: k * 125 });
+  assert.ok(Math.abs(tc(fr.recipient).x - tc(recv).x) < 50);
+  // 一コマだけ「右の人が受ける方」になる入力（左の人が一瞬消える）
+  fr = stabilize({ poses: [prac], hands: [], W: 1074, mem, now: 1250 });
+  assert.ok(fr.recipient && Math.abs(tc(fr.recipient).x - tc(recv).x) < 50, "一瞬消えた受ける方を保つ");
+  fr = stabilize({ poses: [recv, prac], hands: [], W: 1074, mem, now: 1375 });
+  assert.ok(Math.abs(tc(fr.recipient).x - tc(recv).x) < 50);
+});
+check("掌が向いている範囲は多数決で決め、一コマだけ外れても変えない", () => {
+  const mem = {};
+  const ids = [];  // h：上の「画面右から左向きに掌を向けた手」
+  for (let k = 0; k < 8; k++) {
+    // 5コマ目だけ掌の表裏を取り違える（体から外れる向き）
+    const fr = stabilize({ poses: [P], hands: [{ lm: h, label: "Left" }], mode: "left", orientAuto: false, calib: k === 5 ? { Left: -1, Right: 1 } : undefined, W: 1074, mem, now: k * 125 });
+    ids.push(fr.hits.find((x) => x.hit)?.hit.zone.id || null);
+  }
+  assert.deepEqual(ids.slice(2), ["kidR", "kidR", "kidR", "kidR", "kidR", "kidR"]);
 });
 
 console.log(`\n${passed} 件すべて合格`);

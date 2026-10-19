@@ -644,6 +644,128 @@ function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual
   return { recipient: needTap ? null : recipient, practitioner, uncertain: !!roles.uncertain, needTap, hands, view: needTap ? null : view, zoneInfo: needTap ? null : zoneInfo,
     hits: needTap ? hits.map((x) => ({ ...x, hit: null })) : hits, people: poses.length + unexplainedBoxes(boxes, poses).length };
 }
+/** コマをまたいで安定させる（実機の映像で、受ける方の名札や範囲がコマごとに入れ替わる・消えるのを抑える）。
+    ・同じ人をコマをまたいで追い、点の位置を滑らかにする（揺れを抑える）
+    ・一瞬見えなくなった人は、1秒までは前の位置を保つ
+    ・受ける方・施術者は、場所ごとの判断の積み重ねで決め、一コマの判断では入れ替えない（自動の時）。
+      受ける方が一時的に見つからない時も、最大4秒は前の位置に残す
+    ・手が一瞬（0.5秒まで）取れない時は直前の当たりを使い、掌が向いている範囲は直近6コマの多数決（3コマ以上）で決める
+    入力は resolveFrame と同じ。mem に記憶を持つ */
+function stabilize(input) {
+  const mem = input.mem || (input.mem = {});
+  const now = input.now || 0;
+  // 1) 人の追跡と滑らかにする：前のコマの人と胴の中心が近ければ同じ人とし、点を混ぜる（新しいコマ6割）
+  const prev = mem.trk || [];
+  const used = new Set();
+  const cur = input.poses.map((P) => {
+    const c = torsoCenter(P), sc = bodyScale(P);
+    let best = null, bd = Infinity;
+    prev.forEach((T, i) => { if (used.has(i)) return; const d = dist2(c, T.c); if (d < 0.8 * Math.max(sc, T.sc) && d < bd) { bd = d; best = i; } });
+    if (best == null) return { P, c, sc, seen: now };
+    used.add(best);
+    const Q = prev[best].P, a = 0.6;
+    const S = P.map((p, k) => ({ x: a * p.x + (1 - a) * Q[k].x, y: a * p.y + (1 - a) * Q[k].y, z: a * (p.z || 0) + (1 - a) * (Q[k].z || 0), v: Math.max(p.v ?? 1, (Q[k].v ?? 1) * 0.8) }));
+    return { P: S, c: torsoCenter(S), sc, seen: now };
+  });
+  // 一瞬見えなくなった人（1秒まで）は前の位置のまま残す
+  prev.forEach((T, i) => { if (!used.has(i) && now - T.seen <= 1000) cur.push({ ...T, held: true }); });
+  mem.trk = cur;
+  // 手も、前のコマの手と手首が近ければ混ぜる
+  const ph = mem.hands || [];
+  const hands = input.hands.map((h) => {
+    const q = ph.find((x) => dist2(x.lm[0], h.lm[0]) < 0.15 * (input.W || 1000));
+    if (!q) return h;
+    return { ...h, lm: h.lm.map((p, k) => ({ x: 0.6 * p.x + 0.4 * q.lm[k].x, y: 0.6 * p.y + 0.4 * q.lm[k].y, z: 0.6 * (p.z || 0) + 0.4 * (q.lm[k].z || 0) })) };
+  });
+  mem.hands = hands;
+  const base = { ...input, poses: cur.map((T) => T.P), hands };
+  let fr = resolveFrame(base);
+  // 2) 役割の記憶（自動の時だけ）：場所ごとに「受ける方だった」「施術者だった」判断を積み重ねる。
+  //    ・受ける方は、積み重ねで決めた人を保つ。その人が一時的に見つからない時も、最大4秒は前の位置に受ける方を残す
+  //      （後ろ向きの人や頭のアップは、骨格も枠も取れたり取れなかったりするため）
+  //    ・しばらく施術者だった人は、もう一人が見えなくなっても受ける方にしない
+  if ((input.mode || "auto") === "auto" && !input.manual) {
+    const HOLD = 4000;
+    const roles = mem.roles || [];
+    const dt = mem.lastNow != null ? Math.max(0, Math.min(500, now - mem.lastNow)) : 125;
+    mem.lastNow = now;
+    const kr = Math.pow(0.9, dt / 125), kp = Math.pow(0.97, dt / 125);  // 施術者だった記憶は長めに残す
+    const wt = dt / 125;  // 1コマの票の重み（コマの間隔が長い＝発熱を抑えて間引いている時は、そのぶん重く）
+    const posesNow = cur.filter((T) => !T.held).map((T) => T.P);
+    const candC = [...posesNow, ...unexplainedBoxes(input.boxes || [], posesNow).map((b) => poseFromBox(b))].map((P) => ({ c: torsoCenter(P), sc: bodyScale(P) }));
+    const near = (x, c, sc) => dist2(x.c, c) < 0.8 * Math.max(sc, x.sc);
+    for (const x of roles) {
+      x.present = candC.some((q) => near(x, q.c, q.sc));
+      if (x.present) x.lastSeen = now;
+      if (x.present || now - x.lastSeen > HOLD) { x.rv *= kr; x.pv *= kp; }  // 見えていない間は、記憶をすぐには薄めない
+    }
+    // 近すぎる記憶は同じ人とみなしてまとめる（骨格の揺れで同じ人が二つに分かれないように）。
+    // ただし、同じコマに別々の人として同時に映ったことのある二人（すぐそばで施術している時）はまとめない
+    for (let i = 0; i < roles.length; i++) for (let j = roles.length - 1; j > i; j--) {
+      const A = roles[i], B = roles[j];
+      if (!near(A, B.c, B.sc) || A.apart.has(B.id) || B.apart.has(A.id)) continue;
+      const keep = A.rv + A.pv >= B.rv + B.pv ? A : B, drop = keep === A ? B : A;
+      keep.rv += drop.rv; keep.pv += drop.pv; keep.lastSeen = Math.max(A.lastSeen, B.lastSeen); keep.present = A.present || B.present;
+      if (!keep.P) keep.P = drop.P;
+      for (const id of drop.apart) keep.apart.add(id);
+      if (mem.rvStable === drop) mem.rvStable = keep;
+      roles[i] = keep; roles.splice(j, 1);
+    }
+    const track = (P, not) => {
+      const c = torsoCenter(P), sc = bodyScale(P);
+      let x = roles.filter((q) => q !== not && near(q, c, sc)).sort((p, q) => dist2(p.c, c) - dist2(q.c, c))[0];
+      if (!x) { x = { id: (mem.roleId = (mem.roleId || 0) + 1), c, sc, rv: 0, pv: 0, lastSeen: now, present: true, apart: new Set() }; roles.push(x); }
+      return x;
+    };
+    const both = fr.practitioner && fr.recipient && fr.practitioner !== fr.recipient;
+    const xp = both || fr.practitioner ? track(fr.practitioner) : null;
+    if (xp && fr.practitioner !== fr.recipient && xp.rv < 0.5) { xp.pv += 0.15 * wt; xp.c = torsoCenter(fr.practitioner); xp.sc = bodyScale(fr.practitioner); }
+    if (fr.recipient && fr.recipient !== fr.practitioner) {
+      const x = track(fr.recipient, both ? xp : null);
+      if (both) { x.apart.add(xp.id); xp.apart.add(x.id); }
+      // 積み重ねで決めた受ける方が一時的に見えない間は、ほかの人への票は半分にする（見えない間に入れ替わらないように）
+      const away = mem.rvStable && mem.rvStable !== x && !mem.rvStable.present && now - mem.rvStable.lastSeen <= HOLD;
+      // 画面の左右の端で縦に細く切れている人（枠だけで見つかった人）は、頭のアップで端に映った施術者の体であることが多いので票を少なくする
+      const bx = fr.recipient.box, Wd = input.W || 0;
+      const edge = bx && Wd && (bx.x <= 0.01 * Wd || bx.x + bx.w >= 0.99 * Wd) && bx.h > 2.5 * bx.w;
+      if (x.pv < 0.5 || x.rv > x.pv) { x.rv += (fr.uncertain ? 0.07 : 0.15) * wt * (away ? 0.5 : 1) * (edge ? 0.2 : 1); x.c = torsoCenter(fr.recipient); x.sc = bodyScale(fr.recipient); x.P = fr.recipient; }
+    }
+    mem.roles = roles.filter((x) => (x.rv > 0.03 || x.pv > 0.03) && now - x.lastSeen <= HOLD + 2000);
+    const top = mem.roles.filter((x) => x.rv > x.pv).reduce((a, b) => (!a || b.rv > a.rv ? b : a), null);
+    let stable = mem.rvStable && mem.roles.includes(mem.rvStable) && mem.rvStable.rv > mem.rvStable.pv && now - mem.rvStable.lastSeen <= HOLD ? mem.rvStable : top;
+    if (top && stable !== top && top.rv > stable.rv + 0.15) stable = top;  // 入れ替えは、はっきり上回った時だけ
+    mem.rvStable = stable;
+    const frC = fr.recipient ? torsoCenter(fr.recipient) : null;
+    if (stable && stable.P && (!frC || !near(stable, frC, bodyScale(fr.recipient)))) {
+      // このコマの判断と違う時は、積み重ねで決めた人を受ける方にして判断し直す。
+      // その人が今のコマで見つからない時は、前の位置に受ける方を残す
+      const extra = stable.present ? [] : [Object.assign(stable.P.map((p) => ({ ...p })), { synthetic: stable.P.synthetic, box: stable.P.box, held: true })];
+      const r2 = resolveFrame({ ...base, poses: [...base.poses, ...extra], mode: "tap", mem: { tapPt: stable.c } });
+      fr = { ...r2, uncertain: fr.uncertain && !stable.present, needTap: fr.needTap, people: fr.people };
+    } else if (!stable && fr.recipient) {
+      // まだ受ける方が決まっていない時に、しばらく施術者だった人が受ける方に選ばれたら、受ける方は空けておく
+      const x = mem.roles.find((q) => near(q, frC, bodyScale(fr.recipient)));
+      if (x && x.pv > x.rv + 0.3) fr = { ...fr, recipient: null, view: null, zoneInfo: null, hits: fr.hits.map((h) => ({ ...h, hit: null })) };
+    }
+  }
+  // 3) 手が一瞬（0.5秒まで）取れなかった時は、直前の手と当たりをそのまま使う
+  if (!fr.hits.length && fr.zoneInfo && mem.lastHits && now - mem.lastHitsAt <= 500) fr = { ...fr, hands: mem.lastHits.map((x) => x.h), hits: mem.lastHits };
+  else if (fr.hits.length) { mem.lastHits = fr.hits; mem.lastHitsAt = now; }
+  // 4) 掌が向いている範囲は、直近6コマの多数決
+  const id = fr.hits.find((x) => x.hit)?.hit.zone.id || null;
+  const hist = [...(mem.zh || []), id].slice(-6);
+  mem.zh = hist;
+  const cnt = {};
+  for (const z of hist) if (z) cnt[z] = (cnt[z] || 0) + 1;
+  const [best, n] = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0] || [null, 0];
+  const stableZone = n >= 3 ? best : null;
+  if (fr.zoneInfo && fr.hits.length) {
+    const z = stableZone ? fr.zoneInfo.zones.find((q) => q.id === stableZone) : null;
+    const i = Math.max(0, fr.hits.findIndex((x) => x.hit));
+    fr = { ...fr, hits: fr.hits.map((x, k) => (k === i ? { ...x, hit: z ? { ...(x.hit || { mode: "ray" }), zone: z, point: x.hit?.point || { x: z.x, y: z.y } } : null } : x)) };
+  }
+  return fr;
+}
 // GEOMETRY-END
 
 // ---------- 画面と状態 ----------
@@ -840,7 +962,7 @@ function loop() {
   }
   if (posesPx.length >= 2 || now - state.boxesTs > 2500) state.boxes = [];
 
-  const fr = resolveFrame({
+  const fr = stabilize({
     poses: posesPx, hands: handsPx, boxes: state.boxes, mode: ui.selRecipient.value, manual: state.manual,
     viewSel: ui.selView.value, orientAuto: ui.selOrient.value === "auto", calib: state.calib, W: canvas.width, mem: state.mem, now
   });
@@ -932,7 +1054,7 @@ function draw(posesPx, recipient, zoneInfo, hits, active, practitioner) {
     if (recipient.box) ctx.strokeRect(recipient.box.x, recipient.box.y, recipient.box.w, recipient.box.h);
     ctx.restore();
   }
-  if (recipient) tag(recipient, practitioner === recipient ? "自己施術" : recipient.manual ? "受ける方（指定）" : recipient.synthetic ? "受ける方（推定）" : "受ける方", "rgba(31,111,92,0.9)");
+  if (recipient) tag(recipient, practitioner === recipient ? "自己施術" : recipient.manual ? "受ける方（指定）" : recipient.synthetic || recipient.held ? "受ける方（推定）" : "受ける方", "rgba(31,111,92,0.9)");
   if (practitioner && practitioner !== recipient) tag(practitioner, "施術者", "rgba(168,123,31,0.9)");
   for (const { h, pf, hit } of hits) {
     ctx.fillStyle = colors.gold;

@@ -15,4 +15,9 @@ assert.ok(ideal.受ける方 >= 98 && ideal.一致 >= 60 && ideal.一致か隣 >
 // 実際に近い揺れ・見落とし・手首のずれ・二重検出のもとで、2秒（16コマ）続けた時（案内どおりにタップ）
 const real = report("揺れ・見落としあり（2秒・タップあり）", run(800, 1, { taps: true, frames: 16 }));
 assert.ok(real.受ける方 >= 85 && real.一致か隣 >= 50, "揺れ・見落としがある時の当たり具合が下がった");
+// コマごとに骨格・枠・手がときどき取れない（3割）時に、コマをまたいだ安定化（stabilize）を通しても、
+// 受ける方の当たり具合が落ちない（使う人は、案内が出た時・違う人が選ばれた時に一度だけタップする）
+const flick = report("取れたり取れなかったり・安定化あり（2秒・一度だけタップ）", run(800, 1, { frames: 16, flicker: true, user: true, stab: true }));
+const flickRaw = report("取れたり取れなかったり・安定化なし（2秒・一度だけタップ）", run(800, 1, { frames: 16, flicker: true, user: true }));
+assert.ok(flick.受ける方 >= 72 && flick.受ける方 >= flickRaw.受ける方 - 2, "安定化を通すと受ける方の当たり具合が下がる");
 console.log("場面の模擬：合格");
