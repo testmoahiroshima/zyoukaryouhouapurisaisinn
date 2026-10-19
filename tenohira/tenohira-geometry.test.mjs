@@ -10,9 +10,9 @@ const html = readFileSync(path, "utf8");
 const block = html.split("// GEOMETRY-START")[1]?.split("// GEOMETRY-END")[0];
 if (!block) throw new Error("GEOMETRY-START / GEOMETRY-END の目印が見つかりません: " + path);
 const mod = await import(
-  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes };")
+  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame };")
 );
-const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes } = mod;
+const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame } = mod;
 
 // 背中をカメラに向けて座った受ける方（画素座標）。人の左肩が画面の左
 const P = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 1 }));
@@ -169,6 +169,39 @@ check("頭と腰のタップから受ける方の範囲を作る（傾いてい�
   const T = poseFromTaps({ x: 200, y: 300 }, { x: 600, y: 300 });  // 横に寝ている
   const tz = buildZones(T, "back").zones;
   assert.ok(tz.find((q) => q.id === "head").x < tz.find((q) => q.id === "kidL").x);
+});
+
+// ---- 寝た姿勢・前からの施術 ----
+check("横に寝ている人（頭が画面の左）でも、背面・前面を決め、頭の範囲を頭の先に置く", () => {
+  // 背中がカメラ側：頭は左、腰は右、人の左肩が下（立った背面の姿を左へ90°倒した形）
+  const L = pose({ 0: [120, 310, 0.1], 7: [140, 290], 8: [140, 330], 11: [260, 370], 12: [260, 250], 23: [520, 350], 24: [520, 270] });
+  assert.equal(bodyView(L), "back");
+  const z = buildZones(L, "back").zones, head = z.find((q) => q.id === "head"), kid = z.find((q) => q.id === "kidL");
+  assert.ok(head.x < 140 && kid.x > 300);
+  const F = pose({ 0: [120, 310, 0.95], 7: [140, 290], 8: [140, 330], 11: [260, 250], 12: [260, 370], 23: [520, 270], 24: [520, 350] });  // 前面：人の左肩が上
+  assert.equal(bodyView(F), "front");
+});
+check("前面では鼠径部（左・右）の範囲を作り、掌を向けると当たる", () => {
+  const { zones, u } = buildZones(F, "front");
+  const g = zones.find((q) => q.id === "groinL");
+  assert.ok(g && zones.some((q) => q.id === "groinR"));
+  const r = hitZone({ x: g.x + 2 * u, y: g.y }, { x: -1, y: 0, z: 0 }, zones, u);
+  assert.equal(r?.zone.id, "groinL");
+});
+check("掌の延長線上に胴の範囲があれば、手前にある受ける方の膝・肘より胴を選ぶ", () => {
+  const zones = [{ id: "kneeL", x: 100, y: 100, r: 20 }, { id: "groinL", x: 160, y: 100, r: 15 }];
+  assert.equal(hitZone({ x: 40, y: 100 }, { x: 1, y: 0, z: 0 }, zones, 50)?.zone.id, "groinL");
+  assert.equal(hitZone({ x: 40, y: 100 }, { x: 1, y: 0, z: 0 }, [zones[0]], 50)?.zone.id, "kneeL");
+});
+check("寝ている人が枠でしか見つからない時は、受ける方を決めずに「頭と腰をタップ」の案内", () => {
+  const fr = resolveFrame({ poses: [prac], hands: [], boxes: [{ x: 50, y: 600, w: 600, h: 200 }], W: 1074, mem: {} });
+  assert.ok(fr.needTap); assert.equal(fr.recipient, null);
+  const fr2 = resolveFrame({ poses: [prac], hands: [], boxes: [{ x: 50, y: 600, w: 600, h: 200 }], W: 1074, mem: {}, manual: { head: { x: 100, y: 680 }, waist: { x: 500, y: 700 } } });
+  assert.ok(!fr2.needTap && fr2.recipient?.manual);
+});
+check("施術者の骨格が上にかがんでも、寝ている人の枠を捨てない", () => {
+  const bent = pose({ 0: [300, 420], 11: [330, 480], 12: [270, 470], 23: [320, 640], 24: [280, 630] });
+  assert.equal(unexplainedBoxes([{ x: 50, y: 600, w: 600, h: 200 }], [bent]).length, 1);
 });
 
 console.log(`\n${passed} 件すべて合格`);
