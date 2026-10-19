@@ -1,0 +1,703 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>掌の向き記録</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=BIZ+UDGothic:wght@400;700&display=swap">
+<style>
+/* 左に映像（受ける方の体の範囲と掌の矢印を重ねる）、右に操作と記録。狭い画面では縦に積む */
+:root {
+  --bg: #f3f5f2;
+  --surface: #ffffff;
+  --ink: #1d2a26;
+  --muted: #5d6b66;
+  --line: #d5ddd8;
+  --accent: #1f6f5c;        /* 深い青緑：療法の資料と同系 */
+  --accent-ink: #ffffff;
+  --gold: #a87b1f;           /* 掌の矢印 */
+  --zone: rgba(31, 111, 92, 0.18);
+  --zone-edge: rgba(31, 111, 92, 0.55);
+  --hit: rgba(168, 123, 31, 0.38);
+  --warn-bg: #fff1dd;
+  --warn-ink: #8a4b00;
+  --ok: #2f7d4f;
+  --font-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --font-num: "BIZ UDGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121816; --surface: #1b2320; --ink: #e6ece9; --muted: #9fb0a9; --line: #2d3a35;
+    --accent: #4fb39a; --accent-ink: #0d1412; --gold: #e0b04f;
+    --zone: rgba(79, 179, 154, 0.2); --zone-edge: rgba(79, 179, 154, 0.7); --hit: rgba(224, 176, 79, 0.42);
+    --warn-bg: #3a2a12; --warn-ink: #ffcf8a; --ok: #6cc48f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121816; --surface: #1b2320; --ink: #e6ece9; --muted: #9fb0a9; --line: #2d3a35;
+  --accent: #4fb39a; --accent-ink: #0d1412; --gold: #e0b04f;
+  --zone: rgba(79, 179, 154, 0.2); --zone-edge: rgba(79, 179, 154, 0.7); --hit: rgba(224, 176, 79, 0.42);
+  --warn-bg: #3a2a12; --warn-ink: #ffcf8a; --ok: #6cc48f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+  padding-block: 16px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+header { max-width: 1200px; margin: 0 auto 12px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+h1 { font-size: 1.35rem; margin: 0; letter-spacing: 0.02em; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 0.9rem; }
+main { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; }
+@media (max-width: 860px) { main { grid-template-columns: minmax(0, 1fr); } }
+.stage { background: #0e1312; border-radius: 10px; overflow: hidden; position: relative; min-height: 220px; display: grid; place-items: center; }
+.stage canvas { width: 100%; height: auto; display: block; }
+.stage video { display: none; }
+.placeholder { color: #c9d4cf; text-align: center; padding: 40px 20px; font-size: 0.95rem; }
+.panel { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; min-width: 0; }
+.card h2 { font-size: 0.82rem; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; font-weight: 700; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; }
+button, select, label.file {
+  font: inherit; font-size: 0.95rem; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 9px 14px; cursor: pointer; min-height: 42px;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+button.rec[aria-pressed="true"] { background: #b3261e; border-color: #b3261e; color: #fff; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button:focus-visible, select:focus-visible, label.file:focus-within { outline: 3px solid var(--gold); outline-offset: 2px; }
+label.file input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.field { display: grid; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.field select { color: var(--ink); width: 100%; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.target { font-size: 1.5rem; font-weight: 700; min-height: 2.2rem; }
+.target small { display: block; font-size: 0.82rem; color: var(--muted); font-weight: 400; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 0.78rem; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; color: var(--muted); }
+.chip.ok { color: var(--ok); border-color: var(--ok); }
+.chip.ng { color: var(--warn-ink); border-color: var(--warn-ink); }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 8px 12px; font-weight: 700; }
+table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); }
+td.num, th.num { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.clock { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 1.1rem; }
+.status { font-size: 0.85rem; color: var(--muted); }
+ol.steps { margin: 0; padding-left: 1.3em; display: grid; gap: 4px; font-size: 0.9rem; }
+.tablewrap { overflow-x: auto; }
+textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-size: 0.8rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>掌の向き記録（試作）</h1>
+  <span class="sub">映像から掌の向きを推定し、受ける方の体のどの範囲に向いていたか、何秒かを記録します。映像は保存・送信せず、この端末の中だけで処理します。</span>
+</header>
+
+<main>
+  <section class="stage" id="stage" aria-label="映像">
+    <video id="video" playsinline muted></video>
+    <canvas id="canvas" hidden></canvas>
+    <div class="placeholder" id="placeholder">
+      「カメラを開始」または「動画を読み込む」を押してください。<br>
+      初回は認識用のデータ（数MB）を読み込むため、少し時間がかかります。
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="card">
+      <h2>映像</h2>
+      <div class="row">
+        <button class="primary" id="btnCam" type="button">カメラを開始</button>
+        <label class="file" for="fileVideo">動画を読み込む<input id="fileVideo" type="file" accept="video/*"></label>
+      </div>
+      <div class="grid2" style="margin-top:10px">
+        <div class="field"><label for="selFacing">カメラ</label>
+          <select id="selFacing"><option value="environment">背面カメラ</option><option value="user">前面カメラ</option></select></div>
+        <div class="field"><label for="selRecipient">受ける方</label>
+          <select id="selRecipient">
+            <option value="auto">自動（施術者以外）</option>
+            <option value="self">自分自身（自己施術）</option>
+            <option value="left">画面の左の人</option>
+            <option value="right">画面の右の人</option>
+          </select></div>
+        <div class="field"><label for="selView">受ける方の向き</label>
+          <select id="selView"><option value="auto">自動判定</option><option value="back">背面（背中がカメラ側）</option><option value="front">前面（顔がカメラ側）</option></select></div>
+      </div>
+      <p class="status" id="status" aria-live="polite">待機中</p>
+    </div>
+
+    <div class="card">
+      <h2>いま掌が向いている範囲</h2>
+      <div class="target" id="target">―<small id="targetSub">手と体が映ると表示されます</small></div>
+      <div class="warn" id="warn" hidden>首まわり：安全に注意してください</div>
+      <div class="chips" style="margin-top:8px">
+        <span class="chip" id="chipCalib">掌の向き：未調整</span>
+        <span class="chip" id="chipView">体の向き：―</span>
+        <span class="chip" id="chipHands">手：0</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>操作</h2>
+      <div class="row">
+        <button id="btnCalib" type="button" disabled>掌の向きを合わせる</button>
+        <button class="rec" id="btnRec" type="button" aria-pressed="false" disabled>記録開始</button>
+        <button id="btnReset" type="button">記録を消す</button>
+      </div>
+      <p class="status">「掌の向きを合わせる」を押したら、2秒間、掌をカメラに向けてください。</p>
+      <div class="clock" id="clock">記録時間 00:00</div>
+    </div>
+
+    <div class="card">
+      <h2>部位ごとの合計時間</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>部位</th><th class="num">時間</th></tr></thead>
+          <tbody id="tbodyTotals"><tr><td colspan="2" class="status">記録を開始すると、ここに部位ごとの時間が並びます。</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>書き出し</h2>
+      <div class="row">
+        <button id="btnCopy" type="button">CSVをコピー</button>
+        <button id="btnSave" type="button">CSVを保存</button>
+      </div>
+      <p class="status" id="exportStatus"></p>
+      <textarea id="csvOut" readonly aria-label="CSVの内容"></textarea>
+    </div>
+
+    <div class="card">
+      <h2>開き方</h2>
+      <ul class="steps" style="margin-bottom:12px">
+        <li>パソコン：このファイルを保存し、Chromeで直接開きます（Claudeの画面の中のプレビューではカメラが使えません）。</li>
+        <li>スマホ：「https://」で始まるアドレス（GitHub Pagesなど）に置いたページを開きます。</li>
+        <li>どちらもインターネットへの接続が必要です（初回に認識用のデータを読み込みます）。</li>
+      </ul>
+      <h2>使い方</h2>
+      <ol class="steps">
+        <li>カメラを三脚などで固定し、受ける方の体と施術者の手が両方映るようにします。横か斜め後ろからがおすすめです。</li>
+        <li>「掌の向きを合わせる」を押し、2秒間、掌をカメラに向けます。</li>
+        <li>「記録開始」を押して施術します。金色の矢印が掌の向き、色の付いた円が体の範囲です。</li>
+        <li>終わったら「記録開始」をもう一度押して止め、CSVで書き出します。</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<script>
+setTimeout(function () {
+  if (window.__tenohiraReady) return;
+  var s = document.getElementById("status");
+  if (s) s.textContent = "プログラムを読み込めませんでした。Claudeの画面の中（プレビュー）では動かないため、ファイルを端末に保存してChromeで直接開いてください。インターネットへの接続も必要です。";
+}, 6000);
+</script>
+<script type="module">
+import { FilesetResolver, HandLandmarker, PoseLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs";
+window.__tenohiraReady = true;
+
+// GEOMETRY-START
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: (a.z || 0) - (b.z || 0) });
+const cross = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const len3 = (a) => Math.hypot(a.x, a.y, a.z);
+const norm3 = (a) => { const l = len3(a) || 1; return { x: a.x / l, y: a.y / l, z: a.z / l }; };
+const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+
+/** 手の21点（画素単位）から掌の中心と、掌に垂直な向きを求める。mult は左右の手の向きの補正（+1 / -1） */
+function palmFrame(h, mult) {
+  const p0 = h[0], p5 = h[5], p9 = h[9], p17 = h[17];
+  const raw = norm3(cross(sub(p5, p0), sub(p17, p0)));
+  const c = { x: (p0.x + p5.x + p9.x + p17.x) / 4, y: (p0.y + p5.y + p9.y + p17.y) / 4 };
+  return { c, raw, n: { x: raw.x * mult, y: raw.y * mult, z: raw.z * mult } };
+}
+
+/** 骨格33点から、受ける方が前面・背面・側面のどれを向いているかを推定 */
+function bodyView(P) {
+  const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
+  const sw = dist2(LS, RS), tl = dist2(lerp(LS, RS, 0.5), lerp(LH, RH, 0.5));
+  if (sw < 0.38 * tl) return "side";
+  const noseVis = P[0].v ?? 1;
+  // 人の左肩が画面の右側にあれば、カメラの方を向いている（映像を左右反転していない場合）
+  const facingByShoulder = LS.x > RS.x;
+  if (noseVis < 0.35) return "back";
+  return facingByShoulder ? "front" : "back";
+}
+
+/** 骨格から施術部位の範囲（円）を作る。名前は人の左右（解剖学的な左右） */
+function buildZones(P, view) {
+  const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
+  const sm = lerp(LS, RS, 0.5), hm = lerp(LH, RH, 0.5);
+  const sw = dist2(LS, RS), tl = dist2(sm, hm);
+  const u = Math.max(sw, tl * 0.55);
+  const zones = [];
+  const add = (id, name, p, r, opt = {}) => zones.push({ id, name, x: p.x, y: p.y, r: r * u, ...opt });
+  const earsOk = (P[7].v ?? 1) > 0.2 && (P[8].v ?? 1) > 0.2;
+  const earM = earsOk ? lerp(P[7], P[8], 0.5) : { x: P[0].x, y: P[0].y };
+  add("head", view === "front" ? "頭部" : "後頭部", { x: earM.x, y: earM.y - 0.08 * tl }, 0.42);
+  const neckBase = lerp(sm, earM, 0.35);
+  add("neckL", "首（左）", { x: neckBase.x + (LS.x - sm.x) * 0.3, y: neckBase.y }, 0.13, { caution: true });
+  add("neckR", "首（右）", { x: neckBase.x + (RS.x - sm.x) * 0.3, y: neckBase.y }, 0.13, { caution: true });
+  add("shL", "肩（左）", lerp(LS, neckBase, 0.2), 0.17);
+  add("shR", "肩（右）", lerp(RS, neckBase, 0.2), 0.17);
+  if (view === "front") {
+    add("chest", "胸", lerp(sm, hm, 0.3), 0.24);
+    add("epi", "みぞおち", lerp(sm, hm, 0.55), 0.17);
+    add("abd", "腹部", lerp(sm, hm, 0.85), 0.22);
+  } else {
+    const side = (S, H, t, inward) => lerp(lerp(S, H, t), lerp(sm, hm, t), inward);
+    add("scL", "肩甲骨（左）", side(LS, LH, 0.25, 0.35), 0.19);
+    add("scR", "肩甲骨（右）", side(RS, RH, 0.25, 0.35), 0.19);
+    add("backC", "背中中央", lerp(sm, hm, 0.5), 0.15);
+    add("kidL", "腎臓（左）", side(LS, LH, 0.72, 0.4), 0.16);
+    add("kidR", "腎臓（右）", side(RS, RH, 0.72, 0.4), 0.16);
+    add("lowL", "腰（左）", side(LS, LH, 0.95, 0.3), 0.16);
+    add("lowR", "腰（右）", side(RS, RH, 0.95, 0.3), 0.16);
+  }
+  if ((P[13].v ?? 1) > 0.4) add("elbL", "肘（左）", P[13], 0.15);
+  if ((P[14].v ?? 1) > 0.4) add("elbR", "肘（右）", P[14], 0.15);
+  if ((P[25].v ?? 1) > 0.4) add("kneeL", "膝（左）", P[25], 0.17);
+  if ((P[26].v ?? 1) > 0.4) add("kneeR", "膝（右）", P[26], 0.17);
+  return { zones, u };
+}
+
+/** 掌の中心から掌の向きへ伸ばした線が、最初に当たる範囲を探す */
+function hitZone(c, n, zones, u) {
+  const pick = (pt) => {
+    let best = null, bs = 1;
+    for (const z of zones) { const s = dist2(pt, z) / z.r; if (s < bs) { bs = s; best = z; } }
+    return best;
+  };
+  const d2 = Math.hypot(n.x, n.y);
+  if (d2 < 0.3) { const z = pick(c); return z ? { zone: z, mode: "depth", point: c } : null; }
+  const dx = n.x / d2, dy = n.y / d2, L = 3 * u, step = u / 24;
+  for (let t = 0.1 * u; t <= L; t += step) {
+    const pt = { x: c.x + dx * t, y: c.y + dy * t };
+    const z = pick(pt);
+    if (z) return { zone: z, mode: "ray", point: pt };
+  }
+  return null;
+}
+// GEOMETRY-END
+
+// ---------- 画面と状態 ----------
+const $ = (id) => document.getElementById(id);
+const video = $("video"), canvas = $("canvas"), ctx = canvas.getContext("2d");
+const ui = {
+  status: $("status"), target: $("target"), targetSub: $("targetSub"), warn: $("warn"),
+  chipCalib: $("chipCalib"), chipView: $("chipView"), chipHands: $("chipHands"),
+  btnCam: $("btnCam"), fileVideo: $("fileVideo"), btnCalib: $("btnCalib"), btnRec: $("btnRec"), btnReset: $("btnReset"),
+  clock: $("clock"), tbody: $("tbodyTotals"), btnCopy: $("btnCopy"), btnSave: $("btnSave"), csvOut: $("csvOut"),
+  exportStatus: $("exportStatus"), selFacing: $("selFacing"), selRecipient: $("selRecipient"), selView: $("selView"),
+  placeholder: $("placeholder")
+};
+
+const state = {
+  hand: null, pose: null, running: false, stream: null,
+  // MediaPipeの左右ラベルごとの向きの補正。初期値は反転していない映像を想定
+  calib: { Left: 1, Right: -1 }, calibrated: false,
+  calibrating: null,
+  recording: false, recElapsed: 0, lastTs: null,
+  totals: {}, names: {}, segments: [], tracks: {},
+  lastVideoTime: -1
+};
+try {
+  const saved = JSON.parse(localStorage.getItem("tenohira-calib") || "null");
+  if (saved && (saved.Left === 1 || saved.Left === -1)) { state.calib = saved; state.calibrated = true; }
+} catch (e) { /* 保存領域が使えない環境では毎回調整する */ }
+updateCalibChip();
+
+function setStatus(t) { ui.status.textContent = t; }
+function updateCalibChip() {
+  ui.chipCalib.textContent = state.calibrated ? "掌の向き：調整済み" : "掌の向き：未調整";
+  ui.chipCalib.className = "chip " + (state.calibrated ? "ok" : "ng");
+}
+
+async function loadModels() {
+  if (state.hand && state.pose) return;
+  setStatus("認識用のデータを読み込んでいます…");
+  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+  const make = async (delegate) => {
+    const hand = await HandLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate },
+      runningMode: "VIDEO", numHands: 2, minHandDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+    });
+    const pose = await PoseLandmarker.createFromOptions(fileset, {
+      baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task", delegate },
+      runningMode: "VIDEO", numPoses: 2, minPoseDetectionConfidence: 0.5, minTrackingConfidence: 0.5
+    });
+    return { hand, pose };
+  };
+  try { Object.assign(state, await make("GPU")); }
+  catch (e) { Object.assign(state, await make("CPU")); }
+  setStatus("読み込みが終わりました");
+}
+
+function showStage() {
+  ui.placeholder.hidden = true; canvas.hidden = false;
+  ui.btnCalib.disabled = false; ui.btnRec.disabled = false;
+}
+
+function cameraErrorMessage(e) {
+  const name = (e && e.name) || "Error";
+  const base = {
+    NotAllowedError: "カメラの使用が許可されていません。アドレスバー左のアイコンからカメラを「許可」にして、ページを読み込み直してください。",
+    SecurityError: "この開き方ではカメラが使えません。下の「開き方」を確認してください。",
+    NotFoundError: "カメラが見つかりません。カメラ付きの端末で開いてください。",
+    NotReadableError: "カメラを他のアプリが使っています。ビデオ会議などのアプリを閉じてから、もう一度押してください。",
+    OverconstrainedError: "このカメラでは指定の設定が使えませんでした。"
+  }[name] || "カメラを開けませんでした。";
+  return base + "（" + name + "）";
+}
+
+function openingProblem() {
+  let inFrame = false;
+  try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+  if (inFrame) return "Claudeの画面の中（プレビュー）で開かれています。ここではカメラが使えません。ファイルを端末に保存し、Chromeなどのブラウザで直接開いてください。";
+  if (!window.isSecureContext || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
+    return "この開き方ではカメラが使えません。スマホでは「https://」で始まるアドレス（GitHub Pagesなど）に置いて開く必要があります。パソコンではファイルをChromeで直接開いてください。";
+  }
+  return null;
+}
+
+async function prepareModels() {
+  try { await loadModels(); return true; }
+  catch (e) {
+    setStatus("認識用のデータを読み込めませんでした。インターネットにつながっているか確認し、ページを読み込み直してください。（" + ((e && e.message) || "読み込みエラー").slice(0, 80) + "）");
+    return false;
+  }
+}
+
+async function startCamera() {
+  ui.btnCam.disabled = true;
+  try {
+    const problem = openingProblem();
+    if (problem) { setStatus(problem); return; }
+    stopSource();
+    setStatus("カメラを開いています…");
+    const facing = ui.selFacing.value;
+    try {
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    } catch (e) {
+      if (e && e.name === "OverconstrainedError") {
+        try { state.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
+        catch (e2) { setStatus(cameraErrorMessage(e2)); return; }
+      } else { setStatus(cameraErrorMessage(e)); return; }
+    }
+    video.srcObject = state.stream; video.loop = false;
+    try { await video.play(); } catch (e) { setStatus("カメラの映像を再生できませんでした。（" + ((e && e.name) || "Error") + "）"); return; }
+    if (!(await prepareModels())) return;
+    showStage(); setStatus("カメラで認識中"); startLoop();
+  } finally { ui.btnCam.disabled = false; }
+}
+
+async function startFile(file) {
+  stopSource();
+  video.srcObject = null; video.src = URL.createObjectURL(file); video.loop = true;
+  try { await video.play(); }
+  catch (e) { setStatus("この動画を再生できませんでした。MP4形式の動画で試してください。（" + ((e && e.name) || "Error") + "）"); return; }
+  if (!(await prepareModels())) return;
+  showStage(); setStatus("動画で認識中（繰り返し再生）"); startLoop();
+}
+
+{
+  const problem = openingProblem();
+  if (problem) setStatus(problem);
+}
+
+function stopSource() {
+  if (state.stream) { state.stream.getTracks().forEach((t) => t.stop()); state.stream = null; }
+  if (video.src && video.src.startsWith("blob:")) URL.revokeObjectURL(video.src);
+}
+
+function startLoop() { if (!state.running) { state.running = true; requestAnimationFrame(loop); } }
+
+// ---------- 認識と記録 ----------
+function toPx(list) {
+  const W = canvas.width, H = canvas.height;
+  return list.map((p) => ({ x: p.x * W, y: p.y * H, z: (p.z || 0) * W, v: p.visibility }));
+}
+
+function chooseRecipient(posesPx, handsPx) {
+  if (!posesPx.length) return null;
+  const mode = ui.selRecipient.value;
+  const torso = (P) => dist2(P[11], P[12]) * dist2(lerp(P[11], P[12], 0.5), lerp(P[23], P[24], 0.5));
+  const hipX = (P) => (P[23].x + P[24].x) / 2;
+  if (mode === "left") return posesPx.reduce((a, b) => (hipX(a) < hipX(b) ? a : b));
+  if (mode === "right") return posesPx.reduce((a, b) => (hipX(a) > hipX(b) ? a : b));
+  const tol = canvas.width * 0.07;
+  const owners = new Set();
+  for (const h of handsPx) {
+    let best = -1, bd = Infinity;
+    posesPx.forEach((P, i) => { const d = Math.min(dist2(P[15], h.lm[0]), dist2(P[16], h.lm[0])); if (d < bd) { bd = d; best = i; } });
+    if (best >= 0 && bd < tol) owners.add(best);
+  }
+  if (mode === "self") {
+    const own = [...owners];
+    return own.length ? posesPx[own[0]] : posesPx[0];
+  }
+  const others = posesPx.filter((_, i) => !owners.has(i));
+  if (!others.length) return null;
+  return others.reduce((a, b) => (torso(a) > torso(b) ? a : b));
+}
+
+function loop() {
+  if (!state.running) return;
+  requestAnimationFrame(loop);
+  if (video.readyState < 2 || !video.videoWidth) return;
+  if (video.currentTime === state.lastVideoTime && !state.stream) return;
+  state.lastVideoTime = video.currentTime;
+  if (canvas.width !== video.videoWidth) { canvas.width = video.videoWidth; canvas.height = video.videoHeight; }
+
+  const now = performance.now();
+  let handRes, poseRes;
+  try { handRes = state.hand.detectForVideo(video, now); poseRes = state.pose.detectForVideo(video, now); }
+  catch (e) { return; }
+
+  const labels = handRes.handedness || handRes.handednesses || [];
+  const handsPx = (handRes.landmarks || []).map((lm, i) => ({
+    lm: toPx(lm), label: (labels[i] && labels[i][0] && labels[i][0].categoryName) || "Right"
+  }));
+  const posesPx = (poseRes.landmarks || []).map(toPx);
+
+  if (state.calibrating) collectCalibration(handsPx, now);
+
+  const recipient = chooseRecipient(posesPx, handsPx);
+  let view = ui.selView.value;
+  if (recipient && view === "auto") view = bodyView(recipient);
+  const zoneInfo = recipient ? buildZones(recipient, view) : null;
+
+  const hits = [];
+  for (const h of handsPx) {
+    const mult = state.calib[h.label] ?? 1;
+    const pf = palmFrame(h.lm, mult);
+    const hit = zoneInfo ? hitZone(pf.c, pf.n, zoneInfo.zones, zoneInfo.u) : null;
+    hits.push({ h, pf, hit });
+  }
+
+  // 記録（同じ範囲を一瞬かすめただけでは数えない）
+  const dt = state.lastTs == null ? 0 : Math.min((now - state.lastTs) / 1000, 0.25);
+  state.lastTs = now;
+  const active = updateTracks(hits, now);
+  if (state.recording) {
+    state.recElapsed += dt;
+    for (const id of active) state.totals[id] = (state.totals[id] || 0) + dt;
+  }
+
+  draw(posesPx, recipient, zoneInfo, hits, active);
+  updatePanel(view, recipient, handsPx, hits, active);
+}
+
+function updateTracks(hits, now) {
+  const seen = new Set();
+  for (const { h, hit } of hits) {
+    const key = h.label;
+    const tr = state.tracks[key] || (state.tracks[key] = { cand: null, since: now, cur: null, segStart: null });
+    const id = hit ? hit.zone.id : null;
+    if (hit) state.names[hit.zone.id] = hit.zone.name;
+    if (id !== tr.cand) { tr.cand = id; tr.since = now; }
+    if (tr.cur !== tr.cand && now - tr.since >= 250) switchTrack(key, tr, tr.cand);
+    seen.add(key);
+  }
+  for (const [key, tr] of Object.entries(state.tracks)) {
+    if (!seen.has(key) && tr.cur) switchTrack(key, tr, null);
+  }
+  const active = new Set();
+  for (const tr of Object.values(state.tracks)) if (tr.cur) active.add(tr.cur);
+  return active;
+}
+
+function switchTrack(key, tr, next) {
+  const t = state.recElapsed;
+  if (state.recording && tr.cur && tr.segStart != null && t - tr.segStart > 0.05) {
+    state.segments.push({ hand: key === "Left" ? "手A" : "手B", zone: state.names[tr.cur] || tr.cur, start: tr.segStart, end: t });
+  }
+  tr.cur = next; tr.segStart = next ? t : null;
+}
+
+// ---------- 描画 ----------
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+let colors = null;
+function readColors() { colors = { zone: cssVar("--zone"), edge: cssVar("--zone-edge"), hit: cssVar("--hit"), gold: cssVar("--gold") }; }
+readColors();
+try { matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readColors); } catch (e) {}
+
+function draw(posesPx, recipient, zoneInfo, hits, active) {
+  const W = canvas.width;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const lw = Math.max(2, W / 400), fs = Math.max(14, Math.round(W / 55));
+  ctx.lineWidth = lw; ctx.font = `700 ${fs}px "BIZ UDPGothic", sans-serif`; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+
+  if (zoneInfo) {
+    for (const z of zoneInfo.zones) {
+      const on = active.has(z.id);
+      ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+      ctx.fillStyle = on ? colors.hit : colors.zone; ctx.fill();
+      ctx.strokeStyle = on ? colors.gold : colors.edge; ctx.stroke();
+      if (on || z.r > fs * 1.2) {
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        const w = ctx.measureText(z.name).width + fs * 0.6;
+        ctx.fillRect(z.x - w / 2, z.y - fs * 0.7, w, fs * 1.4);
+        ctx.fillStyle = "#ffffff"; ctx.fillText(z.name, z.x, z.y);
+      }
+    }
+  }
+  for (const { h, pf, hit } of hits) {
+    ctx.fillStyle = colors.gold;
+    for (const p of h.lm) { ctx.beginPath(); ctx.arc(p.x, p.y, lw * 1.4, 0, Math.PI * 2); ctx.fill(); }
+    const L = (zoneInfo ? zoneInfo.u : W / 6) * 0.9;
+    const d2 = Math.hypot(pf.n.x, pf.n.y);
+    ctx.strokeStyle = colors.gold; ctx.lineWidth = lw * 2;
+    if (d2 < 0.3) {
+      // カメラの手前／奥を向いているとき
+      ctx.beginPath(); ctx.arc(pf.c.x, pf.c.y, L * 0.18, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(pf.c.x, pf.c.y, lw * 2.5, 0, Math.PI * 2); ctx.fillStyle = colors.gold; ctx.fill();
+    } else {
+      const ex = pf.c.x + (pf.n.x / d2) * L * d2, ey = pf.c.y + (pf.n.y / d2) * L * d2;
+      arrow(pf.c.x, pf.c.y, ex, ey, lw * 6);
+    }
+    if (hit) { ctx.beginPath(); ctx.arc(hit.point.x, hit.point.y, lw * 3, 0, Math.PI * 2); ctx.fillStyle = colors.gold; ctx.fill(); }
+    ctx.lineWidth = lw;
+  }
+}
+function arrow(x1, y1, x2, y2, head) {
+  const a = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - head * Math.cos(a - 0.45), y2 - head * Math.sin(a - 0.45));
+  ctx.lineTo(x2 - head * Math.cos(a + 0.45), y2 - head * Math.sin(a + 0.45));
+  ctx.closePath(); ctx.fillStyle = colors.gold; ctx.fill();
+}
+
+// ---------- 表示の更新 ----------
+const viewName = { front: "前面", back: "背面", side: "側面" };
+let lastPanel = 0;
+function updatePanel(view, recipient, handsPx, hits, active) {
+  const now = performance.now();
+  if (now - lastPanel < 150) return;
+  lastPanel = now;
+  ui.chipView.textContent = "体の向き：" + (recipient ? viewName[view] || "―" : "受ける方が映っていません");
+  ui.chipHands.textContent = "手：" + handsPx.length;
+  const names = [...active].map((id) => state.names[id] || id);
+  if (names.length) {
+    ui.target.firstChild.textContent = names.join("・");
+    const modes = hits.filter((x) => x.hit).map((x) => (x.hit.mode === "depth" ? "掌が手前・奥向き（重なり位置で判定）" : "掌の向きの延長線で判定"));
+    ui.targetSub.textContent = modes[0] || "";
+  } else {
+    ui.target.firstChild.textContent = "―";
+    ui.targetSub.textContent = !recipient ? "受ける方の体が映ると範囲が表示されます" : handsPx.length ? "どの範囲にも向いていません" : "手が映ると表示されます";
+  }
+  const caution = [...active].some((id) => id.startsWith("neck"));
+  ui.warn.hidden = !caution;
+  ui.clock.textContent = "記録時間 " + mmss(state.recElapsed);
+  renderTotals();
+}
+
+function mmss(s) { const m = Math.floor(s / 60), r = Math.floor(s % 60); return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0"); }
+
+function renderTotals() {
+  const rows = Object.entries(state.totals).filter(([, s]) => s >= 0.5).sort((a, b) => b[1] - a[1]);
+  if (!rows.length) {
+    ui.tbody.innerHTML = '<tr><td colspan="2" class="status">' + (state.recording ? "掌が範囲に向くと、ここに時間が増えていきます。" : "記録を開始すると、ここに部位ごとの時間が並びます。") + "</td></tr>";
+    return;
+  }
+  ui.tbody.replaceChildren(...rows.map(([id, s]) => {
+    const tr = document.createElement("tr");
+    const a = document.createElement("td"); a.textContent = state.names[id] || id;
+    const b = document.createElement("td"); b.className = "num"; b.textContent = mmss(s);
+    tr.append(a, b); return tr;
+  }));
+}
+
+// ---------- 掌の向きの調整 ----------
+function startCalibration() {
+  state.calibrating = { until: performance.now() + 2000, sums: {} };
+  setStatus("掌をカメラに向けたまま、2秒お待ちください…");
+}
+function collectCalibration(handsPx, now) {
+  const c = state.calibrating;
+  for (const h of handsPx) {
+    const raw = palmFrame(h.lm, 1).raw;
+    const s = c.sums[h.label] || (c.sums[h.label] = { z: 0, n: 0 });
+    s.z += raw.z; s.n += 1;
+  }
+  if (now >= c.until) {
+    const done = [];
+    for (const [label, s] of Object.entries(c.sums)) {
+      if (s.n >= 5) { state.calib[label] = s.z / s.n < 0 ? 1 : -1; done.push(label); }
+    }
+    state.calibrating = null;
+    if (done.length) {
+      state.calibrated = true;
+      try { localStorage.setItem("tenohira-calib", JSON.stringify(state.calib)); } catch (e) {}
+      setStatus("掌の向きを合わせました（" + done.length + "本の手）。両手を使う場合は、もう一方の手でも行ってください。");
+    } else {
+      setStatus("手が映っていなかったため、合わせられませんでした。もう一度お試しください。");
+    }
+    updateCalibChip();
+  }
+}
+
+// ---------- 記録と書き出し ----------
+function toggleRecording() {
+  if (state.recording) {
+    for (const [key, tr] of Object.entries(state.tracks)) switchTrack(key, tr, tr.cur);
+    state.recording = false;
+    ui.btnRec.textContent = "記録を再開"; ui.btnRec.setAttribute("aria-pressed", "false");
+    buildCsv();
+  } else {
+    state.recording = true;
+    for (const tr of Object.values(state.tracks)) tr.segStart = tr.cur ? state.recElapsed : null;
+    ui.btnRec.textContent = "記録を止める"; ui.btnRec.setAttribute("aria-pressed", "true");
+  }
+}
+function resetRecording() {
+  state.recording = false; state.recElapsed = 0; state.totals = {}; state.segments = []; state.tracks = {};
+  ui.btnRec.textContent = "記録開始"; ui.btnRec.setAttribute("aria-pressed", "false");
+  ui.csvOut.value = ""; ui.exportStatus.textContent = ""; ui.clock.textContent = "記録時間 00:00";
+  renderTotals();
+}
+function buildCsv() {
+  const lines = ["部位,合計秒"];
+  Object.entries(state.totals).filter(([, s]) => s >= 0.5).sort((a, b) => b[1] - a[1])
+    .forEach(([id, s]) => lines.push(`${state.names[id] || id},${s.toFixed(1)}`));
+  lines.push("", "開始秒,終了秒,手,部位");
+  state.segments.forEach((g) => lines.push(`${g.start.toFixed(1)},${g.end.toFixed(1)},${g.hand},${g.zone}`));
+  ui.csvOut.value = lines.join("\n");
+  return ui.csvOut.value;
+}
+
+ui.btnCam.addEventListener("click", startCamera);
+ui.fileVideo.addEventListener("change", (e) => { const f = e.target.files && e.target.files[0]; if (f) startFile(f); });
+ui.selFacing.addEventListener("change", () => { if (state.stream) startCamera(); });
+ui.btnCalib.addEventListener("click", startCalibration);
+ui.btnRec.addEventListener("click", toggleRecording);
+ui.btnReset.addEventListener("click", resetRecording);
+ui.btnCopy.addEventListener("click", async () => {
+  const text = buildCsv();
+  try { await navigator.clipboard.writeText(text); ui.exportStatus.textContent = "コピーしました"; }
+  catch (e) { ui.csvOut.focus(); ui.csvOut.select(); ui.exportStatus.textContent = "自動でコピーできなかったため、内容を選択しました。コピー操作をしてください。"; }
+});
+ui.btnSave.addEventListener("click", () => {
+  const text = buildCsv();
+  const blob = new Blob(["﻿" + text], { type: "text/csv" });
+  const a = document.createElement("a");
+  const d = new Date(), pad = (n) => String(n).padStart(2, "0");
+  a.href = URL.createObjectURL(blob);
+  a.download = `掌の向き記録_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.csv`;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  ui.exportStatus.textContent = "保存しました（Excelでそのまま開けます）";
+});
+</script>
+</body>
+</html>
