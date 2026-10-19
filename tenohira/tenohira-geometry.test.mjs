@@ -10,9 +10,9 @@ const html = readFileSync(path, "utf8");
 const block = html.split("// GEOMETRY-START")[1]?.split("// GEOMETRY-END")[0];
 if (!block) throw new Error("GEOMETRY-START / GEOMETRY-END の目印が見つかりません: " + path);
 const mod = await import(
-  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize, repairPose };")
+  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize };")
 );
-const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize, repairPose } = mod;
+const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize } = mod;
 
 // 背中をカメラに向けて座った受ける方（画素座標）。人の左肩が画面の左
 const P = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 1 }));
@@ -228,34 +228,44 @@ check("掌が向いている範囲は多数決で決め、一コマだけ外れ�
   assert.deepEqual(ids.slice(2), ["kidR", "kidR", "kidR", "kidR", "kidR", "kidR"]);
 });
 
-// ---- 体の一部しか映らない時 ----
-check("顔だけのアップ：顔の大きさと向きから肩を推定し、胴の範囲は画面の外なら出さない", () => {
-  // 正面を向いた顔（幅 960×540 の画面いっぱい）。肩・腰は見えていない（見誤りで顔のすぐ下に縮んで出ている）
+// ---- 映っている部位だけに範囲を置く ----
+check("頭・右肩・右の背中しか映っていない時は、その範囲だけを出す", () => {
+  // 背中側から。人の左半身（画面の左）は隠れていて、右半身（画面の右）だけが映っている
+  const Q = P.map((p) => ({ ...p }));
+  const fr = { W: 1000, H: 700 };
+  for (const i of [11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31]) Q[i] = { ...Q[i], v: 0.1 };  // 人の左側（画面の左）は隠れている
+  Q[24] = { ...Q[24], v: 0.1 };  // 右の腰も見えない（画面の下で切れている）
+  const ids = buildZones(Q, "back", fr).zones.map((z) => z.id);
+  for (const id of ["head", "neckR", "shR", "scR"]) assert.ok(ids.includes(id), id);
+  for (const id of ["neckL", "shL", "scL", "kidL", "kidR", "lowL", "lowR", "backC", "buttL", "buttR"]) assert.ok(!ids.includes(id), id + " は出さない");
+});
+check("脚が映っている時は、太もも・膝・すね・足首・足の範囲も出す", () => {
+  const Q = P.map((p) => ({ ...p }));
+  const put = (i, x, y) => (Q[i] = { x, y, v: 0.95 });
+  put(25, 440, 820); put(26, 560, 820); put(27, 440, 1000); put(28, 560, 1000); put(29, 430, 1030); put(30, 570, 1030); put(31, 450, 1060); put(32, 550, 1060);
+  const ids = buildZones(Q, "front").zones.map((z) => z.id);
+  for (const id of ["thighL", "kneeL", "shinL", "ankleL", "footL", "thighR", "kneeR", "shinR", "ankleR", "footR"]) assert.ok(ids.includes(id), id);
+  const shin = buildZones(Q, "back").zones.find((z) => z.id === "shinL");
+  assert.equal(shin.name, "ふくらはぎ（左）");
+});
+check("画面の外の点からは範囲を作らない（腰が画面の下で切れている時は腎臓・腰を出さない）", () => {
+  const zi = buildZones(P, "back", { W: 1000, H: 560 });  // 腰（y=620）は画面の外
+  const ids = zi.zones.map((z) => z.id);
+  for (const id of ["head", "shL", "shR", "scL", "scR"]) assert.ok(ids.includes(id), id);
+  for (const id of ["kidL", "kidR", "lowL", "lowR", "backC"]) assert.ok(!ids.includes(id), id);
+  assert.ok(zi.zones.every((z) => z.y <= 560));
+});
+check("顔だけのアップは頭の範囲だけ。大きさは顔の幅から決める", () => {
   const F = Array.from({ length: 33 }, () => ({ x: 480, y: 330, v: 0.05 }));
   const put = (i, x, y, v = 1) => (F[i] = { x, y, v });
-  put(0, 480, 300); put(2, 440, 260); put(5, 520, 260); put(7, 600, 280); put(8, 360, 280); put(9, 455, 360); put(10, 505, 360);
+  put(0, 480, 300); put(2, 440, 260); put(5, 520, 260); put(7, 600, 280); put(8, 360, 280);
   put(11, 520, 380, 0.2); put(12, 440, 380, 0.2); put(23, 510, 420, 0.2); put(24, 450, 420, 0.2);
-  const Q = repairPose(F, { W: 960, H: 540 });
-  assert.ok(Q.est?.shoulders);
-  assert.ok(Math.abs(Q[11].x - Q[12].x) > 400, "肩幅は顔の幅の2倍以上");
-  const zi = buildZones(Q, "front", { W: 960, H: 540 });
-  const head = zi.zones.find((z) => z.id === "head");
-  assert.ok(head && !head.est && Math.abs(head.x - 480) < 40);
-  assert.ok(zi.zones.every((z) => z.y <= 540 + z.r), "画面の外の範囲は出さない");
-  assert.ok(!zi.zones.some((z) => z.id === "groinL" || z.id === "abd"), "腹・鼠径部は画面の外");
-  assert.ok(zi.zones.filter((z) => z.id !== "head").every((z) => z.est), "頭以外は推定の印");
-});
-check("腰が画面の外：肩から腰を推定し、胴の下の範囲に推定の印を付ける", () => {
-  const Q0 = P.map((p) => ({ ...p }));
-  const Q = repairPose(Q0, { W: 1000, H: 560 });  // 腰（y=620）は画面の下の外
-  assert.ok(Q.est?.hips && !Q.est.shoulders);
-  const zi = buildZones(Q, "back", { W: 1000, H: 560 });
-  assert.ok(zi.zones.find((z) => z.id === "scL" && !z.est));
-  assert.ok(zi.zones.filter((z) => /^(kid|low)/.test(z.id)).every((z) => z.est));
+  const zi = buildZones(F, "front", { W: 960, H: 540 });
+  assert.deepEqual(zi.zones.map((z) => z.id), ["head"]);
+  assert.ok(zi.zones[0].r > 200, "頭の範囲は顔の大きさに合う");
 });
 check("点が一か所につぶれた骨格は捨てる", () => {
   const C = Array.from({ length: 33 }, (_, i) => ({ x: 300 + (i % 3), y: 400 + (i % 2), v: 0.99 }));
-  assert.equal(repairPose(C, { W: 544, H: 900 }), null);
   const fr = resolveFrame({ poses: [C], hands: [], W: 544, H: 900, mem: {} });
   assert.equal(fr.recipient, null);
 });

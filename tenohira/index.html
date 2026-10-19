@@ -250,94 +250,83 @@ function palmFrame(h, mult) {
 }
 
 /** 骨格33点から、受ける方が前面・背面・側面のどれを向いているかを推定 */
-/** 骨格の点を、映っている所に合わせて直す（頭のアップ・上半身だけ・画面の外へはみ出した時など）。
-    ・点が一か所につぶれた骨格は、見誤りとして捨てる（null）
-    ・腰が見えない・画面の外・肩幅に比べて胴が短すぎる時は、肩から腰の位置を推定する（est.hips）
-    ・肩も見えず顔だけ映っている時は、顔の大きさと向きから肩・腰を推定する（est.shoulders）
-    推定した点は v を 0.45 にし、P.est に印を付ける。frame：{ W, H }（無ければ画面の外の判定はしない）。
-    受ける方・施術者の見分けや追跡には元の点を使い（腰の推定がコマごとに入ったり外れたりすると、同じ人の位置が揺れるため）、
-    範囲を置く時だけこちらを使う */
+/** 点が一か所につぶれた骨格（見誤り）か。frame：{ W, H } */
 const poseCollapsed = (P, frame) => !!frame && (() => {
   const xs = [0, 11, 12, 23, 24].map((i) => P[i].x), ys = [0, 11, 12, 23, 24].map((i) => P[i].y);
   return Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys) < 0.03 * Math.max(frame.W, frame.H);
 })();
-function repairPose(P, frame) {
-  if (!P || P.repaired) return P;
+
+/** 骨格のうち、実際に映っている点から体の向き・大きさを決める（映っていない点の位置は当てにしない）。
+    seen(i)：その点が見えていて（見え具合 0.5 以上）画面の中にあるか。
+    sm・hm：肩・腰の真ん中（腰が映っていない時は、肩の線に直角で頭と反対へ、体の大きさの1.25倍のところに仮に置く。範囲を出す判断には使わない）。
+    up：腰→肩の向き、u：体の大きさ（肩幅・胴の長さ・頭の幅のうち、映っているものから） */
+function bodyAxes(P, frame) {
   const W = frame?.W, H = frame?.H;
-  const inside = (p) => !W || !H || (p.x >= -0.02 * W && p.x <= 1.02 * W && p.y >= -0.02 * H && p.y <= 1.02 * H);
-  const ok = (i) => P[i] && (P[i].v ?? 1) >= 0.5 && inside(P[i]);
-  if (poseCollapsed(P, frame)) return null;  // 点が一か所につぶれている
-  const Q = P.map((p) => ({ ...p }));
-  Object.assign(Q, { synthetic: P.synthetic, box: P.box, manual: P.manual, held: P.held, repaired: true });
-  const est = {};
-  const earsOk = ok(7) && ok(8), eyesOk = ok(2) && ok(5);
-  const headW = earsOk ? dist2(P[7], P[8]) : eyesOk ? 2.2 * dist2(P[2], P[5]) : 0;
-  const headC = earsOk ? lerp(P[7], P[8], 0.5) : eyesOk ? lerp(P[2], P[5], 0.5) : null;
-  let sOk = ok(11) && ok(12);
-  // 顔だけ映っている：顔の向き（目→口）を下として、肩・腰を推定する
-  if (!sOk && headC && headW > 0 && ok(0)) {
-    const mouth = ok(9) && ok(10) ? lerp(P[9], P[10], 0.5) : P[0];
-    let dx = mouth.x - headC.x, dy = mouth.y - headC.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
-    const lft = earsOk ? { x: P[7].x - P[8].x, y: P[7].y - P[8].y } : { x: P[2].x - P[5].x, y: P[2].y - P[5].y };
-    const ll = Math.hypot(lft.x, lft.y) || 1;
-    const neck = { x: headC.x + dx * 1.1 * headW, y: headC.y + dy * 1.1 * headW };
-    const sw = 2.5 * headW;
-    Q[11] = { x: neck.x + (lft.x / ll) * sw / 2, y: neck.y + (lft.y / ll) * sw / 2, z: 0, v: 0.45 };
-    Q[12] = { x: neck.x - (lft.x / ll) * sw / 2, y: neck.y - (lft.y / ll) * sw / 2, z: 0, v: 0.45 };
-    est.shoulders = true; sOk = true;
+  const inside = (p) => !W || !H || (p.x >= 0 && p.x <= W && p.y >= 0 && p.y <= H);
+  const seen = (i) => !!P[i] && (P[i].v ?? 1) >= 0.5 && inside(P[i]);
+  const sL = seen(11), sR = seen(12), hL = seen(23), hR = seen(24);
+  const earsOk = (P[7].v ?? 1) > 0.2 && (P[8].v ?? 1) > 0.2;
+  const earM = earsOk ? lerp(P[7], P[8], 0.5) : { x: P[0].x, y: P[0].y };
+  const headSeen = [0, 2, 5, 7, 8].some((i) => P[i] && (P[i].v ?? 1) >= 0.3 && inside(P[i]));
+  const headW = earsOk ? dist2(P[7], P[8]) : 0;
+  const sm = sL && !sR ? P[11] : sR && !sL ? P[12] : lerp(P[11], P[12], 0.5);
+  const sw = dist2(P[11], P[12]);
+  const hipSeen = hL || hR;
+  const hmSeen = hL && !hR ? P[23] : hR && !hL ? P[24] : lerp(P[23], P[24], 0.5);
+  const cand = [];
+  if (sL && sR) cand.push(sw);
+  if ((sL || sR) && hipSeen) cand.push(dist2(sm, hmSeen) * 0.55);
+  if (headW && headSeen) cand.push(2.5 * headW);
+  const u = cand.length ? Math.max(...cand) : Math.max(sw, dist2(lerp(P[11], P[12], 0.5), lerp(P[23], P[24], 0.5)) * 0.55) || 1;
+  let up;
+  if ((sL || sR) && hipSeen) { const d = dist2(sm, hmSeen) || 1; up = { x: (sm.x - hmSeen.x) / d, y: (sm.y - hmSeen.y) / d }; }
+  else {
+    // 腰が映っていない：肩の線に直角で頭の側を上とする（頭も分からなければ画面の上）
+    let nx = -(P[11].y - P[12].y), ny = P[11].x - P[12].x; const nl = Math.hypot(nx, ny);
+    if (nl > 1e-6 && (sL || sR)) { nx /= nl; ny /= nl; if (headSeen ? (earM.x - sm.x) * nx + (earM.y - sm.y) * ny < 0 : ny > 0) { nx = -nx; ny = -ny; } up = { x: nx, y: ny }; }
+    else up = { x: 0, y: -1 };
   }
-  if (!sOk) return P.synthetic || P.manual ? Q : (Object.keys(est).length ? Object.assign(Q, { est }) : Q);
-  const sm = lerp(Q[11], Q[12], 0.5), sw = dist2(Q[11], Q[12]);
-  const hm = lerp(Q[23], Q[24], 0.5), tl = dist2(sm, hm);
-  const hipsOk = !est.shoulders && ok(23) && ok(24) && tl >= 0.25 * Math.max(sw, headW * 1.5)
-    && (!headC || dist2(headC, hm) > dist2(sm, hm));  // 頭・肩・腰の順に並んでいる
-  if (!hipsOk) {
-    // 肩の線に直角で、頭と反対の向きへ、肩幅の1.25倍のところに腰を置く
-    let nx = -(Q[11].y - Q[12].y), ny = Q[11].x - Q[12].x; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
-    const ref = headC || (ok(0) ? P[0] : null);
-    if (ref ? (ref.x - sm.x) * nx + (ref.y - sm.y) * ny > 0 : ny < 0) { nx = -nx; ny = -ny; }
-    const L = 1.25 * Math.max(sw, headW * 2), half = { x: (Q[11].x - Q[12].x) * 0.35, y: (Q[11].y - Q[12].y) * 0.35 };
-    const h = { x: sm.x + nx * L, y: sm.y + ny * L };
-    Q[23] = { x: h.x + half.x, y: h.y + half.y, z: 0, v: 0.45 };
-    Q[24] = { x: h.x - half.x, y: h.y - half.y, z: 0, v: 0.45 };
-    for (const i of [25, 26, 27, 28]) Q[i] = { ...Q[i], v: Math.min(Q[i].v ?? 1, 0.2) };  // 膝・足首も当てにしない
-    est.hips = true;
-  }
-  if (Object.keys(est).length) Q.est = est;
-  return Q;
+  // 範囲の位置を決めるための肩・腰（映っていない腰は仮の位置）
+  const vh = (S) => ({ x: S.x - up.x * 1.25 * u, y: S.y - up.y * 1.25 * u });
+  const LH = hL ? P[23] : vh(P[11]), RH = hR ? P[24] : vh(P[12]);
+  return { seen, inside, sL, sR, hL, hR, hipSeen, headSeen, earM, headW, u, up, LS: P[11], RS: P[12], LH, RH, sm: lerp(P[11], P[12], 0.5), hm: lerp(LH, RH, 0.5) };
 }
 
-function bodyView(P) {
-  const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
-  const sw = dist2(LS, RS), tl = dist2(lerp(LS, RS, 0.5), lerp(LH, RH, 0.5));
+function bodyView(P, frame) {
+  const A = bodyAxes(P, frame);
+  const { LS, RS, sm, hm } = A;
+  const sw = dist2(LS, RS), tl = dist2(sm, hm);
   if (sw < 0.38 * tl) return "side";
   const noseVis = P[0].v ?? 1;
   // 人の右肩→左肩の向きと、肩→腰の向きの回り方で、カメラの方を向いているかを決める
   // （立っている時は「人の左肩が画面の右側にあれば前面」と同じ。寝ている・傾いている時も使える。映像を左右反転していない場合）
-  const sm = lerp(LS, RS, 0.5), hm = lerp(LH, RH, 0.5);
   const facing = (LS.x - RS.x) * (hm.y - sm.y) - (LS.y - RS.y) * (hm.x - sm.x) > 0;
   if (noseVis < 0.35) return "back";
   return facing ? "front" : "back";
 }
 
-/** 骨格から施術部位の範囲（円）を作る。名前は人の左右（解剖学的な左右） */
+/** 骨格から施術部位の範囲（円）を作る。名前は人の左右（解剖学的な左右）。
+    全身の型を当てはめず、実際に映っている点（見え具合 0.5 以上で画面の中）から作れる部位だけを出す
+    （頭・右肩・右の背中しか映っていなければその範囲だけ。脚が映っていれば太もも・膝・すね（ふくらはぎ）・足首・足も）。
+    frame：{ W, H }（あれば画面の外の点は映っていないとみなし、中心が画面の外の範囲も出さない） */
 function buildZones(P, view, frame) {
-  const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
-  const sm = lerp(LS, RS, 0.5), hm = lerp(LH, RH, 0.5);
-  const sw = dist2(LS, RS), tl = dist2(sm, hm);
-  const u = Math.max(sw, tl * 0.55);
+  const A = bodyAxes(P, frame);
+  const { seen, headSeen, earM, u, up, LS, RS, sm } = A;
+  // 体の大きさに比べて長さがありえない骨（見誤りで点が縮んで重なっている時など）からは範囲を作らない
+  const bone = (a, b, lo, hi) => { const d = dist2(P[a], P[b]); return d >= lo * u && d <= hi * u; };
+  const sL = A.sL, sR = A.sR;
+  const hL = A.hL && (!sL || bone(11, 23, 0.6, 3)), hR = A.hR && (!sR || bone(12, 24, 0.6, 3));
+  const hipSeen = hL || hR;
+  const LH = hL ? P[23] : A.LH, RH = hR ? P[24] : A.RH, hm = lerp(LH, RH, 0.5);
   const zones = [];
   const add = (id, name, p, r, opt = {}) => zones.push({ id, name, x: p.x, y: p.y, r: r * u, ...opt });
-  const earsOk = (P[7].v ?? 1) > 0.2 && (P[8].v ?? 1) > 0.2;
-  const earM = earsOk ? lerp(P[7], P[8], 0.5) : { x: P[0].x, y: P[0].y };
-  // 体の軸（腰→肩の向き）。頭の範囲は耳から少し頭頂の方へずらす（寝ている・傾いている時も軸に沿って）
-  const up = { x: (sm.x - hm.x) / (tl || 1), y: (sm.y - hm.y) / (tl || 1) };
-  add("head", view === "front" ? "頭部" : "後頭部", { x: earM.x + up.x * 0.08 * tl, y: earM.y + up.y * 0.08 * tl }, 0.42);
+  // 頭（耳から少し頭頂の方へ）・首・肩
+  if (headSeen) add("head", view === "front" ? "頭部" : "後頭部", { x: earM.x + up.x * 0.15 * u, y: earM.y + up.y * 0.15 * u }, 0.42);
   const neckBase = lerp(sm, earM, 0.35);
-  add("neckL", "首（左）", { x: neckBase.x + (LS.x - sm.x) * 0.3, y: neckBase.y + (LS.y - sm.y) * 0.3 }, 0.13, { caution: true });
-  add("neckR", "首（右）", { x: neckBase.x + (RS.x - sm.x) * 0.3, y: neckBase.y + (RS.y - sm.y) * 0.3 }, 0.13, { caution: true });
-  add("shL", "肩（左）", lerp(LS, neckBase, 0.2), 0.17);
-  add("shR", "肩（右）", lerp(RS, neckBase, 0.2), 0.17);
+  if (headSeen && sL) add("neckL", "首（左）", { x: neckBase.x + (LS.x - sm.x) * 0.3, y: neckBase.y + (LS.y - sm.y) * 0.3 }, 0.13, { caution: true });
+  if (headSeen && sR) add("neckR", "首（右）", { x: neckBase.x + (RS.x - sm.x) * 0.3, y: neckBase.y + (RS.y - sm.y) * 0.3 }, 0.13, { caution: true });
+  if (sL) add("shL", "肩（左）", lerp(LS, neckBase, 0.2), 0.17);
+  if (sR) add("shR", "肩（右）", lerp(RS, neckBase, 0.2), 0.17);
   // 横から写した時：体の前（鼻のある側）が分かれば、前側の範囲を前へ、背中側の範囲を後ろへずらして両方置く
   let fwd = null;
   if (view === "side" && (P[0].v ?? 1) > 0.35) {
@@ -346,42 +335,60 @@ function buildZones(P, view, frame) {
     if (fl > 0.05 * u) fwd = { x: fx / fl, y: fy / fl };
   }
   const shift = (p, k) => (fwd ? { x: p.x + fwd.x * k * u, y: p.y + fwd.y * k * u } : p);
+  const anyS = sL || sR;
   if (view === "front" || fwd) {
     const F = (p) => shift(p, 0.15);
-    add("chest", "胸", F(lerp(sm, hm, 0.3)), 0.24);
-    add("epi", "みぞおち", F(lerp(sm, hm, 0.55)), 0.17);
-    add("abd", "腹部", F(lerp(sm, hm, 0.85)), 0.22);
-    const down = { x: -up.x * 0.12 * tl, y: -up.y * 0.12 * tl };
-    add("groinL", "鼠径部（左）", F({ x: lerp(LH, hm, 0.3).x + down.x, y: lerp(LH, hm, 0.3).y + down.y }), 0.14);
-    add("groinR", "鼠径部（右）", F({ x: lerp(RH, hm, 0.3).x + down.x, y: lerp(RH, hm, 0.3).y + down.y }), 0.14);
+    if ((sL && sR) || (anyS && view === "side")) add("chest", "胸", F(lerp(sm, hm, 0.3)), 0.24);
+    if (anyS && hipSeen) add("epi", "みぞおち", F(lerp(sm, hm, 0.55)), 0.17);
+    if (hipSeen) add("abd", "腹部", F(lerp(sm, hm, 0.85)), 0.22);
+    const down = { x: -up.x * 0.22 * u, y: -up.y * 0.22 * u };
+    if (hL) add("groinL", "鼠径部（左）", F({ x: lerp(LH, hm, 0.3).x + down.x, y: lerp(LH, hm, 0.3).y + down.y }), 0.14);
+    if (hR) add("groinR", "鼠径部（右）", F({ x: lerp(RH, hm, 0.3).x + down.x, y: lerp(RH, hm, 0.3).y + down.y }), 0.14);
   }
   if (view !== "front") {
     const B = (p) => shift(p, -0.15);
     const side = (S, H, t, inward) => B(lerp(lerp(S, H, t), lerp(sm, hm, t), inward));
-    add("scL", "肩甲骨（左）", side(LS, LH, 0.25, 0.35), 0.19);
-    add("scR", "肩甲骨（右）", side(RS, RH, 0.25, 0.35), 0.19);
-    add("backC", "背中中央", B(lerp(sm, hm, 0.5)), 0.15);
-    add("kidL", "腎臓（左）", side(LS, LH, 0.72, 0.4), 0.16);
-    add("kidR", "腎臓（右）", side(RS, RH, 0.72, 0.4), 0.16);
-    add("lowL", "腰（左）", side(LS, LH, 0.95, 0.3), 0.16);
-    add("lowR", "腰（右）", side(RS, RH, 0.95, 0.3), 0.16);
+    if (sL) add("scL", "肩甲骨（左）", side(LS, LH, 0.25, 0.35), 0.19);
+    if (sR) add("scR", "肩甲骨（右）", side(RS, RH, 0.25, 0.35), 0.19);
+    if (anyS && hipSeen) add("backC", "背中中央", B(lerp(sm, hm, 0.5)), 0.15);
+    if (hL) add("kidL", "腎臓（左）", side(LS, LH, 0.72, 0.4), 0.16);
+    if (hR) add("kidR", "腎臓（右）", side(RS, RH, 0.72, 0.4), 0.16);
+    if (hL) add("lowL", "腰（左）", side(LS, LH, 0.95, 0.3), 0.16);
+    if (hR) add("lowR", "腰（右）", side(RS, RH, 0.95, 0.3), 0.16);
+    const dn = { x: -up.x * 0.3 * u, y: -up.y * 0.3 * u };
+    // 臀部は骨格で腰が取れている時だけ（枠・タップから作った人は座っていることが多く、臀部は映らない）
+    if (hL && !P.synthetic && !P.manual) add("buttL", "臀部（左）", B({ x: lerp(LH, hm, 0.15).x + dn.x, y: lerp(LH, hm, 0.15).y + dn.y }), 0.2);
+    if (hR && !P.synthetic && !P.manual) add("buttR", "臀部（右）", B({ x: lerp(RH, hm, 0.15).x + dn.x, y: lerp(RH, hm, 0.15).y + dn.y }), 0.2);
   }
-  if ((P[13].v ?? 1) > 0.4) add("elbL", "肘（左）", P[13], 0.15);
-  if ((P[14].v ?? 1) > 0.4) add("elbR", "肘（右）", P[14], 0.15);
-  if ((P[25].v ?? 1) > 0.4) add("kneeL", "膝（左）", P[25], 0.17);
-  if ((P[26].v ?? 1) > 0.4) add("kneeR", "膝（右）", P[26], 0.17);
-  // 推定した点から作った範囲には印（est）を付ける（画面では点線）。画面の外に中心がある範囲は出さない
-  const E = P.est || {};
-  const LOWER = /^(epi|abd|groin|kid|low|backC)/;
-  for (const z of zones) if ((E.shoulders && z.id !== "head") || (E.hips && LOWER.test(z.id))) z.est = true;
-  const vis = frame && frame.W && frame.H ? zones.filter((z) => z.x >= -0.1 * z.r && z.x <= frame.W + 0.1 * z.r && z.y >= -0.1 * z.r && z.y <= frame.H + 0.1 * z.r) : zones;
+  // 腕（受ける方の腕）：上腕・肘・前腕・手
+  for (const [k, S, E, Wr, I, sS] of [["L", 11, 13, 15, 19, sL], ["R", 12, 14, 16, 20, sR]]) {
+    const nm = k === "L" ? "（左）" : "（右）";
+    const eOk = seen(E) && (!seen(S) || bone(S, E, 0.35, 2)), wOk = eOk && seen(Wr) && bone(E, Wr, 0.3, 2);
+    if (sS && eOk) add("uarm" + k, "上腕" + nm, lerp(P[S], P[E], 0.5), 0.12);
+    if (eOk) add("elb" + k, "肘" + nm, P[E], 0.13);
+    if (wOk) add("farm" + k, "前腕" + nm, lerp(P[E], P[Wr], 0.5), 0.11);
+    if (wOk) add("hand" + k, "手" + nm, seen(I) ? lerp(P[Wr], P[I], 0.5) : P[Wr], 0.1);
+  }
+  // 脚：太もも・膝・すね（背中側から見た時はふくらはぎ）・足首・足
+  for (const [k, Hp, K, An, He, T, hS] of [["L", 23, 25, 27, 29, 31, hL], ["R", 24, 26, 28, 30, 32, hR]]) {
+    const nm = k === "L" ? "（左）" : "（右）";
+    // 膝は腰から、足首は膝から、ありうる長さだけ離れている時だけ（腰が見えない時は膝の点だけで判断する。腕も同じ）
+    const kOk = seen(K) && (!seen(Hp) || bone(Hp, K, 0.5, 3)), aOk = kOk && seen(An) && bone(K, An, 0.4, 3);
+    if (hS && kOk) add("thigh" + k, "太もも" + nm, lerp(P[Hp], P[K], 0.5), 0.17);
+    if (kOk) add("knee" + k, "膝" + nm, P[K], 0.15);
+    if (aOk) add("shin" + k, (view === "back" ? "ふくらはぎ" : "すね") + nm, lerp(P[K], P[An], 0.5), 0.13);
+    if (aOk) add("ankle" + k, "足首" + nm, P[An], 0.09);
+    if (aOk && seen(He) && seen(T)) add("foot" + k, "足" + nm, lerp(P[He], P[T], 0.5), 0.11);
+    else if (aOk && seen(T)) add("foot" + k, "足" + nm, P[T], 0.1);
+  }
+  const vis = frame && frame.W && frame.H ? zones.filter((z) => z.x >= 0 && z.x <= frame.W && z.y >= 0 && z.y <= frame.H) : zones;
   return { zones: vis, u };
 }
 
 /** 掌の中心から掌の向きへ伸ばした線の先にある範囲を探す（reach：届く長さ。体の大きさ u の倍数）。
     線から範囲の中心までの離れ（範囲の半径以内）と、掌からの近さで選ぶ（大きな頭の範囲の縁に先に触れても、首・肩の中心に近ければそちら）。
     受ける方の肘・膝は、胴・頭・首・肩・鼠径部などが線の先に一つも無い時だけ選ぶ（腕や膝が体の前にあると、絵の上では線が先に重なりやすいため） */
-const MINOR_ZONE = /^(elb|knee)/;
+const MINOR_ZONE = /^(elb|knee|uarm|farm|hand|butt|thigh|shin|ankle|foot)/;
 function hitZone(c, n, zones, u, reach = 4) {
   const d2 = Math.hypot(n.x, n.y);
   if (d2 < 0.3) {
@@ -395,7 +402,8 @@ function hitZone(c, n, zones, u, reach = 4) {
   }
   const dx = n.x / d2, dy = n.y / d2;
   const W_PERP = 8;  // 線からの離れを重く見る（場面の模擬で一番よく当たった重み）
-  for (const minor of [false, true]) {
+  // 線が範囲の中を通るもの：胴・頭・首・肩・鼠径部などを先に
+  const onRay = (minor) => {
     let best = null, bs = Infinity, bt = 0;
     for (const z of zones) {
       if (MINOR_ZONE.test(z.id) !== minor) continue;
@@ -405,19 +413,23 @@ function hitZone(c, n, zones, u, reach = 4) {
       const sc = Math.max(t, 0) + W_PERP * perp;
       if (sc < bs) { bs = sc; best = z; bt = Math.max(t, 0); }
     }
-    if (best) return { zone: best, mode: "ray", point: { x: c.x + dx * bt, y: c.y + dy * bt } };
-  }
-  // 線がどの範囲の中も通らない時：線の先で一番近い胴・頭などの範囲（線からの離れが範囲の半径＋体の大きさの0.3倍以内）を「近く」として返す
-  let best = null, bs = Infinity;
-  for (const z of zones) {
-    if (MINOR_ZONE.test(z.id)) continue;
-    const vx = z.x - c.x, vy = z.y - c.y;
-    const t = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
-    if (t < 0 || t > reach * u || perp > z.r + 0.3 * u) continue;
-    const sc = t + 8 * (perp - z.r);
-    if (sc < bs) { bs = sc; best = z; }
-  }
-  return best ? { zone: best, mode: "near", point: { x: best.x, y: best.y } } : null;
+    return best ? { zone: best, mode: "ray", point: { x: c.x + dx * bt, y: c.y + dy * bt } } : null;
+  };
+  // 線がどの胴・頭などの範囲の中も通らない時：線の先で一番近い範囲（線からの離れが範囲の半径＋体の大きさの0.3倍以内）を「近く」とする
+  const nearRay = () => {
+    let best = null, bs = Infinity;
+    for (const z of zones) {
+      if (MINOR_ZONE.test(z.id)) continue;
+      const vx = z.x - c.x, vy = z.y - c.y;
+      const t = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
+      if (t < 0 || t > reach * u || perp > z.r + 0.3 * u) continue;
+      const sc = t + 8 * (perp - z.r);
+      if (sc < bs) { bs = sc; best = z; }
+    }
+    return best ? { zone: best, mode: "near", point: { x: best.x, y: best.y } } : null;
+  };
+  // 腕・脚の範囲は、胴・頭などが線の先にも近くにも無い時だけ（腕や脚が体の前にあると、絵の上では線が先に重なりやすいため）
+  return onRay(false) || nearRay() || onRay(true);
 }
 
 /** 骨格の大きさの目安（肩幅と胴の長さから。buildZones の u と同じ） */
@@ -627,8 +639,12 @@ function faceToward(pf, target) {
 }
 /** 掌に一番近い範囲 */
 function nearestZone(c, zones) {
+  // 胴・頭などの範囲を先に（腕・脚・臀部は、それらが無い時だけ）
   let best = null, bd = Infinity;
-  for (const z of zones) { const d = dist2(c, z); if (d < bd) { bd = d; best = z; } }
+  for (const minor of [false, true]) {
+    for (const z of zones) { if (MINOR_ZONE.test(z.id) !== minor) continue; const d = dist2(c, z); if (d < bd) { bd = d; best = z; } }
+    if (best) return best;
+  }
   return best;
 }
 
@@ -638,7 +654,7 @@ function calibKey(h) { return h.fromPose ? (h.side === "R" ? "Left" : "Right") :
 /** 1コマ分の判断をまとめて行う（画面に依らない部分。模擬の場面でも同じ処理を検査できるように）。
     poses：骨格（画素）、hands：手の認識（{ lm, label }）、boxes：人の検出の枠、mode：受ける方の選び方、
     manual：タップで決めた { head, waist }、viewSel：受ける方の向き（auto / back / front）、orientAuto：掌の表裏を自動で決めるか、
-    calib：手の向きの補正、W・H：画面の幅・高さ（H があれば、骨格の点を映っている所に合わせて直し、画面の外の範囲は出さない）、mem：前のコマからの記憶（受ける方の位置・切り替わりの判断の始まり・タップ位置）、now：時刻（ミリ秒） */
+    calib：手の向きの補正、W・H：画面の幅・高さ（H があれば、画面の外の点は映っていないとみなし、映っている部位だけに範囲を置く）、mem：前のコマからの記憶（受ける方の位置・切り替わりの判断の始まり・タップ位置）、now：時刻（ミリ秒） */
 function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual = null, viewSel = "auto", orientAuto = true, calib = { Left: 1, Right: -1 }, W, H, mem = {}, now = 0 }) {
   const frame = W && H ? { W, H } : null;
   poses = dedupePoses(poses.filter((P) => !poseCollapsed(P, frame)));
@@ -700,10 +716,9 @@ function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual
     }
   }
   const { recipient, practitioner } = roles;
-  // 範囲は、映っている所に合わせて直した点で置く（頭のアップ・上半身だけの時に、胴の範囲が顔のまわりに縮まないように）
-  const layoutP = recipient && !recipient.synthetic && !recipient.manual ? repairPose(recipient, frame) || recipient : recipient;
-  const view = recipient ? (viewSel === "auto" ? bodyView(layoutP) : viewSel) : null;
-  const zoneInfo = recipient ? buildZones(layoutP, view, frame) : null;
+  // 範囲は、実際に映っている部位にだけ置く（画面の外の点・見えていない点からは作らない）
+  const view = recipient ? (viewSel === "auto" ? bodyView(recipient, frame) : viewSel) : null;
+  const zoneInfo = recipient ? buildZones(recipient, view, frame) : null;
   const hits = hands.map((h) => {
     if (h.fromPose && zoneInfo) {
       // 骨格から補った手は、掌の向きがほとんど分からない。手首は肘の方へずれて出やすいので前腕の先へ少し延ばし、
@@ -1119,10 +1134,7 @@ function draw(posesPx, recipient, zoneInfo, hits, active, practitioner) {
       const on = active.has(z.id);
       ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
       ctx.fillStyle = on ? colors.hit : colors.zone; ctx.fill();
-      // 映っていない所から推定した範囲は点線
-      ctx.setLineDash(z.est && !on ? [lw * 3, lw * 3] : []);
       ctx.strokeStyle = on ? colors.gold : colors.edge; ctx.stroke();
-      ctx.setLineDash([]);
       if (on || z.r > fs * 1.2) {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         const w = ctx.measureText(z.name).width + fs * 0.6;
