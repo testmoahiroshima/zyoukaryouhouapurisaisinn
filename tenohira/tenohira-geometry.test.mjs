@@ -1,11 +1,11 @@
 // 掌の向き記録：位置計算（GEOMETRY ブロック）の確認テスト
 // 使い方: node tenohira-geometry.test.mjs [HTMLファイルのパス]
-// 既定のパスは同じフォルダの tenohira-kiroku.html
+// 既定のパスは同じフォルダの index.html（掌の向き記録の本体）
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 
-const path = process.argv[2] || fileURLToPath(new URL("./tenohira-kiroku.html", import.meta.url));
+const path = process.argv[2] || fileURLToPath(new URL("./index.html", import.meta.url));
 const html = readFileSync(path, "utf8");
 const block = html.split("// GEOMETRY-START")[1]?.split("// GEOMETRY-END")[0];
 if (!block) throw new Error("GEOMETRY-START / GEOMETRY-END の目印が見つかりません: " + path);
