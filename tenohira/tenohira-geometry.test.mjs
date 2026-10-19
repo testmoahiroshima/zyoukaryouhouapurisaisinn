@@ -10,9 +10,9 @@ const html = readFileSync(path, "utf8");
 const block = html.split("// GEOMETRY-START")[1]?.split("// GEOMETRY-END")[0];
 if (!block) throw new Error("GEOMETRY-START / GEOMETRY-END の目印が見つかりません: " + path);
 const mod = await import(
-  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses };")
+  "data:text/javascript," + encodeURIComponent(block + "\nexport { palmFrame, bodyView, buildZones, hitZone, bodyScale, poseHand, matchHands, reachScore, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize };")
 );
-const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses } = mod;
+const { palmFrame, bodyView, buildZones, hitZone, poseHand, matchHands, pickRoles, faceToward, nearestZone, calibKey, dedupePoses, poseFromBox, poseFromTaps, unexplainedBoxes, resolveFrame, stabilize } = mod;
 
 // 背中をカメラに向けて座った受ける方（画素座標）。人の左肩が画面の左
 const P = Array.from({ length: 33 }, () => ({ x: 0, y: 0, v: 1 }));
@@ -134,6 +134,98 @@ check("手首から離れて出た手も、前腕の延長線上なら持ち主�
   assert.equal(owners[0]?.pose, 0); assert.ok(owners[0]?.byArm);
   const r = pickRoles(poses, owners, "auto");
   assert.equal(r.recipient, null); assert.equal(r.practitioner, poses[0]);
+});
+
+// ---- 骨格が取れない受ける方（後ろ向き・暗い服・画面の端）：人の検出の枠・タップから範囲を作る（実際の画面写真の枠。幅1074） ----
+check("人の検出の枠から、背面の受ける方の範囲（腎臓・肩甲骨・首）を作る", () => {
+  const P = poseFromBox({ x: 56, y: 566, w: 292, h: 435 });
+  assert.equal(bodyView(P), "back");
+  const ids = buildZones(P, "back").zones.map((z) => z.id);
+  for (const id of ["head", "neckL", "neckR", "scL", "scR", "kidL", "kidR"]) assert.ok(ids.includes(id), id);
+  assert.ok(P[11].x < P[12].x);  // 背面：人の左肩が画面の左
+  assert.equal(bodyView(poseFromBox({ x: 56, y: 566, w: 292, h: 435 }, "front")), "front");
+});
+check("骨格で取れている人の枠は重ねず、取れていない人の枠だけを使う", () => {
+  const pr = pose({ 0: [820, 560], 11: [870, 700], 12: [790, 690], 23: [860, 950], 24: [800, 940] });
+  const boxes = [{ x: 56, y: 566, w: 292, h: 435 }, { x: 760, y: 500, w: 240, h: 520 }];
+  const left = unexplainedBoxes(boxes, [pr]);
+  assert.equal(left.length, 1); assert.equal(left[0].x, 56);
+});
+check("施術者は骨格、受ける方は枠の時：施術者を受ける方にしない", () => {
+  const box = poseFromBox({ x: 0, y: 395, w: 219, h: 488 });
+  const r = pickRoles([prac, box], [], "auto");
+  assert.equal(r.recipient, box); assert.equal(r.practitioner, prac);
+});
+check("骨格が誰も取れず枠だけの時は、頭の低い人（座っている人）を受ける方にする", () => {
+  const recvBox = poseFromBox({ x: 0, y: 552, w: 292, h: 498 }), pracBox = poseFromBox({ x: 586, y: 474, w: 473, h: 479 });
+  assert.equal(pickRoles([pracBox, recvBox], [], "auto").recipient, recvBox);
+});
+check("頭と腰のタップから受ける方の範囲を作る（傾いていても）", () => {
+  const P = poseFromTaps({ x: 300, y: 200 }, { x: 300, y: 600 });
+  assert.equal(bodyView(P), "back");
+  const z = buildZones(P, "back").zones;
+  const kid = z.filter((q) => q.id.startsWith("kid"));
+  assert.ok(kid.every((q) => q.y > 400 && q.y < 600));
+  const T = poseFromTaps({ x: 200, y: 300 }, { x: 600, y: 300 });  // 横に寝ている
+  const tz = buildZones(T, "back").zones;
+  assert.ok(tz.find((q) => q.id === "head").x < tz.find((q) => q.id === "kidL").x);
+});
+
+// ---- 寝た姿勢・前からの施術 ----
+check("横に寝ている人（頭が画面の左）でも、背面・前面を決め、頭の範囲を頭の先に置く", () => {
+  // 背中がカメラ側：頭は左、腰は右、人の左肩が下（立った背面の姿を左へ90°倒した形）
+  const L = pose({ 0: [120, 310, 0.1], 7: [140, 290], 8: [140, 330], 11: [260, 370], 12: [260, 250], 23: [520, 350], 24: [520, 270] });
+  assert.equal(bodyView(L), "back");
+  const z = buildZones(L, "back").zones, head = z.find((q) => q.id === "head"), kid = z.find((q) => q.id === "kidL");
+  assert.ok(head.x < 140 && kid.x > 300);
+  const F = pose({ 0: [120, 310, 0.95], 7: [140, 290], 8: [140, 330], 11: [260, 250], 12: [260, 370], 23: [520, 270], 24: [520, 350] });  // 前面：人の左肩が上
+  assert.equal(bodyView(F), "front");
+});
+check("前面では鼠径部（左・右）の範囲を作り、掌を向けると当たる", () => {
+  const { zones, u } = buildZones(F, "front");
+  const g = zones.find((q) => q.id === "groinL");
+  assert.ok(g && zones.some((q) => q.id === "groinR"));
+  const r = hitZone({ x: g.x + 2 * u, y: g.y }, { x: -1, y: 0, z: 0 }, zones, u);
+  assert.equal(r?.zone.id, "groinL");
+});
+check("掌の延長線上に胴の範囲があれば、手前にある受ける方の膝・肘より胴を選ぶ", () => {
+  const zones = [{ id: "kneeL", x: 100, y: 100, r: 20 }, { id: "groinL", x: 160, y: 100, r: 15 }];
+  assert.equal(hitZone({ x: 40, y: 100 }, { x: 1, y: 0, z: 0 }, zones, 50)?.zone.id, "groinL");
+  assert.equal(hitZone({ x: 40, y: 100 }, { x: 1, y: 0, z: 0 }, [zones[0]], 50)?.zone.id, "kneeL");
+});
+check("寝ている人が枠でしか見つからない時は、受ける方を決めずに「頭と腰をタップ」の案内", () => {
+  const fr = resolveFrame({ poses: [prac], hands: [], boxes: [{ x: 50, y: 600, w: 600, h: 200 }], W: 1074, mem: {} });
+  assert.ok(fr.needTap); assert.equal(fr.recipient, null);
+  const fr2 = resolveFrame({ poses: [prac], hands: [], boxes: [{ x: 50, y: 600, w: 600, h: 200 }], W: 1074, mem: {}, manual: { head: { x: 100, y: 680 }, waist: { x: 500, y: 700 } } });
+  assert.ok(!fr2.needTap && fr2.recipient?.manual);
+});
+check("施術者の骨格が上にかがんでも、寝ている人の枠を捨てない", () => {
+  const bent = pose({ 0: [300, 420], 11: [330, 480], 12: [270, 470], 23: [320, 640], 24: [280, 630] });
+  assert.equal(unexplainedBoxes([{ x: 50, y: 600, w: 600, h: 200 }], [bent]).length, 1);
+});
+
+// ---- コマをまたいだ安定化 ----
+const tc = (Q) => ({ x: (Q[11].x + Q[12].x + Q[23].x + Q[24].x) / 4, y: (Q[11].y + Q[12].y + Q[23].y + Q[24].y) / 4 });
+check("一コマだけ判断が入れ替わっても、受ける方は入れ替えない", () => {
+  const mem = {};
+  let fr;
+  for (let k = 0; k < 10; k++) fr = stabilize({ poses: [recv, prac], hands: [], W: 1074, mem, now: k * 125 });
+  assert.ok(Math.abs(tc(fr.recipient).x - tc(recv).x) < 50);
+  // 一コマだけ「右の人が受ける方」になる入力（左の人が一瞬消える）
+  fr = stabilize({ poses: [prac], hands: [], W: 1074, mem, now: 1250 });
+  assert.ok(fr.recipient && Math.abs(tc(fr.recipient).x - tc(recv).x) < 50, "一瞬消えた受ける方を保つ");
+  fr = stabilize({ poses: [recv, prac], hands: [], W: 1074, mem, now: 1375 });
+  assert.ok(Math.abs(tc(fr.recipient).x - tc(recv).x) < 50);
+});
+check("掌が向いている範囲は多数決で決め、一コマだけ外れても変えない", () => {
+  const mem = {};
+  const ids = [];  // h：上の「画面右から左向きに掌を向けた手」
+  for (let k = 0; k < 8; k++) {
+    // 5コマ目だけ掌の表裏を取り違える（体から外れる向き）
+    const fr = stabilize({ poses: [P], hands: [{ lm: h, label: "Left" }], mode: "left", orientAuto: false, calib: k === 5 ? { Left: -1, Right: 1 } : undefined, W: 1074, mem, now: k * 125 });
+    ids.push(fr.hits.find((x) => x.hit)?.hit.zone.id || null);
+  }
+  assert.deepEqual(ids.slice(2), ["kidR", "kidR", "kidR", "kidR", "kidR", "kidR"]);
 });
 
 console.log(`\n${passed} 件すべて合格`);
