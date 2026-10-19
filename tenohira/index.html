@@ -250,6 +250,63 @@ function palmFrame(h, mult) {
 }
 
 /** 骨格33点から、受ける方が前面・背面・側面のどれを向いているかを推定 */
+/** 骨格の点を、映っている所に合わせて直す（頭のアップ・上半身だけ・画面の外へはみ出した時など）。
+    ・点が一か所につぶれた骨格は、見誤りとして捨てる（null）
+    ・腰が見えない・画面の外・肩幅に比べて胴が短すぎる時は、肩から腰の位置を推定する（est.hips）
+    ・肩も見えず顔だけ映っている時は、顔の大きさと向きから肩・腰を推定する（est.shoulders）
+    推定した点は v を 0.45 にし、P.est に印を付ける。frame：{ W, H }（無ければ画面の外の判定はしない）。
+    受ける方・施術者の見分けや追跡には元の点を使い（腰の推定がコマごとに入ったり外れたりすると、同じ人の位置が揺れるため）、
+    範囲を置く時だけこちらを使う */
+const poseCollapsed = (P, frame) => !!frame && (() => {
+  const xs = [0, 11, 12, 23, 24].map((i) => P[i].x), ys = [0, 11, 12, 23, 24].map((i) => P[i].y);
+  return Math.max(...xs) - Math.min(...xs) + Math.max(...ys) - Math.min(...ys) < 0.03 * Math.max(frame.W, frame.H);
+})();
+function repairPose(P, frame) {
+  if (!P || P.repaired) return P;
+  const W = frame?.W, H = frame?.H;
+  const inside = (p) => !W || !H || (p.x >= -0.02 * W && p.x <= 1.02 * W && p.y >= -0.02 * H && p.y <= 1.02 * H);
+  const ok = (i) => P[i] && (P[i].v ?? 1) >= 0.5 && inside(P[i]);
+  if (poseCollapsed(P, frame)) return null;  // 点が一か所につぶれている
+  const Q = P.map((p) => ({ ...p }));
+  Object.assign(Q, { synthetic: P.synthetic, box: P.box, manual: P.manual, held: P.held, repaired: true });
+  const est = {};
+  const earsOk = ok(7) && ok(8), eyesOk = ok(2) && ok(5);
+  const headW = earsOk ? dist2(P[7], P[8]) : eyesOk ? 2.2 * dist2(P[2], P[5]) : 0;
+  const headC = earsOk ? lerp(P[7], P[8], 0.5) : eyesOk ? lerp(P[2], P[5], 0.5) : null;
+  let sOk = ok(11) && ok(12);
+  // 顔だけ映っている：顔の向き（目→口）を下として、肩・腰を推定する
+  if (!sOk && headC && headW > 0 && ok(0)) {
+    const mouth = ok(9) && ok(10) ? lerp(P[9], P[10], 0.5) : P[0];
+    let dx = mouth.x - headC.x, dy = mouth.y - headC.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+    const lft = earsOk ? { x: P[7].x - P[8].x, y: P[7].y - P[8].y } : { x: P[2].x - P[5].x, y: P[2].y - P[5].y };
+    const ll = Math.hypot(lft.x, lft.y) || 1;
+    const neck = { x: headC.x + dx * 1.1 * headW, y: headC.y + dy * 1.1 * headW };
+    const sw = 2.5 * headW;
+    Q[11] = { x: neck.x + (lft.x / ll) * sw / 2, y: neck.y + (lft.y / ll) * sw / 2, z: 0, v: 0.45 };
+    Q[12] = { x: neck.x - (lft.x / ll) * sw / 2, y: neck.y - (lft.y / ll) * sw / 2, z: 0, v: 0.45 };
+    est.shoulders = true; sOk = true;
+  }
+  if (!sOk) return P.synthetic || P.manual ? Q : (Object.keys(est).length ? Object.assign(Q, { est }) : Q);
+  const sm = lerp(Q[11], Q[12], 0.5), sw = dist2(Q[11], Q[12]);
+  const hm = lerp(Q[23], Q[24], 0.5), tl = dist2(sm, hm);
+  const hipsOk = !est.shoulders && ok(23) && ok(24) && tl >= 0.25 * Math.max(sw, headW * 1.5)
+    && (!headC || dist2(headC, hm) > dist2(sm, hm));  // 頭・肩・腰の順に並んでいる
+  if (!hipsOk) {
+    // 肩の線に直角で、頭と反対の向きへ、肩幅の1.25倍のところに腰を置く
+    let nx = -(Q[11].y - Q[12].y), ny = Q[11].x - Q[12].x; const nl = Math.hypot(nx, ny) || 1; nx /= nl; ny /= nl;
+    const ref = headC || (ok(0) ? P[0] : null);
+    if (ref ? (ref.x - sm.x) * nx + (ref.y - sm.y) * ny > 0 : ny < 0) { nx = -nx; ny = -ny; }
+    const L = 1.25 * Math.max(sw, headW * 2), half = { x: (Q[11].x - Q[12].x) * 0.35, y: (Q[11].y - Q[12].y) * 0.35 };
+    const h = { x: sm.x + nx * L, y: sm.y + ny * L };
+    Q[23] = { x: h.x + half.x, y: h.y + half.y, z: 0, v: 0.45 };
+    Q[24] = { x: h.x - half.x, y: h.y - half.y, z: 0, v: 0.45 };
+    for (const i of [25, 26, 27, 28]) Q[i] = { ...Q[i], v: Math.min(Q[i].v ?? 1, 0.2) };  // 膝・足首も当てにしない
+    est.hips = true;
+  }
+  if (Object.keys(est).length) Q.est = est;
+  return Q;
+}
+
 function bodyView(P) {
   const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
   const sw = dist2(LS, RS), tl = dist2(lerp(LS, RS, 0.5), lerp(LH, RH, 0.5));
@@ -264,7 +321,7 @@ function bodyView(P) {
 }
 
 /** 骨格から施術部位の範囲（円）を作る。名前は人の左右（解剖学的な左右） */
-function buildZones(P, view) {
+function buildZones(P, view, frame) {
   const LS = P[11], RS = P[12], LH = P[23], RH = P[24];
   const sm = lerp(LS, RS, 0.5), hm = lerp(LH, RH, 0.5);
   const sw = dist2(LS, RS), tl = dist2(sm, hm);
@@ -313,7 +370,12 @@ function buildZones(P, view) {
   if ((P[14].v ?? 1) > 0.4) add("elbR", "肘（右）", P[14], 0.15);
   if ((P[25].v ?? 1) > 0.4) add("kneeL", "膝（左）", P[25], 0.17);
   if ((P[26].v ?? 1) > 0.4) add("kneeR", "膝（右）", P[26], 0.17);
-  return { zones, u };
+  // 推定した点から作った範囲には印（est）を付ける（画面では点線）。画面の外に中心がある範囲は出さない
+  const E = P.est || {};
+  const LOWER = /^(epi|abd|groin|kid|low|backC)/;
+  for (const z of zones) if ((E.shoulders && z.id !== "head") || (E.hips && LOWER.test(z.id))) z.est = true;
+  const vis = frame && frame.W && frame.H ? zones.filter((z) => z.x >= -0.1 * z.r && z.x <= frame.W + 0.1 * z.r && z.y >= -0.1 * z.r && z.y <= frame.H + 0.1 * z.r) : zones;
+  return { zones: vis, u };
 }
 
 /** 掌の中心から掌の向きへ伸ばした線の先にある範囲を探す（reach：届く長さ。体の大きさ u の倍数）。
@@ -326,7 +388,10 @@ function hitZone(c, n, zones, u, reach = 4) {
     // 掌がカメラの手前か奥を向いている：掌の中心が重なっている範囲（胴・頭を先に）
     let best = null, bs = Infinity;
     for (const z of zones) { const s = dist2(c, z) / z.r + (MINOR_ZONE.test(z.id) ? 0.5 : 0); if (dist2(c, z) < z.r && s < bs) { bs = s; best = z; } }
-    return best ? { zone: best, mode: "depth", point: c } : null;
+    if (best) return { zone: best, mode: "depth", point: c };
+    // 重なっていなくても、すぐそば（体の大きさの0.4倍以内）に胴・頭などの範囲があれば、それを「近く」として返す
+    for (const z of zones) { if (MINOR_ZONE.test(z.id)) continue; const s = dist2(c, z) - z.r; if (s < 0.4 * u && (!best || s < bs)) { bs = s; best = z; } }
+    return best ? { zone: best, mode: "near", point: { x: best.x, y: best.y } } : null;
   }
   const dx = n.x / d2, dy = n.y / d2;
   const W_PERP = 8;  // 線からの離れを重く見る（場面の模擬で一番よく当たった重み）
@@ -342,7 +407,17 @@ function hitZone(c, n, zones, u, reach = 4) {
     }
     if (best) return { zone: best, mode: "ray", point: { x: c.x + dx * bt, y: c.y + dy * bt } };
   }
-  return null;
+  // 線がどの範囲の中も通らない時：線の先で一番近い胴・頭などの範囲（線からの離れが範囲の半径＋体の大きさの0.3倍以内）を「近く」として返す
+  let best = null, bs = Infinity;
+  for (const z of zones) {
+    if (MINOR_ZONE.test(z.id)) continue;
+    const vx = z.x - c.x, vy = z.y - c.y;
+    const t = vx * dx + vy * dy, perp = Math.abs(vx * dy - vy * dx);
+    if (t < 0 || t > reach * u || perp > z.r + 0.3 * u) continue;
+    const sc = t + 8 * (perp - z.r);
+    if (sc < bs) { bs = sc; best = z; }
+  }
+  return best ? { zone: best, mode: "near", point: { x: best.x, y: best.y } } : null;
 }
 
 /** 骨格の大きさの目安（肩幅と胴の長さから。buildZones の u と同じ） */
@@ -475,6 +550,10 @@ function pickRoles(poses, owners, mode, tapPt, palms = []) {
         };
         return { recipient: poses.reduce((a, b) => (near(b) < near(a) ? b : a)), practitioner: null, uncertain: true };
       }
+      // 骨格で顔の取れた人と、顔が取れず枠だけの人がいる時は、枠だけの人（後ろ向き＝背中を施術されている人のことが多い）を受ける方にする
+      const faceSeen = (P) => !P.synthetic && (P[0].v ?? 1) >= 0.8;
+      const boxOnly = poses.filter((P) => P.synthetic);
+      if (boxOnly.length === 1 && poses.some(faceSeen)) return { recipient: boxOnly[0], practitioner: null, uncertain: true };
       return { recipient: poses.reduce((a, b) => (b[0].y > a[0].y ? b : a)), practitioner: null, uncertain: true };
     }
     practitioner = top;
@@ -559,9 +638,10 @@ function calibKey(h) { return h.fromPose ? (h.side === "R" ? "Left" : "Right") :
 /** 1コマ分の判断をまとめて行う（画面に依らない部分。模擬の場面でも同じ処理を検査できるように）。
     poses：骨格（画素）、hands：手の認識（{ lm, label }）、boxes：人の検出の枠、mode：受ける方の選び方、
     manual：タップで決めた { head, waist }、viewSel：受ける方の向き（auto / back / front）、orientAuto：掌の表裏を自動で決めるか、
-    calib：手の向きの補正、W：画面の幅、mem：前のコマからの記憶（受ける方の位置・切り替わりの判断の始まり・タップ位置）、now：時刻（ミリ秒） */
-function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual = null, viewSel = "auto", orientAuto = true, calib = { Left: 1, Right: -1 }, W, mem = {}, now = 0 }) {
-  poses = dedupePoses(poses);
+    calib：手の向きの補正、W・H：画面の幅・高さ（H があれば、骨格の点を映っている所に合わせて直し、画面の外の範囲は出さない）、mem：前のコマからの記憶（受ける方の位置・切り替わりの判断の始まり・タップ位置）、now：時刻（ミリ秒） */
+function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual = null, viewSel = "auto", orientAuto = true, calib = { Left: 1, Right: -1 }, W, H, mem = {}, now = 0 }) {
+  const frame = W && H ? { W, H } : null;
+  poses = dedupePoses(poses.filter((P) => !poseCollapsed(P, frame)));
   const owners = matchHands(poses, handsIn.map((h) => h.lm[0]), W, handsIn.map((h) => {
     const dx = h.lm[9].x - h.lm[0].x, dy = h.lm[9].y - h.lm[0].y, l = Math.hypot(dx, dy);
     return l ? { x: dx / l, y: dy / l } : null;
@@ -620,8 +700,10 @@ function resolveFrame({ poses, hands: handsIn, boxes = [], mode = "auto", manual
     }
   }
   const { recipient, practitioner } = roles;
-  const view = recipient ? (viewSel === "auto" ? bodyView(recipient) : viewSel) : null;
-  const zoneInfo = recipient ? buildZones(recipient, view) : null;
+  // 範囲は、映っている所に合わせて直した点で置く（頭のアップ・上半身だけの時に、胴の範囲が顔のまわりに縮まないように）
+  const layoutP = recipient && !recipient.synthetic && !recipient.manual ? repairPose(recipient, frame) || recipient : recipient;
+  const view = recipient ? (viewSel === "auto" ? bodyView(layoutP) : viewSel) : null;
+  const zoneInfo = recipient ? buildZones(layoutP, view, frame) : null;
   const hits = hands.map((h) => {
     if (h.fromPose && zoneInfo) {
       // 骨格から補った手は、掌の向きがほとんど分からない。手首は肘の方へずれて出やすいので前腕の先へ少し延ばし、
@@ -657,7 +739,8 @@ function stabilize(input) {
   // 1) 人の追跡と滑らかにする：前のコマの人と胴の中心が近ければ同じ人とし、点を混ぜる（新しいコマ6割）
   const prev = mem.trk || [];
   const used = new Set();
-  const cur = input.poses.map((P) => {
+  const frame = input.W && input.H ? { W: input.W, H: input.H } : null;
+  const cur = input.poses.filter((P) => !poseCollapsed(P, frame)).map((P) => {
     const c = torsoCenter(P), sc = bodyScale(P);
     let best = null, bd = Infinity;
     prev.forEach((T, i) => { if (used.has(i)) return; const d = dist2(c, T.c); if (d < 0.8 * Math.max(sc, T.sc) && d < bd) { bd = d; best = i; } });
@@ -689,7 +772,7 @@ function stabilize(input) {
     const roles = mem.roles || [];
     const dt = mem.lastNow != null ? Math.max(0, Math.min(500, now - mem.lastNow)) : 125;
     mem.lastNow = now;
-    const kr = Math.pow(0.9, dt / 125), kp = Math.pow(0.97, dt / 125);  // 施術者だった記憶は長めに残す
+    const kr = Math.pow(0.9, dt / 125), kp = Math.pow(0.98, dt / 125);  // 施術者だった記憶は長めに残す
     const wt = dt / 125;  // 1コマの票の重み（コマの間隔が長い＝発熱を抑えて間引いている時は、そのぶん重く）
     const posesNow = cur.filter((T) => !T.held).map((T) => T.P);
     const candC = [...posesNow, ...unexplainedBoxes(input.boxes || [], posesNow).map((b) => poseFromBox(b))].map((P) => ({ c: torsoCenter(P), sc: bodyScale(P) }));
@@ -951,7 +1034,11 @@ function loop() {
     lm: toPx(lm), label: (labels[i] && labels[i][0] && labels[i][0].categoryName) || "Right"
   }));
   const posesPx = dedupePoses((poseRes.landmarks || []).map(toPx));
-  if (state.person && posesPx.length < 2 && now - state.lastPersonTs > 1000) {
+  // 骨格で離れた二人が取れていれば人の検出は使わない。二人取れていても、重なっている（同じ人の二重の見誤りのことが多い）時は、
+  // 後ろ向きの受ける方を探すために2秒に1回は人の検出をする
+  const twoApart = posesPx.some((A, i) => posesPx.some((B, j) => j > i && dist2(torsoCenter(A), torsoCenter(B)) > 1.5 * Math.max(bodyScale(A), bodyScale(B))));
+  const personEvery = twoApart ? Infinity : posesPx.length < 2 ? 1000 : 2000;
+  if (state.person && now - state.lastPersonTs > personEvery) {
     state.lastPersonTs = now;
     try {
       const det = state.person.detectForVideo(video, now);
@@ -960,11 +1047,11 @@ function loop() {
     } catch (e) { state.boxes = []; }
     state.boxesTs = now;
   }
-  if (posesPx.length >= 2 || now - state.boxesTs > 2500) state.boxes = [];
+  if (twoApart || now - state.boxesTs > 2500 + (posesPx.length < 2 ? 0 : 1000)) state.boxes = [];
 
   const fr = stabilize({
     poses: posesPx, hands: handsPx, boxes: state.boxes, mode: ui.selRecipient.value, manual: state.manual,
-    viewSel: ui.selView.value, orientAuto: ui.selOrient.value === "auto", calib: state.calib, W: canvas.width, mem: state.mem, now
+    viewSel: ui.selView.value, orientAuto: ui.selOrient.value === "auto", calib: state.calib, W: canvas.width, H: canvas.height, mem: state.mem, now
   });
   const { recipient, practitioner, hands, view, zoneInfo, hits } = fr;
   ui.ask.hidden = !fr.uncertain && !fr.needTap;
@@ -1032,7 +1119,10 @@ function draw(posesPx, recipient, zoneInfo, hits, active, practitioner) {
       const on = active.has(z.id);
       ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
       ctx.fillStyle = on ? colors.hit : colors.zone; ctx.fill();
+      // 映っていない所から推定した範囲は点線
+      ctx.setLineDash(z.est && !on ? [lw * 3, lw * 3] : []);
       ctx.strokeStyle = on ? colors.gold : colors.edge; ctx.stroke();
+      ctx.setLineDash([]);
       if (on || z.r > fs * 1.2) {
         ctx.fillStyle = "rgba(0,0,0,0.55)";
         const w = ctx.measureText(z.name).width + fs * 0.6;
@@ -1070,7 +1160,17 @@ function draw(posesPx, recipient, zoneInfo, hits, active, practitioner) {
       const ex = pf.c.x + (pf.n.x / d2) * L * d2, ey = pf.c.y + (pf.n.y / d2) * L * d2;
       arrow(pf.c.x, pf.c.y, ex, ey, lw * 6);
     }
-    if (hit) { ctx.beginPath(); ctx.arc(hit.point.x, hit.point.y, lw * 3, 0, Math.PI * 2); ctx.fillStyle = colors.gold; ctx.fill(); }
+    if (hit) {
+      ctx.beginPath(); ctx.arc(hit.point.x, hit.point.y, lw * 3, 0, Math.PI * 2); ctx.fillStyle = colors.gold; ctx.fill();
+      // 当たっている所の名前を、手のそばに大きく出す（目安の時は「あたり」）
+      const text = hit.mode === "near" || h.fromPose ? `${hit.zone.name}あたり` : hit.zone.name;
+      ctx.font = `700 ${Math.round(fs * 1.25)}px "BIZ UDPGothic", sans-serif`;
+      const tw = ctx.measureText(text).width + fs, th = fs * 1.9;
+      const tx = Math.max(tw / 2, Math.min(W - tw / 2, pf.c.x)), ty = Math.max(th, pf.c.y - (zoneInfo ? zoneInfo.u : W / 6) * 0.45);
+      ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillRect(tx - tw / 2, ty - th / 2, tw, th);
+      ctx.fillStyle = colors.gold; ctx.fillText(text, tx, ty);
+      ctx.font = `700 ${fs}px "BIZ UDPGothic", sans-serif`;
+    }
     ctx.lineWidth = lw;
   }
 }
@@ -1097,7 +1197,7 @@ function updatePanel(view, recipient, hands, hits, active, practitioner, nPeople
   const names = [...active].map((id) => state.names[id] || id);
   if (names.length) {
     ui.target.firstChild.textContent = names.join("・");
-    const modes = hits.filter((x) => x.hit).map((x) => (x.h.fromPose ? "手のある辺りに一番近い所（手が見えないため目安）" : x.hit.mode === "depth" ? "掌が手前・奥向き（重なり位置で判定）" : "掌の向きの延長線で判定"));
+    const modes = hits.filter((x) => x.hit).map((x) => (x.h.fromPose ? "手のある辺りに一番近い所（手が見えないため目安）" : x.hit.mode === "depth" ? "掌が手前・奥向き（重なり位置で判定）" : x.hit.mode === "near" ? "掌の向きの先で一番近い所（目安）" : "掌の向きの延長線で判定"));
     ui.targetSub.textContent = modes[0] || "";
   } else {
     ui.target.firstChild.textContent = "―";
