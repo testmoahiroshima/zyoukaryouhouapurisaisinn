@@ -952,11 +952,17 @@ function cameraErrorMessage(e) {
     SecurityError: "この開き方ではカメラが使えません。下の「開き方」を確認してください。",
     NotFoundError: "カメラが見つかりません。カメラ付きの端末で開くか、パソコンにUSBカメラをつないでください。",
     NotReadableError: (isWindows ? "カメラを他のアプリ（Windowsの「カメラ」アプリ、Teams・Zoomなど）が使っているか、" : "カメラを他のアプリが使っているか、")
-      + "カメラが止められています。他のアプリを閉じてから、もう一度押してください。"
-      + (isWindows ? "ノートパソコンにカメラを切るボタンやふたがある時は、開けてください。" : ""),
+      + "カメラが止められています。他のアプリや、このページを開いている別のタブ・別のブラウザ（EdgeとChromeなど）を閉じてから、もう一度押してください。"
+      + (isWindows ? "ノートパソコンにカメラを切るボタンやふたがある時は、開けてください。"
+        + "それでも開かない時は、Windowsの「設定」→「プライバシーとセキュリティ」→「カメラ」で「デスクトップ アプリがカメラにアクセスできるようにする」もオンか、"
+        + "パソコンのメーカーのアプリ（Lenovo Vantage など）の「カメラのプライバシー」や、セキュリティソフトのカメラの保護で止められていないかを確かめてください。"
+        + "Windowsの「カメラ」アプリでも映らない時は、パソコン側の設定が原因です。" : ""),
     OverconstrainedError: "このカメラでは指定の設定が使えませんでした。"
   }[name] || "カメラを開けませんでした。";
-  return base + "（" + name + "）";
+  // 原因を調べやすいように、ブラウザが返した詳しい理由と、見つかったカメラも出す
+  const msg = e && e.message && e.message !== name ? "：" + e.message : "";
+  const cams = state.camList ? "　見つかったカメラ：" + (state.camList.length ? state.camList.join("、") : "なし") : "";
+  return base + "（" + name + msg + "）" + cams;
 }
 
 function openingProblem() {
@@ -1006,6 +1012,44 @@ function rememberCamera() {
 try { navigator.mediaDevices.addEventListener("devicechange", refreshCameras); } catch (e) {}
 refreshCameras();
 
+/** カメラを開く。うまくいかない時は、条件をゆるめて開き直し、それでもだめなら他のカメラを順に試す
+    （Windows のカメラは、大きさ・コマ数の指定で開けないことや、直前まで別のタブ・アプリが使っていて一瞬開けないことがあるため）。
+    choice：「environment」「user」（向き）か「dev:<カメラのid>」（一覧から選んだカメラ） */
+async function openCameraStream(choice) {
+  const which = choice.startsWith("dev:") ? { deviceId: { exact: choice.slice(4) } } : { facingMode: choice };
+  const size = { width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 15, max: 30 } };
+  const tries = [{ ...which, ...size }, { ...which }, true];
+  state.camList = null;
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput");
+    state.camList = cams.map((d, i) => d.label || "カメラ " + (i + 1));
+    for (const d of cams) if (d.deviceId && (!which.deviceId || d.deviceId !== which.deviceId.exact)) tries.push({ deviceId: { exact: d.deviceId } });
+  } catch (e) {}
+  let last = null;
+  for (let i = 0; i < tries.length; i++) {
+    try { return await navigator.mediaDevices.getUserMedia({ video: tries[i], audio: false }); }
+    catch (e) {
+      last = e;
+      // 許可されていない・この開き方では使えない時は、何度試しても同じ
+      if (e && (e.name === "NotAllowedError" || e.name === "SecurityError")) throw e;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+  }
+  throw last;
+}
+
+// ページが隠れた時（別のタブ・別のアプリに移った時）はカメラを放し、戻ってきたら開き直す。
+// 開いたままだと、同じページを開いた別のタブ・別のブラウザ（Edge と Chrome など）や Windows の「カメラ」アプリがカメラを使えないため
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (state.stream) { state.stream.getTracks().forEach((t) => t.stop()); state.stream = null; state.camPaused = true; }
+  } else if (state.camPaused) {
+    state.camPaused = false;
+    startCamera();
+  }
+});
+window.addEventListener("pagehide", () => { if (state.stream) state.stream.getTracks().forEach((t) => t.stop()); });
+
 async function startCamera() {
   ui.btnCam.disabled = true;
   try {
@@ -1013,17 +1057,8 @@ async function startCamera() {
     if (problem) { setStatus(problem); return; }
     stopSource();
     setStatus("カメラを開いています…");
-    const choice = ui.selFacing.value;
-    // 「dev:」で始まるのは、一覧から選んだカメラ（パソコンの内蔵カメラ・USBカメラ・Windowsでつないだスマホなど）
-    const which = choice.startsWith("dev:") ? { deviceId: { exact: choice.slice(4) } } : { facingMode: choice };
-    try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: { ...which, width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 15, max: 30 } }, audio: false });
-    } catch (e) {
-      if (e && (e.name === "OverconstrainedError" || (e.name === "NotFoundError" && which.deviceId))) {
-        try { state.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
-        catch (e2) { setStatus(cameraErrorMessage(e2)); return; }
-      } else { setStatus(cameraErrorMessage(e)); return; }
-    }
+    try { state.stream = await openCameraStream(ui.selFacing.value); }
+    catch (e) { setStatus(cameraErrorMessage(e)); return; }
     video.srcObject = state.stream; video.loop = false;
     rememberCamera(); refreshCameras();
     try { await video.play(); } catch (e) { setStatus("カメラの映像を再生できませんでした。（" + ((e && e.name) || "Error") + "）"); return; }
@@ -1047,6 +1082,7 @@ async function startFile(file) {
 }
 
 function stopSource() {
+  state.camPaused = false;
   if (state.stream) { state.stream.getTracks().forEach((t) => t.stop()); state.stream = null; }
   if (video.src && video.src.startsWith("blob:")) URL.revokeObjectURL(video.src);
 }
