@@ -1,6 +1,6 @@
 // 一度開けば電波が無くても使えるように、アプリの部品を端末に保存する（外へは何も送らない）。
 // アプリの部品を変えた時は VERSION を上げる。
-const VERSION = 'joka-v35';
+const VERSION = 'joka-v36';
 const CORE = [
   './', 'index.html', 'manifest.webmanifest',
   'app/style.css', 'app/app.js', 'app/engine.js', 'app/paint.js', 'app/body3d.js', 'app/zones.js', 'app/audio.js', 'app/records.js', 'app/history.js', 'app/byomei.js',
@@ -31,8 +31,9 @@ self.addEventListener('fetch', (e) => {
     })));
     return;
   }
-  // それ以外：まず新しいものを取りに行き、電波が無ければ保存してあるものを使う
-  e.respondWith(fetch(req).then((res) => {
+  // それ以外：まず新しいものを取りに行き、電波が無ければ保存してあるものを使う。
+  // ブラウザの一時保存（GitHub Pages は最大10分）を飛ばして、毎回サーバーに新しい版が無いかを確かめる（更新の直後に古い版が出ないように）
+  e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => {
     if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
     return res;
   }).catch(() => caches.match(req).then((hit) => hit || (req.mode === 'navigate' ? caches.match('index.html') : Response.error()))));
