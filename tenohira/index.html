@@ -125,7 +125,7 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
       </div>
       <div class="grid2" style="margin-top:10px">
         <div class="field"><label for="selFacing">カメラ</label>
-          <select id="selFacing"><option value="environment">背面カメラ</option><option value="user">前面カメラ</option></select></div>
+          <select id="selFacing"><option value="environment">スマホの背面カメラ（パソコンは内蔵カメラ）</option><option value="user">スマホの前面カメラ</option></select></div>
         <div class="field"><label for="selRecipient">受ける方</label>
           <select id="selRecipient">
             <option value="auto">自動（施術者以外）</option>
@@ -192,8 +192,9 @@ textarea { width: 100%; min-height: 90px; font-family: var(--font-num); font-siz
     <div class="card">
       <h2>開き方</h2>
       <ul class="steps" style="margin-bottom:12px">
-        <li>パソコン：このファイルを保存し、Chromeで直接開きます（Claudeの画面の中のプレビューではカメラが使えません）。</li>
-        <li>スマホ：「https://」で始まるアドレス（GitHub Pagesなど）に置いたページを開きます。</li>
+        <li>スマホもパソコン（Windows）も、ChromeまたはEdgeで「https://」で始まるアドレス（GitHub Pages）のページを開きます（ファイルを直接開くと認識の部品が読み込めず、Claudeの画面の中のプレビューではカメラが使えません）。</li>
+        <li>Windowsのパソコンでは、内蔵カメラ・USBカメラ・パソコンにつないだスマホのカメラが使えます。初めて「カメラを開始」を押した時にカメラの使用を「許可」すると、「カメラ」の欄に使えるカメラの名前が並ぶので、使うカメラを選びます（次からは前に選んだカメラで開きます）。</li>
+        <li>Windowsでカメラが開かない時は、Windowsの「カメラ」アプリやビデオ会議のアプリを閉じ、「設定」→「プライバシーとセキュリティ」→「カメラ」でカメラの使用がオンになっているかを確かめます。</li>
         <li>認識用のデータ（約30MB）は、このページと一緒に置いてあります。初回に読み込むため、電波のよい所で開いてください。</li>
       </ul>
       <h2>使い方</h2>
@@ -946,10 +947,13 @@ function showStage() {
 function cameraErrorMessage(e) {
   const name = (e && e.name) || "Error";
   const base = {
-    NotAllowedError: "カメラの使用が許可されていません。アドレスバー左のアイコンからカメラを「許可」にして、ページを読み込み直してください。",
+    NotAllowedError: "カメラの使用が許可されていません。アドレスバー左のアイコンからカメラを「許可」にして、ページを読み込み直してください。"
+      + (isWindows ? "Windowsでは、「設定」→「プライバシーとセキュリティ」→「カメラ」で「カメラへのアクセス」と「デスクトップ アプリがカメラにアクセスできるようにする」をオンにしてください。" : ""),
     SecurityError: "この開き方ではカメラが使えません。下の「開き方」を確認してください。",
-    NotFoundError: "カメラが見つかりません。カメラ付きの端末で開いてください。",
-    NotReadableError: "カメラを他のアプリが使っています。ビデオ会議などのアプリを閉じてから、もう一度押してください。",
+    NotFoundError: "カメラが見つかりません。カメラ付きの端末で開くか、パソコンにUSBカメラをつないでください。",
+    NotReadableError: (isWindows ? "カメラを他のアプリ（Windowsの「カメラ」アプリ、Teams・Zoomなど）が使っているか、" : "カメラを他のアプリが使っているか、")
+      + "カメラが止められています。他のアプリを閉じてから、もう一度押してください。"
+      + (isWindows ? "ノートパソコンにカメラを切るボタンやふたがある時は、開けてください。" : ""),
     OverconstrainedError: "このカメラでは指定の設定が使えませんでした。"
   }[name] || "カメラを開けませんでした。";
   return base + "（" + name + "）";
@@ -960,7 +964,7 @@ function openingProblem() {
   try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
   if (inFrame) return "Claudeの画面の中（プレビュー）で開かれています。ここではカメラが使えません。ファイルを端末に保存し、Chromeなどのブラウザで直接開いてください。";
   if (!window.isSecureContext || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) {
-    return "この開き方ではカメラが使えません。スマホでは「https://」で始まるアドレス（GitHub Pagesなど）に置いて開く必要があります。パソコンではファイルをChromeで直接開いてください。";
+    return "この開き方ではカメラが使えません。スマホでもパソコン（Windows）でも、ChromeまたはEdgeで「https://testmoahiroshima.github.io/zyoukaryouhouapurisaisinn/tenohira/」を開いてください（ファイルを直接開くと、認識の部品が読み込めません）。";
   }
   return null;
 }
@@ -973,6 +977,35 @@ async function prepareModels() {
   }
 }
 
+// ---------- カメラの一覧（パソコンの内蔵カメラ・USBカメラなどを選べるように） ----------
+const CAM_KEY = "tenohira.camera";
+const isWindows = /Windows/i.test(navigator.userAgent || "");
+async function refreshCameras() {
+  if (!(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)) return;
+  let list = [];
+  try { list = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === "videoinput" && d.deviceId); } catch (e) { return; }
+  const sel = ui.selFacing, keep = sel.value;
+  for (const o of [...sel.options]) if (o.value.startsWith("dev:")) o.remove();
+  // カメラを一度も許可していない時は名前が分からないので、許可の後にもう一度作り直す
+  list.forEach((d, i) => {
+    const o = document.createElement("option");
+    o.value = "dev:" + d.deviceId; o.textContent = "カメラ：" + (d.label || "カメラ " + (i + 1));
+    sel.appendChild(o);
+  });
+  let saved = null;
+  try { saved = localStorage.getItem(CAM_KEY); } catch (e) {}
+  const want = [keep, saved].find((v) => v && [...sel.options].some((o) => o.value === v));
+  if (want) sel.value = want;
+}
+function rememberCamera() {
+  const track = state.stream && state.stream.getVideoTracks()[0];
+  const id = track && track.getSettings ? track.getSettings().deviceId : null;
+  const v = ui.selFacing.value.startsWith("dev:") ? ui.selFacing.value : null;
+  try { if (v) localStorage.setItem(CAM_KEY, v); else if (id) localStorage.removeItem(CAM_KEY); } catch (e) {}
+}
+try { navigator.mediaDevices.addEventListener("devicechange", refreshCameras); } catch (e) {}
+refreshCameras();
+
 async function startCamera() {
   ui.btnCam.disabled = true;
   try {
@@ -980,16 +1013,19 @@ async function startCamera() {
     if (problem) { setStatus(problem); return; }
     stopSource();
     setStatus("カメラを開いています…");
-    const facing = ui.selFacing.value;
+    const choice = ui.selFacing.value;
+    // 「dev:」で始まるのは、一覧から選んだカメラ（パソコンの内蔵カメラ・USBカメラ・Windowsでつないだスマホなど）
+    const which = choice.startsWith("dev:") ? { deviceId: { exact: choice.slice(4) } } : { facingMode: choice };
     try {
-      state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 15, max: 30 } }, audio: false });
+      state.stream = await navigator.mediaDevices.getUserMedia({ video: { ...which, width: { ideal: 960 }, height: { ideal: 540 }, frameRate: { ideal: 15, max: 30 } }, audio: false });
     } catch (e) {
-      if (e && e.name === "OverconstrainedError") {
+      if (e && (e.name === "OverconstrainedError" || (e.name === "NotFoundError" && which.deviceId))) {
         try { state.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); }
         catch (e2) { setStatus(cameraErrorMessage(e2)); return; }
       } else { setStatus(cameraErrorMessage(e)); return; }
     }
     video.srcObject = state.stream; video.loop = false;
+    rememberCamera(); refreshCameras();
     try { await video.play(); } catch (e) { setStatus("カメラの映像を再生できませんでした。（" + ((e && e.name) || "Error") + "）"); return; }
     if (!(await prepareModels())) return;
     showStage(); setStatus("カメラで認識中"); startLoop();
