@@ -252,6 +252,7 @@ export class Body3D {
     this.bind(canvas);
     this.resize();
     if (this.guide) this.setGuide({ ...this.guide, focus: fresh && this.guide.focus });
+    if (this.flowSpec) this.setFlowMap({ ...this.flowSpec, focus: null });
     this._onResize = () => this.resize();
     window.addEventListener('resize', this._onResize);
     return true;
@@ -276,7 +277,9 @@ export class Body3D {
 
   label(text, color, size, round = false, bg = null) {
     const c = document.createElement('canvas');
-    const W = 128;
+    // 長い名前（背面腎臓部など）は、切れないよう横に広げる
+    let W = 128;
+    if (!round) { const m = c.getContext('2d'); m.font = '700 44px sans-serif'; W = Math.max(128, Math.ceil(m.measureText(text).width) + 24); }
     c.width = W;
     c.height = round ? W : 64;
     const x = c.getContext('2d');
@@ -312,7 +315,7 @@ export class Body3D {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true }));
-    s.scale.set(size * (round ? 1 : 2), size, 1);
+    s.scale.set(size * (round ? 1 : 2 * (W / 128)), size, 1);
     return s;
   }
 
@@ -885,6 +888,70 @@ export class Body3D {
       const cur = items.find((x) => x.current);
       if (cur) this.focusTargets(this.targetIndexes(cur.id, cur.side), 0.8);
     }
+    this.render();
+  }
+
+  // 毒素の流れ図（学ぶ→流れ図）。nodes: [{ pts: [[x,y,z],...], color, r, label }]、edges: [{ a: [x,y,z], b: [x,y,z], color, dashed, w }]
+  // 位置は一番近い体の表面に合わせる。表と裏をまたぐ流れは、体の中を通らないよう体の外側を回る弧で描く
+  setFlowMap({ nodes = [], edges = [], focus = null } = {}) {
+    this.flowSpec = { nodes, edges, focus };
+    if (!this.scene) return;
+    if (this.flowGroup) { this.scene.remove(this.flowGroup); this.flowGroup.traverse((o) => { o.geometry?.dispose(); o.material?.map?.dispose(); o.material?.dispose(); }); }
+    const G = (this.flowGroup = new THREE.Group());
+    const P = this.mesh.positions;
+    const surf = (q) => {
+      let hits = this.near(q[0], q[1], q[2], 0.06);
+      if (!hits.length) hits = this.near(q[0], q[1], q[2], 0.16);
+      let v = -1, bd = Infinity;
+      for (const [i, d] of hits) if (d < bd) { bd = d; v = i; }
+      if (v < 0) return { p: new THREE.Vector3(...q), n: new THREE.Vector3(0, 0, 1) };
+      return { p: new THREE.Vector3(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]), n: new THREE.Vector3(...this.vertexNormal(v)) };
+    };
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const e of edges) {
+      const A = surf(e.a), B = surf(e.b);
+      const a = A.p.clone().addScaledVector(A.n, 0.02), b = B.p.clone().addScaledVector(B.n, 0.02);
+      const mid = a.clone().add(b).multiplyScalar(0.5);
+      // 中ほどを体の軸から外へふくらませる。表と裏をまたぐ時（面の向きが逆）は、横へ大きく回す
+      const across = A.n.dot(B.n) < -0.2;
+      let out = new THREE.Vector3(mid.x, 0, mid.z);
+      if (across || out.lengthSq() < 1e-4) out = new THREE.Vector3(Math.sign(mid.x || a.x + b.x || 1), 0, 0);
+      out.normalize();
+      const d = a.distanceTo(b);
+      const ctrl = mid.clone().addScaledVector(out, across ? 0.18 + d * 0.3 : 0.03 + d * 0.15);
+      const curve = new THREE.QuadraticBezierCurve3(a, ctrl, b);
+      const w = e.w || 0.004;
+      const tube = new THREE.Mesh(new THREE.TubeGeometry(curve, 32, w, 8, false), new THREE.MeshBasicMaterial({ color: e.color || 0x2f5d8a, transparent: true, opacity: e.dashed ? 0.5 : 0.9 }));
+      tube.renderOrder = 10;
+      G.add(tube);
+      const at = curve.getPointAt(0.8), tan = curve.getTangentAt(0.8);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(w * 2.8, w * 6.5, 14), new THREE.MeshBasicMaterial({ color: e.color || 0x2f5d8a }));
+      cone.position.copy(at);
+      cone.quaternion.setFromUnitVectors(up, tan);
+      cone.renderOrder = 10;
+      G.add(cone);
+    }
+    for (const nd of nodes) {
+      let labeled = false;
+      for (const q of nd.pts) {
+        const { p, n } = surf(q);
+        const dot = new THREE.Mesh(new THREE.SphereGeometry(nd.r || 0.01, 16, 12), new THREE.MeshBasicMaterial({ color: nd.color || 0x2f8a5a }));
+        dot.position.copy(p).addScaledVector(n, 0.012);
+        dot.renderOrder = 11;
+        G.add(dot);
+        // 名前は左右のうち一つにだけ
+        if (nd.label && !labeled) {
+          const s = this.label(nd.label, '#1f2a24', 0.042);
+          s.position.copy(p).addScaledVector(n, 0.05).addScaledVector(up, 0.024);
+          s.renderOrder = 12;
+          G.add(s);
+          labeled = true;
+        }
+      }
+    }
+    this.scene.add(G);
+    // 選んだ部位の面の正面から見る（前の部位なら前へ、背中の部位なら後ろへ回る）
+    if (focus) { const f = surf(focus); this.animateTo({ target: { x: 0, y: f.p.y, z: 0 }, r: 2.3, theta: Math.atan2(f.n.x, f.n.z) }); }
     this.render();
   }
 
