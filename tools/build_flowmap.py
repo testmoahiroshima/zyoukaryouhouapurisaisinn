@@ -281,9 +281,12 @@ for e in edges:
     for c in e['cites']:
         if c['id'] in lib: c['read'] = True
 
+# テキストの流れ（flows.json）のうち、route が「流れ」ではなく施術する所・固結のある所の並びになっているもの（流れ図には出さない）
+NOT_FLOW = ['eyes', 'nose']
+
 out = {
-  '_note': 'tools/build_flowmap.py で作る。学ぶ→流れ図のデータ。nodes：図の部位（xy：平面図 施術記録人体図.jpg の位置、p3：3D人体図の位置、point：探査部位、exit：外への出方）。edges：岡田先生の論述・講話から読み取った流れ（kind 明言／推定、text は言い換え、when は条件、cites は出典）。aliases：早見表・テキストの経路名→部位。rel_target・rel_label・point_node：症状の「元」の関係（relations.json）を推定の流れとして出すための対応。',
-  'nodes': nodes, 'edges': edges, 'aliases': ALIASES,
+  '_note': 'tools/build_flowmap.py で作る。学ぶ→流れ図のデータ。nodes：図の部位（xy：平面図 施術記録人体図.jpg の位置、p3：3D人体図の位置、point：探査部位、exit：外への出方）。edges：岡田先生の論述・講話から読み取った流れ（kind 明言／推定、text は言い換え、when は条件、cites は出典）。aliases：早見表・テキストの経路名→部位。rel_target・rel_label・point_node：症状の「元」の関係（relations.json）を推定の流れとして出すための対応。not_flow：テキストの流れのうち、route が流れでなく施術する所の並びのもの（流れ図に出さない）。',
+  'nodes': nodes, 'edges': edges, 'aliases': ALIASES, 'not_flow': NOT_FLOW,
   'rel_target': REL_TARGET, 'rel_label': REL_LABEL, 'point_node': POINT_NODE,
 }
 json.dump(out, open(R + 'data/flowmap.json', 'w', encoding='utf8'), ensure_ascii=False, indent=1)
