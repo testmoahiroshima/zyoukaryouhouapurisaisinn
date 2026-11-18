@@ -636,6 +636,21 @@ for (const f of db.raw.flows.flows) if (!usedF.has(f.id)) console.log('flow not 
   ok(db.raw.flows.flows.every((f) => !/霊|全集|浄霊|宗教/.test(f.stage + f.basis)), '流れの説明に使わない語が無い');
   const roles = Object.fromEntries(analyze(db, '腰が痛い').categories[0].flows.find((f) => f.src.id === 'lowback_occipital').stations.map((s) => [s.name, s.role]));
   ok(roles['後頭部'] === 'rakuya' && roles['腰'] === 'butai', '後頭部→背中→腰：後頭部が楽屋、腰が舞台');
+  // 毒素の流れ図（学ぶ→流れ図）のデータ
+  {
+    const fm = load('flowmap');
+    const ids = new Set(fm.nodes.map((n) => n.id));
+    ok(fm.nodes.every((n) => n.xy?.length && n.p3?.length), '流れ図の部位すべてに平面図・3D人体図の位置');
+    ok(fm.edges.every((e) => ids.has(e.from) && ids.has(e.to) && e.from !== e.to), '流れ図の矢印の元・先がすべて部位にある');
+    ok(fm.edges.every((e) => e.cites.length && e.cites.every((c) => /^(chojutsu|kowa)\d+#\d+$/.test(c.id) && /^19\d\d(\d\d)?$/.test(c.date || ''))), '流れ図の矢印すべてに出典（年月つき）');
+    ok(fm.edges.every((e) => !/霊|全集|浄霊|宗教|神様|全治|治る/.test(e.text + (e.when || ''))), '流れ図の説明に使わない語・言い切りが無い');
+    const ronbunIds = new Set(load('ronbun').articles.map((a) => a.id));
+    ok(fm.edges.every((e) => e.cites.every((c) => !c.read || ronbunIds.has(c.id))), '流れ図で「本文を読む」を出すのは論文の一覧にある記事だけ');
+    const names = [...db.raw.flows.flows, ...db.raw.routes.routes].flatMap((f) => f.route).filter((x) => x !== '全身');
+    ok(names.every((x) => ids.has(fm.aliases[x])), 'テキスト・早見表の経路名がすべて流れ図の部位に置きかわる');
+    ok(Object.values(fm.rel_target).every((x) => ids.has(x)) && Object.values(fm.point_node).every((x) => ids.has(x)), '元の関係（推定）の部位がすべてある');
+    ok(fm.edges.length >= 80 && fm.edges.filter((e) => e.kind === '推定').length >= 1, `論述から読み取った流れ ${fm.edges.length}本`);
+  }
 }
 console.log('keywords:', db.categories.reduce((n, c) => n + c.keywords.length, 0), 'categories:', db.categories.length);
 console.log(fail ? `${fail} FAILED` : 'all passed');

@@ -7,7 +7,7 @@ import { zoneById, QUICK_ZONES, SENSATIONS, needsPlace, phrasesFor, catsFor, zon
 import { loadRecords, addRecord, updateRecord, deleteRecord, newId, today, importRecords, exportJSON, exportCSV, download, summarize } from './records.js';
 import { TRACKS, Player, unlockAudio, setVolume, chime, speak, stopSpeaking, canSpeak, listFiles, addFiles, removeFile } from './audio.js';
 
-const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'relations', 'byomei', 'zenshu_terms'];
+const DATA_FILES = ['body_points', 'flows', 'routes', 'symptoms', 'safety', 'concepts', 'changes', 'places', 'knowledge', 'kenkai', 'relations', 'byomei', 'zenshu_terms', 'flowmap'];
 const KEY_FIELDS = { body_points: 'points' };
 const STORE_INPUT = 'joka.lastInput';
 const STORE_SETTINGS = 'joka.settings';
@@ -2215,6 +2215,222 @@ function renderLearnTab() {
   renderGuide();
 }
 
+// ---- 学ぶ：毒素の流れ図 ----
+// 3級テキスト・2級テキストの流れ（flows.json）、毒素の流れ早見表（routes.json）、岡田先生の論述・講話から読み取った流れ（flowmap.json の edges）、
+// 症状の「元」の関係（relations.json。推定として）を、部位から部位への矢印にまとめて、平面図と3D人体図で見せる。
+// 部位を選ぶと、そこへ流れてくる元（青）と、そこから流れていく先（オレンジ）が光る。「先までたどる」で元の元・先の先まで
+const FM_COLOR = { text: '#2f5d8a', zenshu: '#b8641f', suitei: '#8f9792' };
+const FM_IN = '#1d6fb8', FM_OUT = '#d4531a';
+const FM_SRC = { text: 'テキスト', hayami: '早見表', zenshu: '岡田先生の論述', suitei: '読み取り（推定）' };
+const FM_GROUPS = [
+  ['頭・顔', ['zunou', 'zentoubu', 'touchoubu', 'koutoubu', 'shounou', 'enzui', 'me', 'hana', 'mimi', 'haguki', 'kao']],
+  ['首・のど', ['koukeibu', 'jikasen', 'keibu_lymph', 'hentousen', 'intou']],
+  ['肩・背中・腰', ['kata', 'kenkoukan', 'sekichuu', 'senaka', 'haimen_jinzo', 'jinzo_kahou', 'youkotsu', 'biteikotsu', 'koumon']],
+  ['胸・お腹', ['hai', 'rokkotsu', 'shinzou', 'oukakumaku', 'i', 'kanzou', 'tannou', 'fukubu', 'chou', 'mouchou']],
+  ['下腹部・股', ['kafukubu', 'sokeibu', 'inbu']],
+  ['手・足', ['ude', 'yubi', 'kyakubu', 'ashikubi', 'ashiura']],
+];
+const fmState = { sel: null, deep: false, show: { text: true, zenshu: true, suitei: false }, view: '2d', b3: null };
+let fmGraphCache = null;
+function flowGraph() {
+  if (fmGraphCache) return fmGraphCache;
+  const fm = db.raw.flowmap;
+  const nodes = Object.fromEntries(fm.nodes.map((n) => [n.id, { ...n, ins: [], outs: [] }]));
+  const edges = new Map();
+  const add = (a, b, r) => {
+    if (!a || !b || a === b || !nodes[a] || !nodes[b]) return;
+    const k = `${a}>${b}`;
+    let e = edges.get(k);
+    if (!e) { e = { from: a, to: b, reasons: [] }; edges.set(k, e); nodes[a].outs.push(e); nodes[b].ins.push(e); }
+    e.reasons.push(r);
+  };
+  const chain = (route, r) => { const ids = route.map((x) => fm.aliases[x]); for (let i = 0; i < ids.length - 1; i++) add(ids[i], ids[i + 1], r); };
+  for (const f of db.raw.flows.flows) chain(f.route, { src: f.textbook || f.t2 ? 'text' : 'zenshu', kind: '明言', title: f.stage, text: f.basis, flow: f });
+  for (const r of db.raw.routes.routes) chain(r.route, { src: 'hayami', kind: '明言', title: `早見表 No.${r.no}`, text: `${r.text}${r.note ? `（${r.note}）` : ''}` });
+  for (const e of fm.edges) add(e.from, e.to, { src: e.kind === '推定' ? 'suitei' : 'zenshu', kind: e.kind, text: e.text, when: e.when, cites: e.cites });
+  for (const rel of db.raw.relations.relations) {
+    const to = fm.rel_target[rel.id];
+    if (!to) continue;
+    for (const s of rel.sources) add(fm.point_node[s], to, { src: 'suitei', kind: '推定', title: '元をたどる', text: `${fm.rel_label[rel.id]}の元になりうる所として述べられている（流れとしては、はっきり述べていないものを含む）。`, cites: rel.cites });
+  }
+  // 矢印の種類：テキスト・早見表にある流れ ＞ 論述にはっきり述べられた流れ ＞ 読み取り（推定）だけの流れ
+  for (const e of edges.values()) e.cat = e.reasons.some((r) => r.src === 'text' || r.src === 'hayami') ? 'text' : e.reasons.some((r) => r.kind === '明言') ? 'zenshu' : 'suitei';
+  return (fmGraphCache = { nodes, edges: [...edges.values()] });
+}
+const fmVisible = (e) => fmState.show[e.cat] || e.reasons.some((r) => fmState.show[r.src === 'hayami' ? 'text' : r.src]);
+// 選んだ部位から、元の方（in）と先の方（out）へたどる。deep の時は2段まで（元の元・先の先）
+function fmReach(sel) {
+  const G = flowGraph();
+  const inE = new Set(), outE = new Set(), inN = new Set(), outN = new Set();
+  const walk = (start, dir, eset, nset) => {
+    let front = [start];
+    for (let d = 0; d < (fmState.deep ? 2 : 1) && front.length; d++) {
+      const next = [];
+      for (const id of front) {
+        for (const e of G.nodes[id][dir === 'in' ? 'ins' : 'outs']) {
+          if (!fmVisible(e) || eset.has(e)) continue;
+          eset.add(e);
+          const o = dir === 'in' ? e.from : e.to;
+          if (o !== sel && !nset.has(o)) { nset.add(o); next.push(o); }
+        }
+      }
+      front = next;
+    }
+  };
+  walk(sel, 'in', inE, inN);
+  walk(sel, 'out', outE, outN);
+  return { inE, outE, inN, outN };
+}
+function fmPair(a, b) {
+  // 左右のある部位は、近い方どうしを結ぶ
+  let best = null, bd = Infinity;
+  for (const p of a) for (const q of b) { const d = Math.hypot(p[0] - q[0], p[1] - q[1], (p[2] || 0) - (q[2] || 0)); if (d < bd) { bd = d; best = [p, q]; } }
+  return best;
+}
+function fmSVG() {
+  const G = flowGraph();
+  const { width, height, image } = db.raw.points.chart;
+  const sel = fmState.sel;
+  const R = sel ? fmReach(sel) : null;
+  const colorOf = (e) => (R ? (R.inE.has(e) ? FM_IN : FM_OUT) : FM_COLOR[e.cat]);
+  const shown = G.edges.filter((e) => fmVisible(e) && (!R || R.inE.has(e) || R.outE.has(e)));
+  const marks = new Set(shown.map(colorOf));
+  const defs = [...marks].map((c) => `<marker id="fmah${c.slice(1)}" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${c}"/></marker>`).join('');
+  const paths = shown.map((e) => {
+    const [[x1, y1], [x2, y2]] = fmPair(G.nodes[e.from].xy, G.nodes[e.to].xy);
+    const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+    const ux = (x2 - x1) / len, uy = (y2 - y1) / len;
+    const sx = x1 + ux * 5, sy = y1 + uy * 5, ex = x2 - ux * 7, ey = y2 - uy * 7;
+    // 前面図と背面図をまたぐ線は上へ弧を描き、同じ図の中は少し横へふくらませる
+    const far = Math.abs(x2 - x1) > 110;
+    const mx = (sx + ex) / 2 + (far ? 0 : -uy * len * 0.18), my = (sy + ey) / 2 + (far ? -36 : ux * len * 0.18);
+    const c = colorOf(e);
+    const dash = e.cat === 'suitei' ? ' fm-dash' : '';
+    return `<path class="fm-line${dash}${R ? ' on' : ''}" d="M${sx.toFixed(1)},${sy.toFixed(1)} Q${mx.toFixed(1)},${my.toFixed(1)} ${ex.toFixed(1)},${ey.toFixed(1)}" stroke="${c}" marker-end="url(#fmah${c.slice(1)})"/>`;
+  }).join('');
+  const nodes = Object.values(G.nodes).map((n) => {
+    const role = n.id === sel ? 'sel' : R?.inN.has(n.id) ? 'in' : R?.outN.has(n.id) ? 'out' : '';
+    const lab = role ? n.name.split('（')[0] : '';
+    return n.xy.map(([x, y], i) => `<g class="fm-node ${role}${n.exit ? ' exit' : ''}" data-fm-node="${n.id}" tabindex="0" role="button" aria-label="${esc(n.name)}"><title>${esc(n.name)}${n.exit ? `（出口：${esc(n.exit)}）` : ''}</title>
+      <circle cx="${x}" cy="${y}" r="${role === 'sel' ? 8 : role ? 6.5 : 5}"/>${lab && i === 0 ? `<text x="${x + 9}" y="${y - 6}">${esc(lab)}</text>` : ''}</g>`).join('');
+  }).join('');
+  return `<div class="chart fm-chart">
+    <img src="${esc(image)}" alt="人体図（前面・背面）" width="${width}" height="${height}">
+    <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="毒素の流れ図"><defs>${defs}</defs><g>${paths}</g><g>${nodes}</g></svg>
+  </div>`;
+}
+// 論述から読み取った流れの出典：年月で示し、論文の一覧にある記事（read）だけ「本文を読む」を出す
+function fmCiteHTML(cites) {
+  const dates = [...new Set(cites.map(dateText))];
+  const reads = cites.filter((c) => c.read).map((c) => `<button type="button" class="ronbun-b" data-ronbun="${esc(c.id)}">📖 本文を読む（${esc(dateText(c))}）</button>`).join('');
+  return `<div class="cite">根拠：岡田先生 ${esc(dates.join('・'))}${reads ? `<div class="ronbun-links">${reads}</div>` : ''}</div>`;
+}
+function fmReasonHTML(r) {
+  const src = r.src === 'hayami' ? r.title : FM_SRC[r.src];
+  const cite = r.flow ? flowCite(r.flow) : r.cites ? (r.title === '元をたどる' ? citesHTML({ cites: r.cites }) : fmCiteHTML(r.cites)) : '';
+  return `<div class="fm-reason"><span class="src-label${r.kind === '推定' ? ' guess' : ''}">${esc(src)}</span>${r.src !== 'hayami' && r.title ? `<b>${esc(r.title)}</b>　` : ''}${esc(r.text || '')}${r.when ? `<div class="small muted">（${esc(r.when)}）</div>` : ''}${cite}</div>`;
+}
+function fmEdgeList(list, dir) {
+  const G = flowGraph();
+  if (!list.length) return '<p class="small muted">この見せ方では、ありません。</p>';
+  return `<ul class="fm-list">${list.map((e) => {
+    const o = G.nodes[dir === 'in' ? e.from : e.to];
+    return `<li><details><summary><button type="button" class="fm-go" data-fm-node="${o.id}">${esc(o.name)}</button><span class="fm-arrow ${dir}">${dir === 'in' ? 'から流れてくる' : 'へ流れていく'}</span><span class="small muted">根拠 ${e.reasons.length}</span></summary>${e.reasons.map(fmReasonHTML).join('')}</details></li>`;
+  }).join('')}</ul>`;
+}
+function fmDetailHTML() {
+  const G = flowGraph();
+  const n = G.nodes[fmState.sel];
+  if (!n) return `<p class="small">図の丸（部位）を押すか、上の「部位」から選ぶと、その部位へ流れてくる元（<b style="color:${FM_IN}">青</b>）と、そこから流れていく先（<b style="color:${FM_OUT}">オレンジ</b>）が光り、根拠が出ます。</p>`;
+  const ins = n.ins.filter(fmVisible), outs = n.outs.filter(fmVisible);
+  const pt = n.point ? db.pointById[n.point] : null;
+  return `<h3 class="fm-title">${esc(n.name)}${pt ? `<span class="small muted">　探査箇所 ${esc(pt.no)}</span>` : ''}</h3>
+    ${n.exit ? `<p class="fm-exit">ここから外へ出る形：<b>${esc(n.exit)}</b></p>` : ''}
+    <h4>ここへ流れてくる元（${ins.length}）</h4>${fmEdgeList(ins, 'in')}
+    <h4>ここから流れていく先（${outs.length}）</h4>${fmEdgeList(outs, 'out')}`;
+}
+function renderFlowMap() {
+  const box = $('#learn-flowmap');
+  if (!box) return;
+  const G = flowGraph();
+  const count = (cat) => G.edges.filter((e) => e.cat === cat).length;
+  const opts = FM_GROUPS.map(([g, ids]) => `<optgroup label="${esc(g)}">${ids.filter((id) => G.nodes[id]).map((id) => `<option value="${id}"${fmState.sel === id ? ' selected' : ''}>${esc(G.nodes[id].name)}</option>`).join('')}</optgroup>`).join('');
+  box.innerHTML = `<div class="card fm">
+    <h2>毒素の流れ図</h2>
+    <p class="small">3級テキスト・2級テキスト実践編・毒素の流れ早見表と、岡田先生の論述・講話（昭和11〜29年）から、毒素が体のどこからどこへ移るとされているかを一枚の人体図にしました。</p>
+    <div class="fm-controls">
+      <div class="seg fm-view" role="tablist" aria-label="見せ方"><button type="button" role="tab" data-fm-view="2d" aria-selected="${fmState.view === '2d'}">平面図</button><button type="button" role="tab" data-fm-view="3d" aria-selected="${fmState.view === '3d'}">3D人体図</button></div>
+      <label class="fm-pick">部位 <select id="fm-sel"><option value="">選ばない（すべての流れ）</option>${opts}</select></label>
+      <label class="fm-chk"><input type="checkbox" id="fm-deep"${fmState.deep ? ' checked' : ''}> 先までたどる（元の元・先の先）</label>
+      <div class="fm-legend">
+        <label><input type="checkbox" data-fm-show="text"${fmState.show.text ? ' checked' : ''}><span class="sw" style="background:${FM_COLOR.text}"></span>テキスト・早見表（${count('text')}）</label>
+        <label><input type="checkbox" data-fm-show="zenshu"${fmState.show.zenshu ? ' checked' : ''}><span class="sw" style="background:${FM_COLOR.zenshu}"></span>岡田先生の論述（${count('zenshu')}）</label>
+        <label><input type="checkbox" data-fm-show="suitei"${fmState.show.suitei ? ' checked' : ''}><span class="sw dash" style="border-color:${FM_COLOR.suitei}"></span>読み取り・推定（点線・${count('suitei')}）</label>
+      </div>
+    </div>
+    <div id="fm-figure"></div>
+    <div id="fm-detail" class="fm-detail"></div>
+    <p class="small muted">テキスト・早見表の流れは試験的な分類を含みます。「読み取り（推定）」は、論述からそう読み取れるもので、流れとしてはっきり述べられてはいません。言い回しは当時の考えを言い換えたもので、病気の診断や治療の代わりにはなりません。体の不調は医療機関で診てもらい、治療中の方は主治医の判断を優先してください。</p>
+  </div>`;
+  fmDraw();
+}
+async function fmDraw() {
+  const fig = $('#fm-figure'), det = $('#fm-detail');
+  if (!fig) return;
+  det.innerHTML = fmDetailHTML();
+  wireZenshu(det);
+  if (fmState.view === '2d') { fig.innerHTML = fmSVG(); return; }
+  if (!fig.querySelector('.fm-3d')) fig.innerHTML = '<div class="b3-stage"><div class="b3-wrap fm-3d"><p class="small muted b3-loading">3D人体図を読み込んでいます…</p></div></div><p class="small muted">指でなぞると回り、二本の指で広げると大きくなります。背中側・横からも見られます。</p>';
+  const el = fig.querySelector('.fm-3d');
+  try {
+    const mesh = await loadMesh();
+    if (!el.isConnected) return;
+    if (!fmState.b3) { fmState.b3 = new Body3D(mesh, db.pointList); fmState.b3.mode = 'rotate'; fmState.b3.showNumbers = false; fmState.b3.view = 'back'; }
+    const b = fmState.b3;
+    b.ratio = 1.15;
+    b.maxH = 0.62;
+    if (!b.attach(el)) throw new Error('webgl');
+    b.updateColors();
+    b.setFlowMap(fm3DSpec());
+  } catch {
+    if (el.isConnected) el.innerHTML = '<p class="small muted">この端末では3D図を表示できません。平面図で見てください。</p>';
+  }
+}
+function fm3DSpec() {
+  const G = flowGraph();
+  const sel = fmState.sel;
+  const R = sel ? fmReach(sel) : null;
+  const hex = (c) => parseInt(c.slice(1), 16);
+  const edges = G.edges.filter((e) => fmVisible(e) && (!R || R.inE.has(e) || R.outE.has(e))).map((e) => {
+    const [a, b] = fmPair(G.nodes[e.from].p3, G.nodes[e.to].p3);
+    return { a, b, color: hex(R ? (R.inE.has(e) ? FM_IN : FM_OUT) : FM_COLOR[e.cat]), dashed: e.cat === 'suitei', w: R ? 0.005 : 0.0032 };
+  });
+  const nodes = Object.values(G.nodes).map((n) => {
+    const role = n.id === sel ? 'sel' : R?.inN.has(n.id) ? 'in' : R?.outN.has(n.id) ? 'out' : '';
+    return { pts: n.p3, color: hex(role === 'sel' ? '#e0661f' : role === 'in' ? FM_IN : role === 'out' ? FM_OUT : '#2f8a5a'), r: role === 'sel' ? 0.016 : role ? 0.012 : 0.008, label: role ? n.name.split('（')[0] : '' };
+  });
+  return { nodes, edges, focus: sel ? G.nodes[sel].p3[0] : null };
+}
+function wireFlowMap() {
+  const box = $('#learn-flowmap');
+  if (!box || box.dataset.wired) return;
+  box.dataset.wired = '1';
+  // 図の丸は押すたびに選ぶ・外すを切り替え、一覧の名前は押すとその部位へ移る
+  const pick = (id, toggle) => { fmState.sel = toggle && fmState.sel === id ? null : id; const s = $('#fm-sel'); if (s) s.value = fmState.sel || ''; fmDraw(); };
+  box.addEventListener('click', (e) => {
+    const v = e.target.closest('[data-fm-view]');
+    if (v) { fmState.view = v.dataset.fmView; $$('[data-fm-view]', box).forEach((b) => b.setAttribute('aria-selected', String(b === v))); fmDraw(); return; }
+    const n = e.target.closest('[data-fm-node]');
+    if (n) { e.preventDefault(); const go = n.classList.contains('fm-go'); pick(n.dataset.fmNode, !go); if (go) $('#fm-figure')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
+  });
+  box.addEventListener('keydown', (e) => { const n = e.target.closest('g[data-fm-node]'); if (n && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(n.dataset.fmNode, true); } });
+  box.addEventListener('change', (e) => {
+    if (e.target.id === 'fm-sel') { fmState.sel = e.target.value || null; fmDraw(); }
+    else if (e.target.id === 'fm-deep') { fmState.deep = e.target.checked; fmDraw(); }
+    else if (e.target.dataset.fmShow) { fmState.show[e.target.dataset.fmShow] = e.target.checked; fmDraw(); }
+  });
+}
+
 // ---- 学ぶ：論文を読む ----
 // 判断の根拠にしている岡田先生の論述・講話の本文（data/ronbun.json。tools/build_ronbun.py で作る）。
 // 精神面・宗教面の部分を外して意味が通るように整え、「浄霊」は「浄化療法」に改めている。出典は年月で示す
@@ -2456,6 +2672,7 @@ function showLearn(sub) {
   $$('#tab-learn .learn-panel').forEach((el) => { el.hidden = el.id !== (sub === 'points' ? 'tab-points' : sub === 'kenkai' ? 'tab-kenkai' : `learn-${sub}`); });
   store.set('joka.learnSub', sub);
   if (sub === 'ronbun') renderRonbun();
+  if (sub === 'flowmap') { if (!$('#learn-flowmap .fm')) renderFlowMap(); wireFlowMap(); }
 }
 
 // ---- ホーム ----
