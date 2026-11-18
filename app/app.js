@@ -2245,7 +2245,7 @@ function flowGraph() {
     e.reasons.push(r);
   };
   const chain = (route, r) => { const ids = route.map((x) => fm.aliases[x]); for (let i = 0; i < ids.length - 1; i++) add(ids[i], ids[i + 1], r); };
-  for (const f of db.raw.flows.flows) chain(f.route, { src: f.textbook || f.t2 ? 'text' : 'zenshu', kind: '明言', title: f.stage, text: f.basis, flow: f });
+  for (const f of db.raw.flows.flows) if (!fm.not_flow?.includes(f.id)) chain(f.route, { src: f.textbook || f.t2 ? 'text' : 'zenshu', kind: '明言', title: f.stage, text: f.basis, flow: f });
   for (const r of db.raw.routes.routes) chain(r.route, { src: 'hayami', kind: '明言', title: `早見表 No.${r.no}`, text: `${r.text}${r.note ? `（${r.note}）` : ''}` });
   for (const e of fm.edges) add(e.from, e.to, { src: e.kind === '推定' ? 'suitei' : 'zenshu', kind: e.kind, text: e.text, when: e.when, cites: e.cites });
   for (const rel of db.raw.relations.relations) {

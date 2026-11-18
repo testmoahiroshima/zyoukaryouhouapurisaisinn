@@ -1,5 +1,5 @@
 {
- "_note": "tools/build_flowmap.py で作る。学ぶ→流れ図のデータ。nodes：図の部位（xy：平面図 施術記録人体図.jpg の位置、p3：3D人体図の位置、point：探査部位、exit：外への出方）。edges：岡田先生の論述・講話から読み取った流れ（kind 明言／推定、text は言い換え、when は条件、cites は出典）。aliases：早見表・テキストの経路名→部位。rel_target・rel_label・point_node：症状の「元」の関係（relations.json）を推定の流れとして出すための対応。",
+ "_note": "tools/build_flowmap.py で作る。学ぶ→流れ図のデータ。nodes：図の部位（xy：平面図 施術記録人体図.jpg の位置、p3：3D人体図の位置、point：探査部位、exit：外への出方）。edges：岡田先生の論述・講話から読み取った流れ（kind 明言／推定、text は言い換え、when は条件、cites は出典）。aliases：早見表・テキストの経路名→部位。rel_target・rel_label・point_node：症状の「元」の関係（relations.json）を推定の流れとして出すための対応。not_flow：テキストの流れのうち、route が流れでなく施術する所の並びのもの（流れ図に出さない）。",
  "nodes": [
   {
    "id": "zunou",
@@ -2568,6 +2568,10 @@
   "腕": "ude",
   "手指": "yubi"
  },
+ "not_flow": [
+  "eyes",
+  "nose"
+ ],
  "rel_target": {
   "rel_eyes": "me",
   "rel_dizzy": "zunou",
